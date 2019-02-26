@@ -614,11 +614,22 @@ int main() {
   }
   puts(RemoteBranchName(head).c_str());
 
-  git_object *obj = NULL;
-  CHECK(git_revparse_single(&obj, repo, "HEAD^{tree}") == 0) << GitError();
-  git_tree *tree = NULL;
-  CHECK(git_tree_lookup(&tree, repo, git_object_id(obj)) == 0) << GitError();
-  git_diff *diff = NULL;
-  CHECK(git_diff_tree_to_index(&diff, repo, tree, NULL, NULL) == 0) << GitError();
+  // git_object *obj = NULL;
+  // CHECK(git_revparse_single(&obj, repo, "HEAD^{tree}") == 0) << GitError();
+  // git_tree *tree = nullptr;
+  // CHECK(git_tree_lookup(&tree, repo, git_object_id(obj)) == 0) << GitError();
+
+  const git_oid* head_oid = git_reference_target(head);
+  CHECK(head_oid);
+  git_commit* head_commit = nullptr;
+  CHECK(git_commit_lookup(&head_commit, repo, head_oid) == 0) << GitError();
+  git_tree *tree = nullptr;
+  CHECK(git_commit_tree(&tree, head_commit) == 0) << GitError();
+  // CHECK(git_tree_lookup(&tree, repo, head_oid) == 0) << GitError();
+  git_diff *diff = nullptr;
+  // TODO: Get index from repo and replace git_diff_tree_to_index with use git_diff_tree_to_tree.
+  // This will be useful because we'll also need git_diff_index_to_workdir, which can replace
+  // with git_diff_tree_to_workdir and thus read index only once instead of twice.
+  CHECK(git_diff_tree_to_index(&diff, repo, tree, nullptr, nullptr) == 0) << GitError();
   printf("%ld\n", git_diff_num_deltas(diff));  // the number of staged files
 }
