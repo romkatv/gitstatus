@@ -58,7 +58,7 @@ Run `gitstatus --help` for help or read the same thing in [gitstatus.cc](https:/
 
 If you are using the awesome [Powerlevel9k](https://github.com/bhilburn/powerlevel9k) ZSH theme, you can configure the existing `vcs` prompt to use gitstatus for a massive reduction in latency.
 
-Before commmitting, you can try it our in a shell without making any permanent configuration changes. Type these commands into `zsh`:
+Before committing, you can try it our in a shell without making any permanent configuration changes. Type these commands into `zsh`:
 
 ```zsh
 # Enable caching of parts of the prompt to make rendering much faster.
