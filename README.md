@@ -17,7 +17,7 @@ When using common tools such as [vcs_info](http://zsh.sourceforge.net/Doc/Releas
 
 ## Compiling
 
-For best results, compile libgit2 statically with all optional features disabled and all required feature bundled.
+For best results, compile libgit2 statically with all optional features disabled and all required features bundled.
 
 ```zsh
 git clone https://github.com/libgit2/libgit2.git
