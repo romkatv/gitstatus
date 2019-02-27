@@ -1,5 +1,5 @@
 # gitstatus
-**gitstatus** is a lightweight tool for querying the status of git repos for the use in interactive tools.
+**gitstatus** is a lightweight tool for querying the status of git repos for use in interactive scripts.
 
 The primary motivation is to be able to use git status in shell prompt without suffering terrible latency that all other solutions impose.
 
