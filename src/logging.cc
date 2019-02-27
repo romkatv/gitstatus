@@ -1,27 +1,28 @@
-// Copyright 2018 Roman Perepelitsa
+// Copyright 2018 Roman Perepelitsa.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// This file is part of GitStatus.
 //
-//   http://www.apache.org/licenses/LICENSE-2.0
+// GitStatus is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// GitStatus is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with GitStatus. If not, see <https://www.gnu.org/licenses/>.
 
 #include "logging.h"
-
-#include <errno.h>
 
 #include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <string>
 
-namespace hcproxy {
+namespace gitstatus {
 namespace internal_logging {
 
 namespace {
@@ -43,7 +44,7 @@ const char* Str(Severity severity) {
 }  // namespace
 
 LogStreamBase::LogStreamBase(const char* file, int line, Severity severity)
-    : errno_(errno), file_(file), line_(line), severity_(severity) {
+    : file_(file), line_(line), severity_(severity) {
   strm_ = std::make_unique<std::ostringstream>();
 }
 
@@ -56,16 +57,7 @@ void LogStreamBase::Flush() {
   std::string msg = strm_->str();
   std::fprintf(stderr, "[%s %s %s:%d] %s\n", time_str, Str(severity_), file_, line_, msg.c_str());
   strm_.reset();
-  errno = errno_;
-}
-
-std::ostream& operator<<(std::ostream& strm, Errno e) {
-  // GNU C Library uses a buffer of 1024 characters for strerror(). Mimic to avoid truncations.
-  char buf[1024];
-  // This temp variable ensures that we are calling the GNU-specific strerror_r().
-  const char* desc = strerror_r(e.err, buf, sizeof(buf));
-  return strm << desc;
 }
 
 }  // namespace internal_logging
-}  // namespace hcproxy
+}  // namespace gitstatus

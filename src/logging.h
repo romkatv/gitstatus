@@ -1,19 +1,22 @@
-// Copyright 2018 Roman Perepelitsa
+// Copyright 2018 Roman Perepelitsa.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// This file is part of GitStatus.
 //
-//   http://www.apache.org/licenses/LICENSE-2.0
+// GitStatus is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// GitStatus is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with GitStatus. If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef ROMKATV_HCPROXY_LOGGING_H_
-#define ROMKATV_HCPROXY_LOGGING_H_
+#ifndef ROMKATV_GITSTATUS_LOGGING_H_
+#define ROMKATV_GITSTATUS_LOGGING_H_
 
 #include <cstdlib>
 #include <memory>
@@ -27,16 +30,15 @@
 
 #define LOG(severity) LOG_I(severity)
 
-#define LOG_I(severity)                                                                    \
-  (::hcproxy::internal_logging::severity < ::hcproxy::internal_logging::HCP_MIN_LOG_LVL)   \
-      ? static_cast<void>(0)                                                               \
-      : ::hcproxy::internal_logging::Assignable() =                                        \
-            ::hcproxy::internal_logging::LogStream<::hcproxy::internal_logging::severity>( \
-                __FILE__, __LINE__, ::hcproxy::internal_logging::severity)                 \
+#define LOG_I(severity)                                                                        \
+  (::gitstatus::internal_logging::severity < ::gitstatus::internal_logging::HCP_MIN_LOG_LVL)   \
+      ? static_cast<void>(0)                                                                   \
+      : ::gitstatus::internal_logging::Assignable() =                                          \
+            ::gitstatus::internal_logging::LogStream<::gitstatus::internal_logging::severity>( \
+                __FILE__, __LINE__, ::gitstatus::internal_logging::severity)                   \
                 .ref()
 
-namespace hcproxy {
-
+namespace gitstatus {
 namespace internal_logging {
 
 enum Severity {
@@ -57,13 +59,11 @@ class LogStreamBase {
 
   LogStreamBase& ref() { return *this; }
   std::ostream& strm() { return *strm_; }
-  int stashed_errno() const { return errno_; }
 
  protected:
   void Flush();
 
  private:
-  int errno_;
   const char* file_;
   int line_;
   Severity severity_;
@@ -83,7 +83,7 @@ class LogStream<FATAL> : public LogStreamBase {
   using LogStreamBase::LogStreamBase;
   ~LogStream() __attribute__((noreturn)) {
     this->Flush();
-    std::quick_exit(1);
+    std::exit(1);
   }
 };
 
@@ -98,23 +98,7 @@ inline LogStreamBase& operator<<(LogStreamBase& strm, std::ostream& (*manip)(std
   return strm;
 }
 
-struct Errno {
-  int err;
-};
-
-std::ostream& operator<<(std::ostream& strm, Errno e);
-
-struct StashedErrno {};
-
-inline LogStreamBase& operator<<(LogStreamBase& strm, StashedErrno) {
-  return strm << Errno{strm.stashed_errno()};
-}
-
 }  // namespace internal_logging
+}  // namespace gitstatus
 
-inline internal_logging::Errno Errno(int err) { return {err}; }
-inline internal_logging::StashedErrno Errno() { return {}; }
-
-}  // namespace hcproxy
-
-#endif  // ROMKATV_HCPROXY_LOGGING_H_
+#endif  // ROMKATV_GITSTATUS_LOGGING_H_

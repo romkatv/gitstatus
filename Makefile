@@ -1,32 +1,20 @@
-appname := gitstatus
+APPNAME ?= gitstatus
 
-CXX := g++
+CXX ?= g++
 
-CXXFLAGS :=       \
-  -std=c++17      \
-  -funsigned-char \
-  -fmax-errors=1  \
-  -O3             \
-  -g              \
-  -DNDEBUG
+CXXFLAGS += -std=c++17 -funsigned-char -fno-exceptions -O3 -DNDEBUG -Wall -Werror
+LDFLAGS += -static -s
 
-LDFLAGS :=          \
-  -static-libstdc++ \
-  -static-libgcc    \
-  -pthread          \
-  -l:libgit2.a      \
-  -l:libssl.a       \
-  -l:libcrypto.a    \
-  -l:libz.a         \
-  -ldl
+CXXFLAGS += $(shell pkg-config --cflags libgit2)
+LDFLAGS += $(shell pkg-config --libs libgit2)
 
 SRCS := $(shell find src -name "*.cc")
 OBJS := $(patsubst src/%.cc, obj/%.o, $(SRCS))
 
-all: $(appname)
+all: $(APPNAME)
 
-$(appname): $(OBJS)
-	$(CXX) $(OBJS) $(LDFLAGS) -o $(appname)
+$(APPNAME): $(OBJS)
+	$(CXX) $(OBJS) $(LDFLAGS) -o $(APPNAME)
 
 obj:
 	mkdir -p obj
