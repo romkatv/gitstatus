@@ -73,8 +73,8 @@ Then set the following configuration options in your `.zshrc` before sourcing Po
 POWERLEVEL9K_USE_CACHE=true
 
 # Enable alternative implementation for the vcs prompt. It's much faster but it only supports git.
-# Tell it to not scan for dirty files in repos with over 1k files.
-POWERLEVEL9K_VCS_STATUS_COMMAND="$HOME/bin/gitstatus --dirty-max-index-size=1024"
+# Tell it to not scan for dirty files in repos with over 4k files.
+POWERLEVEL9K_VCS_STATUS_COMMAND="$HOME/bin/gitstatus --dirty-max-index-size=4096"
 ```
 
 Lastly, put `gitstatus` binary in your `~/bin`.
