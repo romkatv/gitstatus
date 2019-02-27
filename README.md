@@ -19,7 +19,7 @@ When using common tools such as [vcs_info](http://zsh.sourceforge.net/Doc/Releas
 
 For best results, compile libgit2 statically with all optional features disabled and all required feature bundled.
 
-```shell
+```zsh
 git clone https://github.com/libgit2/libgit2.git
 cd libgit2
 mkdir build
@@ -40,7 +40,7 @@ sudo make install
 
 Then build gitstatus itself.
 
-```shell
+```zsh
 git clone git@github.com:romkatv/gitstatus.git
 cd gitstatus
 make
@@ -60,7 +60,7 @@ If you are using the awesome [Powerlevel9k](https://github.com/bhilburn/powerlev
 
 First, use [this fork](https://github.com/romkatv/powerlevel9k/tree/caching) of Powerlevel9k instead of the official release. This fork also enables caching, which speeds up prompt rendering by over 10x. Note that you need to use branch `caching`.
 
-```shell
+```zsh
 # Assuming oh-my-zsh at the standard location.
 rm -rf ~/.oh-my-zsh/custom/themes/powerlevel9k
 git clone -b caching git@github.com:romkatv/powerlevel9k.git ~/.oh-my-zsh/custom/themes/powerlevel9k
@@ -68,7 +68,7 @@ git clone -b caching git@github.com:romkatv/powerlevel9k.git ~/.oh-my-zsh/custom
 
 Then set the following configuration options in your `.zshrc` before sourcing Powerlevel9k.
 
-```
+```zsh
 # Enable caching of parts of the prompt to make rendering much faster.
 POWERLEVEL9K_USE_CACHE=true
 
