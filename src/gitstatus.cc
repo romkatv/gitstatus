@@ -1,4 +1,4 @@
-// Copyright 2018 Roman Perepelitsa.
+// Copyright 2019 Roman Perepelitsa.
 //
 // This file is part of GitStatus.
 //
