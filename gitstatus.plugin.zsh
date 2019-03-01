@@ -43,7 +43,11 @@ function gitstatus_query_dir() {
 
   while true; do
     typeset -g VCS_STATUS_ALL
-    IFS=$'\x1f' read -r -d $'\x1e' -u $_GITSTATUS_RESP -t $GITSTATUS_TIMEOUT_SEC -A VCS_STATUS_ALL
+    IFS=$'\x1f' read -rd $'\x1e' -u $_GITSTATUS_RESP -t $GITSTATUS_TIMEOUT_SEC -A VCS_STATUS_ALL ||
+    {
+      echo "gitstatus: timed out" >&2
+      return 1
+    }
     [[ ${VCS_STATUS_ALL[1]} == $ID ]] || continue
     [[ ${VCS_STATUS_ALL[2]} == 1 ]]
 
@@ -98,7 +102,6 @@ function gitstatus_init() {
 if ! gitstatus_init; then
   echo "gitstatus failed to initialize" >&2
   unset GITSTATUS_DAEMON_PID
-  unset GITSTATUS_DAEMON_LOG
 fi
 
 unset -f gitstatus_init
