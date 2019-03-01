@@ -23,11 +23,11 @@
 
 #include "check.h"
 #include "git.h"
-#include "line_reader.h"
 #include "logging.h"
 #include "options.h"
-#include "output.h"
 #include "repo_cache.h"
+#include "request_reader.h"
+#include "response_writer.h"
 #include "scope_guard.h"
 #include "timer.h"
 
@@ -37,7 +37,7 @@ namespace {
 using namespace std::string_literals;
 
 void ProcessRequest(const Options& opts, RepoCache& cache, std::string dir) {
-  Output out;
+  ResponseWriter out;
   if (dir.empty() || dir.front() != '/') return;
   if (dir.back() != '/') dir += '/';
 
@@ -108,7 +108,7 @@ void ProcessRequest(const Options& opts, RepoCache& cache, std::string dir) {
 
 int GitStatus(int argc, char** argv) {
   Options opts = ParseOptions(argc, argv);
-  LineReader reader(fileno(stdin), opts.parent_pid);
+  RequestReader reader(fileno(stdin), opts.parent_pid);
   RepoCache cache;
 
   git_libgit2_init();
