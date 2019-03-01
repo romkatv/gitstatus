@@ -24,18 +24,18 @@
 #include <ostream>
 #include <sstream>
 
-#ifndef HCP_MIN_LOG_LVL
-#define HCP_MIN_LOG_LVL INFO
+#ifndef GITSTATUS_MIN_LOG_LVL
+#define GITSTATUS_MIN_LOG_LVL INFO
 #endif
 
 #define LOG(severity) LOG_I(severity)
 
-#define LOG_I(severity)                                                                        \
-  (::gitstatus::internal_logging::severity < ::gitstatus::internal_logging::HCP_MIN_LOG_LVL)   \
-      ? static_cast<void>(0)                                                                   \
-      : ::gitstatus::internal_logging::Assignable() =                                          \
-            ::gitstatus::internal_logging::LogStream<::gitstatus::internal_logging::severity>( \
-                __FILE__, __LINE__, ::gitstatus::internal_logging::severity)                   \
+#define LOG_I(severity)                                                                            \
+  (::gitstatus::internal_logging::severity < ::gitstatus::internal_logging::GITSTATUS_MIN_LOG_LVL) \
+      ? static_cast<void>(0)                                                                       \
+      : ::gitstatus::internal_logging::Assignable() =                                              \
+            ::gitstatus::internal_logging::LogStream<::gitstatus::internal_logging::severity>(     \
+                __FILE__, __LINE__, ::gitstatus::internal_logging::severity)                       \
                 .ref()
 
 namespace gitstatus {
