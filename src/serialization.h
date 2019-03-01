@@ -15,49 +15,14 @@
 // You should have received a copy of the GNU General Public License
 // along with GitStatus. If not, see <https://www.gnu.org/licenses/>.
 
-#include "response_writer.h"
-
-#include <cctype>
-#include <cstring>
-#include <iostream>
-
-#include "check.h"
+#ifndef ROMKATV_GITSTATUS_SERIALIZATION_H_
+#define ROMKATV_GITSTATUS_SERIALIZATION_H_
 
 namespace gitstatus {
 
-namespace {
-
 constexpr char kFieldSep = 31;  // ascii 31 is unit separator
-constexpr char kReqSep = 30;    // ascii 30 is record separator
-
-constexpr char kUnreadable = '?';
-
-void WriteRecord(std::string_view rec) { std::cout << rec << kReqSep << std::flush; }
-
-}  // namespace
-
-ResponseWriter::ResponseWriter() { strm_ << '1'; }
-
-ResponseWriter::~ResponseWriter() {
-  if (!done_) WriteRecord("0");
-}
-
-void ResponseWriter::Print(ssize_t val) {
-  strm_ << kFieldSep;
-  strm_ << val;
-}
-
-void ResponseWriter::Print(std::string_view val) {
-  strm_ << kFieldSep;
-  for (char c : val) {
-    strm_ << (c > 127 || std::isprint(c) ? c : kUnreadable);
-  }
-}
-
-void ResponseWriter::Dump() {
-  CHECK(!done_);
-  done_ = true;
-  WriteRecord(strm_.str());
-}
+constexpr char kMsgSep = 30;    // ascii 30 is record separator
 
 }  // namespace gitstatus
+
+#endif  // ROMKATV_GITSTATUS_SERIALIZATION_H_
