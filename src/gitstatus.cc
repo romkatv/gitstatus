@@ -38,6 +38,8 @@ using namespace std::string_literals;
 
 void ProcessRequest(const Options& opts, RepoCache& cache, std::string dir) {
   LOG(INFO) << "Processing request: " << dir;
+
+  Timer timer;
   ResponseWriter out;
   if (dir.empty() || dir.front() != '/') return;
   if (dir.back() != '/') dir += '/';
@@ -105,6 +107,7 @@ void ProcessRequest(const Options& opts, RepoCache& cache, std::string dir) {
   out.Print(NumStashes(repo));
 
   out.Dump();
+  timer.Report(dir);
 }
 
 int GitStatus(int argc, char** argv) {
