@@ -110,7 +110,6 @@ int GitStatus(int argc, char** argv) {
   RequestReader reader(fileno(stdin), opts.parent_pid);
   RepoCache cache;
 
-  LOG(INFO) << "LOL";
   git_libgit2_init();
 
   while (true) {
