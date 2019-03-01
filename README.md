@@ -67,7 +67,6 @@ cmake                        \
   -DBUILD_SHARED_LIBS=OFF    \
   -DUSE_EXT_HTTP_PARSER=OFF  \
   -DUSE_BUNDLED_ZLIB=ON      \
-  -DSHA1_BACKEND=Generic     \
   -DCMAKE_BUILD_TYPE=Release \
   ..
 make VERBOSE=1 -j 20
