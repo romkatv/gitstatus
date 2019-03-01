@@ -1,4 +1,4 @@
-APPNAME ?= gitstatus
+APPNAME ?= gitstatusd
 
 CXX ?= g++
 

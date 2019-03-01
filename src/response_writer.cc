@@ -17,6 +17,7 @@
 
 #include "response_writer.h"
 
+#include <cctype>
 #include <cstring>
 #include <iostream>
 
@@ -24,32 +25,39 @@
 
 namespace gitstatus {
 
-ResponseWriter::ResponseWriter() { strm_ << 1; }
+namespace {
+
+constexpr char kFieldSep = 31;  // ascii 31 is unit separator
+constexpr char kReqSep = 30;    // ascii 30 is record separator
+
+constexpr char kUnreadable = '?';
+
+void WriteRecord(std::string_view rec) { std::cout << rec << kReqSep << std::flush; }
+
+}  // namespace
+
+ResponseWriter::ResponseWriter() { strm_ << '1'; }
 
 ResponseWriter::~ResponseWriter() {
-  if (!done_) std::cout << 0 << std::endl;
+  if (!done_) WriteRecord("0");
 }
 
 void ResponseWriter::Print(ssize_t val) {
-  strm_ << ' ';
+  strm_ << kFieldSep;
   strm_ << val;
 }
 
 void ResponseWriter::Print(std::string_view val) {
-  static constexpr char kEscape[] = "\n\"\\";
-  strm_ << ' ';
-  strm_ << '"';
+  strm_ << kFieldSep;
   for (char c : val) {
-    if (std::strchr(kEscape, c)) strm_ << '\\';
-    strm_ << c;
+    strm_ << (c > 127 || std::isprint(c) ? c : kUnreadable);
   }
-  strm_ << '"';
 }
 
 void ResponseWriter::Dump() {
   CHECK(!done_);
   done_ = true;
-  std::cout << strm_.str() << std::endl;
+  WriteRecord(strm_.str());
 }
 
 }  // namespace gitstatus
