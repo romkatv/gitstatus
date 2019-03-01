@@ -18,8 +18,8 @@
 #ifndef ROMKATV_GITSTATUS_REPO_CACHE_H_
 #define ROMKATV_GITSTATUS_REPO_CACHE_H_
 
-#include <map>
 #include <string>
+#include <unordered_map>
 
 #include <git2.h>
 
@@ -31,15 +31,10 @@ class RepoCache {
   RepoCache(RepoCache&&) = delete;
   ~RepoCache();
 
-  // Returns null if not found.
-  // Requires: dir ends with '/'.
-  git_repository* Find(const std::string& dir) const;
-
-  // Returns false if it's a kind of repo that cannot be cached.
-  bool Put(git_repository* repo);
+  git_repository* Intern(git_repository* repo);
 
  private:
-  std::map<std::string, git_repository*> cache_;
+  std::unordered_map<std::string, git_repository*> cache_;
 };
 
 }  // namespace gitstatus

@@ -21,38 +21,21 @@
 
 namespace gitstatus {
 
-namespace {
-
-bool StartsWith(std::string_view s, std::string_view prefix) {
-  return s.size() >= prefix.size() && s.substr(0, prefix.size()) == prefix;
-}
-
-}  // namespace
-
 RepoCache::~RepoCache() {
   for (const auto& kv : cache_) git_repository_free(kv.second);
 }
 
-git_repository* RepoCache::Find(const std::string& dir) const {
-  CHECK(!dir.empty() && dir.back() == '/') << dir;
-  auto it = cache_.lower_bound(dir);
-  if (it != cache_.end() && it->first == dir) return it->second;
-  if (it == cache_.begin()) return nullptr;
-  --it;
-  return StartsWith(dir, it->first) ? it->second : nullptr;
-}
-
-bool RepoCache::Put(git_repository* repo) {
-  const char* work_dir = git_repository_workdir(repo);
-  if (!work_dir || *work_dir != '/') return false;
-  std::string key = work_dir;
-  if (key.back() != '/') return false;
-  auto x = cache_.insert(std::make_pair(std::move(key), repo));
-  if (!x.second) {
-    git_repository_free(x.first->second);
-    x.first->second = repo;
+git_repository* RepoCache::Intern(git_repository* repo) {
+  try {
+    const char* work_dir = git_repository_workdir(repo);
+    VERIFY(work_dir);
+    auto x = cache_.emplace(work_dir, repo);
+    if (!x.second) git_repository_free(repo);
+    return x.first->second;
+  } catch(...) {
+    git_repository_free(repo);
+    throw;
   }
-  return true;
 }
 
 }  // namespace gitstatus

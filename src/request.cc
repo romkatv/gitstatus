@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with GitStatus. If not, see <https://www.gnu.org/licenses/>.
 
-#include "request_reader.h"
+#include "request.h"
 
 #include <fcntl.h>
 #include <signal.h>
@@ -29,17 +29,35 @@
 
 #include "check.h"
 #include "logging.h"
+#include "serialization.h"
 
 namespace gitstatus {
 
-constexpr char kSep = 30;  // ascii 30 is record separator
+namespace {
 
-std::string RequestReader::ReadRequest() {
-  auto eol = std::find(read_.begin(), read_.end(), kSep);
+Request ParseRequest(std::string_view s) {
+  auto sep = s.find(kFieldSep);
+  VERIFY(sep != std::string_view::npos) << "Malformed request: " << s;
+  VERIFY(s.find(kFieldSep, sep + 1) == std::string_view::npos) << "Malformed request: " << s;
+  Request res;
+  res.id.assign(s.begin(), sep);
+  res.dir.assign(s.begin() + sep + 1, s.end());
+  return res;
+}
+
+}  // namespace
+
+std::ostream& operator<<(std::ostream& strm, const Request& req) {
+  strm << req.id << " [" << req.dir << "]";
+  return strm;
+}
+
+Request RequestReader::ReadRequest() {
+  auto eol = std::find(read_.begin(), read_.end(), kMsgSep);
   if (eol != read_.end()) {
-    std::string res(read_.begin(), eol);
+    std::string msg(read_.begin(), eol);
     read_.erase(read_.begin(), eol + 1);
-    return res;
+    return ParseRequest(msg);
   }
 
   char buf[256];
@@ -66,11 +84,11 @@ std::string RequestReader::ReadRequest() {
       std::quick_exit(0);
     }
     read_.insert(read_.end(), buf, buf + n);
-    int eol = std::find(buf, buf + n, kSep) - buf;
+    int eol = std::find(buf, buf + n, kMsgSep) - buf;
     if (eol != n) {
-      std::string res(read_.begin(), read_.end() - (n - eol));
-      read_.erase(read_.begin(), read_.begin() + res.size() + 1);
-      return res;
+      std::string msg(read_.begin(), read_.end() - (n - eol));
+      read_.erase(read_.begin(), read_.begin() + msg.size() + 1);
+      return ParseRequest(msg);
     }
   }
 }

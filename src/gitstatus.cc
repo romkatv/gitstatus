@@ -26,8 +26,8 @@
 #include "logging.h"
 #include "options.h"
 #include "repo_cache.h"
-#include "request_reader.h"
-#include "response_writer.h"
+#include "request.h"
+#include "response.h"
 #include "scope_guard.h"
 #include "timer.h"
 
@@ -36,43 +36,37 @@ namespace {
 
 using namespace std::string_literals;
 
-void ProcessRequest(const Options& opts, RepoCache& cache, std::string dir) {
-  LOG(INFO) << "Processing request: " << dir;
-
+void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   Timer timer;
-  ResponseWriter out;
-  if (dir.empty() || dir.front() != '/') return;
-  if (dir.back() != '/') dir += '/';
+  ResponseWriter resp(req.id);
 
-  git_repository* repo = cache.Find(dir);
-  if (!repo) {
-    repo = OpenRepo(dir);
-    if (!repo) return;
-    if (git_repository_is_bare(repo) || git_repository_is_empty(repo) || !cache.Put(repo)) {
-      git_repository_free(repo);
-      return;
-    }
+  git_repository* repo = OpenRepo(req.dir);
+  if (!repo) return;
+  if (git_repository_is_bare(repo) || git_repository_is_empty(repo)) {
+    git_repository_free(repo);
+    return;
   }
+  repo = cache.Intern(repo);
 
   git_reference* head = Head(repo);
   if (!head) return;
   ON_SCOPE_EXIT(=) { git_reference_free(head); };
 
   // Repository HEAD. Usually branch name.
-  out.Print(git_reference_shorthand(head));
+  resp.Print(git_reference_shorthand(head));
 
   git_reference* upstream = Upstream(head);
   ON_SCOPE_EXIT(=) {
     if (upstream) git_reference_free(upstream);
   };
   // Upstream branch name.
-  out.Print(upstream ? BranchName(upstream) : "");
+  resp.Print(upstream ? BranchName(upstream) : "");
 
   // Remote url.
-  out.Print(RemoteUrl(repo));
+  resp.Print(RemoteUrl(repo));
 
   // Repository state, A.K.A. action.
-  out.Print(RepoState(repo));
+  resp.Print(RepoState(repo));
 
   git_index* index = nullptr;
   VERIFY(!git_repository_index(&index, repo)) << GitError();
@@ -80,34 +74,34 @@ void ProcessRequest(const Options& opts, RepoCache& cache, std::string dir) {
   VERIFY(!git_index_read(index, 0)) << GitError();
 
   // 1 if there are staged changes, 0 otherwise.
-  out.Print(HasStaged(repo, head, index));
+  resp.Print(HasStaged(repo, head, index));
 
   if (git_index_entrycount(index) <= opts.dirty_max_index_size) {
     Dirty dirty = GetDirty(repo, index);
     // 1 if there are unstaged changes, 0 otherwise.
-    out.Print(dirty.unstaged);
+    resp.Print(dirty.unstaged);
     // 1 if there are untracked files, 0 otherwise.
-    out.Print(dirty.untracked);
+    resp.Print(dirty.untracked);
   } else {
-    out.Print(-1);
-    out.Print(-1);
+    resp.Print(-1);
+    resp.Print(-1);
   }
 
   if (upstream) {
     // Number of commits we are ahead of upstream.
-    out.Print(CountRange(repo, git_reference_shorthand(upstream) + "..HEAD"s));
+    resp.Print(CountRange(repo, git_reference_shorthand(upstream) + "..HEAD"s));
     // Number of commits we are behind upstream.
-    out.Print(CountRange(repo, "HEAD.."s + git_reference_shorthand(upstream)));
+    resp.Print(CountRange(repo, "HEAD.."s + git_reference_shorthand(upstream)));
   } else {
-    out.Print(0);
-    out.Print(0);
+    resp.Print(0);
+    resp.Print(0);
   }
 
   // Number of stashes.
-  out.Print(NumStashes(repo));
+  resp.Print(NumStashes(repo));
 
-  out.Dump();
-  timer.Report(dir);
+  resp.Dump();
+  timer.Report(req.id);
 }
 
 int GitStatus(int argc, char** argv) {
@@ -116,13 +110,20 @@ int GitStatus(int argc, char** argv) {
   RequestReader reader(fileno(stdin), opts.parent_pid);
   RepoCache cache;
 
+  LOG(INFO) << "LOL";
   git_libgit2_init();
 
   while (true) {
     try {
-      ProcessRequest(opts, cache, reader.ReadRequest());
+      Request req = reader.ReadRequest();
+      LOG(INFO) << "Processing request: " << req;
+      try {
+        ProcessRequest(opts, cache, req);
+        LOG(INFO) << "Successfully processed request: " << req;
+      } catch (const Exception&) {
+        LOG(ERROR) << "Error processing request: " << req;
+      }
     } catch (const Exception&) {
-      LOG(ERROR) << "Failed to process request";
     }
   }
 }

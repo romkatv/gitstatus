@@ -38,23 +38,28 @@ function gitstatus_query_dir() {
 
   [[ -v GITSTATUS_DAEMON_PID ]]
 
-  echo -nE "${1-"${PWD}"}"$'\x1e' >&$_GITSTATUS_REQ
+  local ID && ID=$(uuidgen)
+  echo -nE "${ID}"$'\x1f'"${1-"${PWD}"}"$'\x1e' >&$_GITSTATUS_REQ
 
-  typeset -g VCS_STATUS_ALL
-  IFS=$'\x1f' read -r -d $'\x1e' -u $_GITSTATUS_RESP -t $GITSTATUS_TIMEOUT_SEC -A VCS_STATUS_ALL
-  [[ "${VCS_STATUS_ALL[1]}" == 1 ]]
+  while true; do
+    typeset -g VCS_STATUS_ALL
+    IFS=$'\x1f' read -r -d $'\x1e' -u $_GITSTATUS_RESP -t $GITSTATUS_TIMEOUT_SEC -A VCS_STATUS_ALL
+    [[ ${VCS_STATUS_ALL[1]} == $ID ]] || continue
+    [[ ${VCS_STATUS_ALL[2]} == 1 ]]
 
-  shift VCS_STATUS_ALL
-  typeset -g  VCS_STATUS_LOCAL_BRANCH="${VCS_STATUS_ALL[1]}"
-  typeset -g  VCS_STATUS_REMOTE_BRANCH="${VCS_STATUS_ALL[2]}"
-  typeset -g  VCS_STATUS_REMOTE_URL="${VCS_STATUS_ALL[3]}"
-  typeset -g  VCS_STATUS_ACTION="${VCS_STATUS_ALL[4]}"
-  typeset -gi VCS_STATUS_HAS_STAGED="${VCS_STATUS_ALL[5]}"
-  typeset -gi VCS_STATUS_HAS_UNSTAGED="${VCS_STATUS_ALL[6]}"
-  typeset -gi VCS_STATUS_HAS_UNTRACKED="${VCS_STATUS_ALL[7]}"
-  typeset -gi VCS_STATUS_COMMITS_AHEAD="${VCS_STATUS_ALL[8]}"
-  typeset -gi VCS_STATUS_COMMITS_BEHIND="${VCS_STATUS_ALL[9]}"
-  typeset -gi VCS_STATUS_STASHES="${VCS_STATUS_ALL[10]}"
+    shift 2 VCS_STATUS_ALL
+    typeset -g  VCS_STATUS_LOCAL_BRANCH="${VCS_STATUS_ALL[1]}"
+    typeset -g  VCS_STATUS_REMOTE_BRANCH="${VCS_STATUS_ALL[2]}"
+    typeset -g  VCS_STATUS_REMOTE_URL="${VCS_STATUS_ALL[3]}"
+    typeset -g  VCS_STATUS_ACTION="${VCS_STATUS_ALL[4]}"
+    typeset -gi VCS_STATUS_HAS_STAGED="${VCS_STATUS_ALL[5]}"
+    typeset -gi VCS_STATUS_HAS_UNSTAGED="${VCS_STATUS_ALL[6]}"
+    typeset -gi VCS_STATUS_HAS_UNTRACKED="${VCS_STATUS_ALL[7]}"
+    typeset -gi VCS_STATUS_COMMITS_AHEAD="${VCS_STATUS_ALL[8]}"
+    typeset -gi VCS_STATUS_COMMITS_BEHIND="${VCS_STATUS_ALL[9]}"
+    typeset -gi VCS_STATUS_STASHES="${VCS_STATUS_ALL[10]}"
+    break;
+  done
 }
 
 function gitstatus_init() {
@@ -85,9 +90,9 @@ function gitstatus_init() {
   typeset -g GITSTATUS_DAEMON_PID=$!
 
   local reply
-  echo -nE $'\x1e' >&$_GITSTATUS_REQ
+  echo -nE $'hello\x1f\x1e' >&$_GITSTATUS_REQ
   IFS='' read -r -d $'\x1e' -u $_GITSTATUS_RESP -t $GITSTATUS_TIMEOUT_SEC reply
-  [[ $reply == 0 ]]
+  [[ $reply == $'hello\x1f0' ]]
 }
 
 if ! gitstatus_init; then

@@ -15,30 +15,32 @@
 // You should have received a copy of the GNU General Public License
 // along with GitStatus. If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef ROMKATV_GITSTATUS_OUTPUT_H_
-#define ROMKATV_GITSTATUS_OUTPUT_H_
+#ifndef ROMKATV_GITSTATUS_REQUEST_H_
+#define ROMKATV_GITSTATUS_REQUEST_H_
 
-#include <cstddef>
-#include <sstream>
+#include <deque>
+#include <ostream>
 #include <string>
 
 namespace gitstatus {
 
-class ResponseWriter {
- public:
-  ResponseWriter();
-  ResponseWriter(ResponseWriter&&) = delete;
-  ~ResponseWriter();
-
-  void Print(ssize_t val);
-  void Print(std::string_view val);
-  void Dump();
-
- private:
-  bool done_ = false;
-  std::ostringstream strm_;
+struct Request {
+  std::string id;
+  std::string dir;
 };
 
+std::ostream& operator<<(std::ostream& strm, const Request& req);
+
+class RequestReader {
+ public:
+  RequestReader(int fd, int parent_pid) : fd_(fd), parent_pid_(parent_pid) {}
+  Request ReadRequest();
+
+ private:
+  int fd_;
+  int parent_pid_;
+  std::deque<char> read_;
+};
 }  // namespace gitstatus
 
-#endif  // ROMKATV_GITSTATUS_OUTPUT_H_
+#endif  // ROMKATV_GITSTATUS_REQUEST_H_
