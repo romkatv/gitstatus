@@ -26,7 +26,7 @@ namespace gitstatus {
 class RequestReader {
  public:
   RequestReader(int fd, int parent_pid) : fd_(fd), parent_pid_(parent_pid) {}
-  std::string ReadLine();
+  std::string ReadRequest();
 
  private:
   int fd_;

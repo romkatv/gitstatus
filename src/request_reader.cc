@@ -32,8 +32,10 @@
 
 namespace gitstatus {
 
-std::string RequestReader::ReadLine() {
-  auto eol = std::find(read_.begin(), read_.end(), '\n');
+constexpr char kSep = 30;  // ascii 30 is record separator
+
+std::string RequestReader::ReadRequest() {
+  auto eol = std::find(read_.begin(), read_.end(), kSep);
   if (eol != read_.end()) {
     std::string res(read_.begin(), eol);
     read_.erase(read_.begin(), eol + 1);
@@ -64,7 +66,7 @@ std::string RequestReader::ReadLine() {
       std::quick_exit(0);
     }
     read_.insert(read_.end(), buf, buf + n);
-    int eol = std::find(buf, buf + n, '\n') - buf;
+    int eol = std::find(buf, buf + n, kSep) - buf;
     if (eol != n) {
       std::string res(read_.begin(), read_.end() - (n - eol));
       read_.erase(read_.begin(), read_.begin() + res.size() + 1);
