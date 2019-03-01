@@ -1,7 +1,7 @@
 {
   "files.exclude": {
     "obj/": true,
-    "gitstatus": true,
+    "gitstatusd": true,
     "core": true
   },
   "files.associations": {

@@ -33,7 +33,7 @@ long ParseLong(const char* s) {
   char* end = nullptr;
   long res = std::strtol(s, &end, 10);
   if (*end || errno) {
-    std::cerr << "gitstatus: not an integer: " << s << std::endl;
+    std::cerr << "gitstatusd: not an integer: " << s << std::endl;
     std::quick_exit(1);
   }
   return res;
@@ -42,14 +42,14 @@ long ParseLong(const char* s) {
 long ParseInt(const char* s) {
   long res = ParseLong(s);
   if (res < INT_MIN || res > INT_MAX) {
-    std::cerr << "gitstatus: integer out of bounds: " << s << std::endl;
+    std::cerr << "gitstatusd: integer out of bounds: " << s << std::endl;
     std::quick_exit(1);
   }
   return res;
 }
 
 void PrintUsage() {
-  std::cout << "Usage: gitstatus [OPTION]...\n"
+  std::cout << "Usage: gitstatusd [OPTION]...\n"
             << "Print machine-readable status of the git repos for directores in stdin..\n"
             << "\n"
             << "OPTIONS\n"

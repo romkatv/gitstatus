@@ -37,6 +37,7 @@ namespace {
 using namespace std::string_literals;
 
 void ProcessRequest(const Options& opts, RepoCache& cache, std::string dir) {
+  LOG(INFO) << "Processing request: " << dir;
   ResponseWriter out;
   if (dir.empty() || dir.front() != '/') return;
   if (dir.back() != '/') dir += '/';
@@ -108,6 +109,7 @@ void ProcessRequest(const Options& opts, RepoCache& cache, std::string dir) {
 
 int GitStatus(int argc, char** argv) {
   Options opts = ParseOptions(argc, argv);
+  LOG(INFO) << "Parent PID: " << opts.parent_pid;
   RequestReader reader(fileno(stdin), opts.parent_pid);
   RepoCache cache;
 
@@ -117,6 +119,7 @@ int GitStatus(int argc, char** argv) {
     try {
       ProcessRequest(opts, cache, reader.ReadRequest());
     } catch (const Exception&) {
+      LOG(ERROR) << "Failed to process request";
     }
   }
 }
