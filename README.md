@@ -1,5 +1,5 @@
 # gitstatus
-**gitstatus** can display git info in shell prompt with very low-latency .
+**gitstatus** can display git info in shell prompt with very low latency.
 
 **LINUX ONLY** for now.
 
@@ -29,7 +29,7 @@ Set the following configuration options in your `.zshrc` before sourcing Powerle
 POWERLEVEL9K_USE_CACHE=true
 
 # Enable alternative implementation for the vcs prompt. It's much faster but it only supports git.
-POWERLEVEL9K_VCS_STATUS_COMMAND="gitstatus_query_dir"
+POWERLEVEL9K_VCS_STATUS_COMMAND=gitstatus_query_dir
 ```
 
 Either manually source `gitstatus.plugin.zsh` from your `.zshrc` or enable `gitstatus` plugin in oh-my-zsh.
