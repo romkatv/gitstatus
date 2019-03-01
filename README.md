@@ -1,7 +1,7 @@
 # gitstatus
 **gitstatus** can display git info in shell prompt with very low latency.
 
-**LINUX ONLY** for now.
+**!!! LINUX ONLY !!!**
 
 ## Using with Powerlevel9k
 
@@ -36,13 +36,15 @@ Either manually source `gitstatus.plugin.zsh` from your `.zshrc` or enable `gits
 
 ## How it works
 
-When using common tools such as [vcs_info](http://zsh.sourceforge.net/Doc/Release/User-Contributions.html#vcs_005finfo-Quickstart) to embed git status in shell prompt, latency is high for two main reasons:
+When using common tools such as [vcs_info](http://zsh.sourceforge.net/Doc/Release/User-Contributions.html#vcs_005finfo-Quickstart) to embed git status in shell prompt, latency is high for three main reasons:
 
-  1. About a dozen processes are created to generate a prompt. Creating processes and pipes to communicate with them is expensive.
-  2. There is a lot of redundancy between different `git` commands that get called. For example, every command has to scan parent directories in search of `.git`. Many commands have to resolve HEAD. Some have to read index.
-  3. There is redundancy between consecutive prompts. Even if you stay within the same repo, each prompt will read git index form disk before it can be rendered.
+  1. About a dozen processes are created to generate each prompt. Creating processes and pipes to communicate with them is expensive.
+  2. There is a lot of redundancy between different `git` commands that are invoked. For example, every command has to scan parent directories in search of `.git`. Many commands have to resolve HEAD. Several have to read index.
+  3. There is redundancy between consecutive prompts, too. Even if you stay within the same repo, each prompt will read git index form disk before it can be rendered.
 
-**gitstatus** solves this problem by assembling all information that the prompt needs in a single process and presenting it in an easy-to-parse format. It's using [libgit2](https://libgit2.org/) under the hood for heavy lifting. The binary runs as a deamon, with one process per interactive shell. Whenever prompt needs to refresh, it sends the current directory to the daemon and receives git info back. The daemon keeps indices of all repos in memory for faster access.
+Some prompt generators attempt to work around this problem by rendering prompt asynchronously. This has undesirable effects. When you `cd` to another repo, or make changes to an existing repo such as creating a new untracked file, the prompt will either display incorrect repo state and fix later while you are typing, or not display the prompt at all and add it a second later.
+
+**gitstatus** solves this problem by running a daemon next to each interactive shell. Whenever prompt needs to refresh, it sends the current directory to the daemon and receives git info back, all with a single roundtrip. The daemon is written in C++ and is using [libgit2](https://libgit2.org/) under the hood for heavy lifting. it keeps indices of all repos in memory for faster access. It never serves stale data -- every prompt receives accurate representation of the current state of the repo. Since fetching git info this way very fast, there is no need for asynchronous prompts.
 
 ## Requirements
 
