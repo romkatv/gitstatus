@@ -115,7 +115,7 @@ int GitStatus(int argc, char** argv) {
 
   while (true) {
     try {
-      ProcessRequest(opts, cache, reader.ReadLine());
+      ProcessRequest(opts, cache, reader.ReadRequest());
     } catch (const Exception&) {
     }
   }
