@@ -1,21 +1,15 @@
 # gitstatus
-**gitstatus** can display git info in shell prompt with very low latency.
+**gitstatus** enables much faster vcs/git prompt in
+[Powerlevel10k](https://github.com/romkatv/powerlevel10k) ZSH theme.
 
-**!!! LINUX ONLY !!!**
+** Works on Linux and WSL. **
 
-## Using with Powerlevel9k
+## Installation
 
-If you are using the awesome [Powerlevel9k](https://github.com/bhilburn/powerlevel9k) ZSH theme, you can configure the existing `vcs` prompt to use gitstatus for a massive reduction in latency.
+You must be using [Powerlevel10k](https://github.com/romkatv/powerlevel10k) to take advantage
+of the performance boost offered by gitstatus.
 
-First, use [this fork](https://github.com/romkatv/powerlevel9k/tree/caching) of Powerlevel9k instead of the official release. This fork also enables caching, which speeds up prompt rendering by over 10x. Note that you need to use branch `caching`.
-
-```zsh
-# Assuming oh-my-zsh at the standard location. Adjust to your circumstances.
-rm -rf ~/.oh-my-zsh/custom/themes/powerlevel9k
-git clone -b caching git@github.com:romkatv/powerlevel9k.git ~/.oh-my-zsh/custom/themes/powerlevel9k
-```
-
-Clone gitstatus.
+Clone gitstatus repo.
 
 ```zsh
 # Assuming oh-my-zsh at the standard location. Adjust to your circumstances.
@@ -25,9 +19,6 @@ git clone git@github.com:romkatv/gitstatus.git ~/.oh-my-zsh/custom/plugins/gitst
 Set the following configuration options in your `.zshrc` before sourcing Powerlevel9k.
 
 ```zsh
-# Enable caching of parts of the prompt to make rendering much faster.
-POWERLEVEL9K_USE_CACHE=true
-
 # Enable alternative implementation for the vcs prompt. It's much faster but it only supports git.
 POWERLEVEL9K_VCS_STATUS_COMMAND=gitstatus_query_dir
 ```
