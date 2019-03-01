@@ -2,7 +2,7 @@
 **gitstatus** enables much faster vcs/git prompt in
 [Powerlevel10k](https://github.com/romkatv/powerlevel10k) ZSH theme.
 
-** Works on Linux and WSL. **
+**Works on Linux and WSL.**
 
 ## Installation
 
