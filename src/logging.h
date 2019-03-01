@@ -39,6 +39,7 @@
                 .ref()
 
 namespace gitstatus {
+
 namespace internal_logging {
 
 enum Severity {
@@ -59,11 +60,13 @@ class LogStreamBase {
 
   LogStreamBase& ref() { return *this; }
   std::ostream& strm() { return *strm_; }
+  int stashed_errno() const { return errno_; }
 
  protected:
   void Flush();
 
  private:
+  int errno_;
   const char* file_;
   int line_;
   Severity severity_;
@@ -83,7 +86,7 @@ class LogStream<FATAL> : public LogStreamBase {
   using LogStreamBase::LogStreamBase;
   ~LogStream() __attribute__((noreturn)) {
     this->Flush();
-    std::exit(1);
+    std::abort();
   }
 };
 
@@ -98,7 +101,23 @@ inline LogStreamBase& operator<<(LogStreamBase& strm, std::ostream& (*manip)(std
   return strm;
 }
 
+struct Errno {
+  int err;
+};
+
+std::ostream& operator<<(std::ostream& strm, Errno e);
+
+struct StashedErrno {};
+
+inline LogStreamBase& operator<<(LogStreamBase& strm, StashedErrno) {
+  return strm << Errno{strm.stashed_errno()};
+}
+
 }  // namespace internal_logging
+
+inline internal_logging::Errno Errno(int err) { return {err}; }
+inline internal_logging::StashedErrno Errno() { return {}; }
+
 }  // namespace gitstatus
 
 #endif  // ROMKATV_GITSTATUS_LOGGING_H_

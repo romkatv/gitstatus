@@ -17,6 +17,8 @@
 
 #include "logging.h"
 
+#include <errno.h>
+
 #include <cstdio>
 #include <cstring>
 #include <ctime>
@@ -44,7 +46,7 @@ const char* Str(Severity severity) {
 }  // namespace
 
 LogStreamBase::LogStreamBase(const char* file, int line, Severity severity)
-    : file_(file), line_(line), severity_(severity) {
+    : errno_(errno), file_(file), line_(line), severity_(severity) {
   strm_ = std::make_unique<std::ostringstream>();
 }
 
@@ -57,6 +59,15 @@ void LogStreamBase::Flush() {
   std::string msg = strm_->str();
   std::fprintf(stderr, "[%s %s %s:%d] %s\n", time_str, Str(severity_), file_, line_, msg.c_str());
   strm_.reset();
+  errno = errno_;
+}
+
+std::ostream& operator<<(std::ostream& strm, Errno e) {
+  // GNU C Library uses a buffer of 1024 characters for strerror(). Mimic to avoid truncations.
+  char buf[1024];
+  // This temp variable ensures that we are calling the GNU-specific strerror_r().
+  const char* desc = strerror_r(e.err, buf, sizeof(buf));
+  return strm << desc;
 }
 
 }  // namespace internal_logging
