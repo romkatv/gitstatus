@@ -4,24 +4,23 @@
 
 ## Installation
 
-You must be using [Powerlevel10k](https://github.com/romkatv/powerlevel10k) to take advantage
-of the performance boost offered by gitstatus.
+1. Install [Powerlevel10k](https://github.com/romkatv/powerlevel10k) ZSH theme.
 
-Clone gitstatus repo.
+2. Clone gitstatus repo.
 
 ```zsh
 # Assuming oh-my-zsh at the standard location. Adjust to your circumstances.
 git clone git@github.com:romkatv/gitstatus.git ~/.oh-my-zsh/custom/plugins/gitstatus
 ```
 
-Set the following configuration options in your `.zshrc` before sourcing Powerlevel9k.
+3. Set the following configuration options in your `.zshrc` before sourcing Powerlevel9k.
 
 ```zsh
 # Enable alternative implementation for the vcs prompt. It's much faster but it only supports git.
 POWERLEVEL9K_VCS_STATUS_COMMAND=gitstatus_query_dir
 ```
 
-Either manually source `gitstatus.plugin.zsh` from your `.zshrc` or enable `gitstatus` plugin in oh-my-zsh.
+4. Either manually source `gitstatus.plugin.zsh` from your `.zshrc` or enable `gitstatus` plugin in oh-my-zsh.
 
 ## How it works
 
