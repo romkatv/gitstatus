@@ -41,7 +41,9 @@ Some prompt generators attempt to work around this problem by rendering prompt a
 
 ## Compiling
 
-For best results, compile libgit2 statically with all optional features disabled and all required features bundled.
+There is a prebuilt `gitstatusd` ELF binary for x64 that should work on Linux and WSL. When you source `gitstatus.plugin.zsh`, it'll pick up `gitstatusd` automatically if it's in the same directory.
+
+If the precompiled binary doesn't work for you, you'll need to get your hands dirty. First, download, compile and install libgit2. For best results, compile it statically with all optional features disabled and all required features bundled.
 
 ```zsh
 git clone https://github.com/libgit2/libgit2.git
@@ -66,7 +68,7 @@ Then build gitstatus itself.
 ```zsh
 git clone git@github.com:romkatv/gitstatus.git
 cd gitstatus
-make
+make -j 20
 ```
 
 ## More Docs
