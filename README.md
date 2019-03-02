@@ -20,6 +20,15 @@ git clone git@github.com:romkatv/gitstatus.git ~/.oh-my-zsh/custom/plugins/gitst
 POWERLEVEL9K_VCS_STATUS_COMMAND=gitstatus_query_dir
 ```
 
+If you use WSL (even occasionally), it's a good idea to define another option:
+
+```zsh
+# When running on WSL, do not scan dirty files in git repos with over 4k files.
+[[ $(</proc/version) =~ Microsoft ]] && GITSTATUS_DIRTY_MAX_INDEX_SIZE=4096
+```
+
+With this option gitstatus won't be looking for dirty (unstaged and untracked) files in git repos with over 4k files. Scanning such repos is incredibly slow on WSL! The prompt will indicate with color that there _might_ be dirty files. With default color settings it means the prompt will never be green.
+
 4. Either manually source `gitstatus.plugin.zsh` from your `.zshrc` or enable `gitstatus` plugin in oh-my-zsh.
 
 ## How it works
