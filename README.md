@@ -1,6 +1,6 @@
 # gitstatus
 **gitstatus** enables much faster vcs/git prompt in
-[Powerlevel10k](https://github.com/romkatv/powerlevel10k) ZSH theme. It works on Linux and WSL.
+[Powerlevel10k](https://github.com/romkatv/powerlevel10k) ZSH theme. It works on Linux and WSL. See [benchmarks](https://github.com/romkatv/powerlevel10k#how-fast-is-it).
 
 ## Installation
 
@@ -13,7 +13,7 @@
 git clone git@github.com:romkatv/gitstatus.git ~/.oh-my-zsh/custom/plugins/gitstatus
 ```
 
-3. Set the following configuration options in your `.zshrc` before sourcing Powerlevel9k.
+3. Set the following configuration options in your `.zshrc` before sourcing [Powerlevel10k](https://github.com/romkatv/powerlevel10k).
 
 ```zsh
 # Enable alternative implementation for the vcs prompt. It's much faster but it only supports git.
