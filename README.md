@@ -6,21 +6,7 @@
 
 1. Install [Powerlevel10k](https://github.com/romkatv/powerlevel10k) ZSH theme.
 
-2. Clone gitstatus repo.
-
-```zsh
-# Assuming oh-my-zsh at the standard location. Adjust to your circumstances.
-git clone git@github.com:romkatv/gitstatus.git ~/.oh-my-zsh/custom/plugins/gitstatus
-```
-
-3. Set the following configuration options in your `.zshrc` before sourcing [Powerlevel10k](https://github.com/romkatv/powerlevel10k).
-
-```zsh
-# Enable alternative implementation for the vcs prompt. It's much faster but it only supports git.
-POWERLEVEL9K_VCS_STATUS_COMMAND=gitstatus_query_dir
-```
-
-If you use WSL (even occasionally), it's a good idea to define another option:
+2. If you use WSL (even occasionally), it's a good idea to define this option in your `.zshrc`:
 
 ```zsh
 # When running on WSL, do not scan dirty files in git repos with over 4k files.
@@ -28,6 +14,15 @@ If you use WSL (even occasionally), it's a good idea to define another option:
 ```
 
 With this option gitstatus won't be looking for dirty (unstaged and untracked) files in git repos with over 4k files. Scanning such repos is incredibly slow on WSL! The prompt will indicate with color that there _might_ be dirty files. With default color settings it means the prompt will never be green.
+
+The option must be set before sourcing gitstatus.
+
+3. Clone gitstatus repo.
+
+```zsh
+# Assuming oh-my-zsh at the standard location. Adjust to your circumstances.
+git clone git@github.com:romkatv/gitstatus.git ~/.oh-my-zsh/custom/plugins/gitstatus
+```
 
 4. Either manually source `gitstatus.plugin.zsh` from your `.zshrc` or enable `gitstatus` plugin in oh-my-zsh.
 
