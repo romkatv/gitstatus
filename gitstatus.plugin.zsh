@@ -38,7 +38,7 @@ function gitstatus_query_dir() {
 
   [[ -v GITSTATUS_DAEMON_PID ]]
 
-  local ID && ID=$(uuidgen)
+  local ID=$EPOCHREALTIME
   echo -nE "${ID}"$'\x1f'"${1-"${PWD}"}"$'\x1e' >&$_GITSTATUS_REQ
 
   while true; do
@@ -98,6 +98,8 @@ function gitstatus_init() {
   IFS='' read -r -d $'\x1e' -u $_GITSTATUS_RESP -t $GITSTATUS_TIMEOUT_SEC reply
   [[ $reply == $'hello\x1f0' ]]
 }
+
+zmodload zsh/datetime || return
 
 if ! gitstatus_init; then
   echo "gitstatus failed to initialize" >&2
