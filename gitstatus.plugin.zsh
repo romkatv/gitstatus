@@ -1,7 +1,7 @@
 # Return an error from gitstatus_query_dir after this many seconds.
 : ${GITSTATUS_TIMEOUT_SEC=5}
 
-# Path to gitstatusd. Default to gitstatusd in the same directory as this file.
+# Path to gitstatusd. Defaults to gitstatusd in the same directory as this file.
 : ${GITSTATUS_DAEMON=${${(%):-%x}:A:h}/gitstatusd}
 
 # Report -1 unstaged and untracked if there are more than this many files in the index; negative
