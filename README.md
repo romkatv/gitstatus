@@ -21,7 +21,7 @@ The option must be set before sourcing gitstatus.
 
 ```zsh
 # Assuming oh-my-zsh at the standard location. Adjust to your circumstances.
-git clone git@github.com:romkatv/gitstatus.git ~/.oh-my-zsh/custom/plugins/gitstatus
+git clone https://github.com/romkatv/gitstatus.git ~/.oh-my-zsh/custom/plugins/gitstatus
 ```
 
 4. Either manually source `gitstatus.plugin.zsh` from your `.zshrc` or enable `gitstatus` plugin in oh-my-zsh.
@@ -70,7 +70,7 @@ sudo make install
 Then build gitstatus itself.
 
 ```zsh
-git clone git@github.com:romkatv/gitstatus.git
+git clone https://github.com/romkatv/gitstatus.git
 cd gitstatus
 make -j 20
 ```
