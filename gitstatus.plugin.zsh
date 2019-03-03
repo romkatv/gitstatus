@@ -8,10 +8,6 @@
 # value means infinity.
 : ${GITSTATUS_DIRTY_MAX_INDEX_SIZE=-1}
 
-# Tell Powerlevel10k that it can now use gitstatus for querying the state of git repos.
-# It'lll make vcs prompt much faster.
-: ${POWERLEVEL9K_VCS_STATUS_COMMAND=gitstatus_query_dir}
-
 # Retrives status of a git repo from a directory under its working tree.
 #
 #   $1 -- Directory to query. Defaults to $PWD.
@@ -105,7 +101,11 @@ function gitstatus_init() {
 
 zmodload zsh/datetime || return
 
-if ! gitstatus_init; then
+if gitstatus_init; then
+  # Tell Powerlevel10k that it can now use gitstatus for querying the state of git repos.
+  # It'lll make vcs prompt much faster.
+  : ${POWERLEVEL9K_VCS_STATUS_COMMAND=gitstatus_query_dir}
+else
   echo "gitstatus failed to initialize" >&2
   unset GITSTATUS_DAEMON_PID
 fi
