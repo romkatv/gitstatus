@@ -34,7 +34,7 @@ long ParseLong(const char* s) {
   long res = std::strtol(s, &end, 10);
   if (*end || errno) {
     std::cerr << "gitstatusd: not an integer: " << s << std::endl;
-    std::quick_exit(1);
+    std::exit(1);
   }
   return res;
 }
@@ -43,7 +43,7 @@ long ParseInt(const char* s) {
   long res = ParseLong(s);
   if (res < INT_MIN || res > INT_MAX) {
     std::cerr << "gitstatusd: integer out of bounds: " << s << std::endl;
-    std::quick_exit(1);
+    std::exit(1);
   }
   return res;
 }
@@ -119,7 +119,7 @@ Options ParseOptions(int argc, char** argv) {
         return res;
       case 'h':
         PrintUsage();
-        std::quick_exit(0);
+        std::exit(0);
       case 'p':
         res.parent_pid = ParseInt(optarg);
         break;

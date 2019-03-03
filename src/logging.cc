@@ -66,8 +66,18 @@ std::ostream& operator<<(std::ostream& strm, Errno e) {
   // GNU C Library uses a buffer of 1024 characters for strerror(). Mimic to avoid truncations.
   char buf[1024];
   // This temp variable ensures that we are calling the GNU-specific strerror_r().
-  const char* desc = strerror_r(e.err, buf, sizeof(buf));
-  return strm << desc;
+  auto x = strerror_r(e.err, buf, sizeof(buf));
+  // There are two versions of strerror_r with different semantics. We can figure out which
+  // one we've got by looking at the result type.
+  if constexpr (std::is_same<decltype(x), int>()) {
+    // XSI-compliant version.
+    strm << (x ? "unknown error" : buf);
+  } else {
+    // GNU-specific version.
+    static_assert(std::is_same<decltype(x), char*>());
+    strm << x;
+  }
+  return strm;
 }
 
 }  // namespace internal_logging
