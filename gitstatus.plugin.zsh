@@ -10,7 +10,7 @@
 
 # Retrives status of a git repo from a directory under its working tree.
 #
-#   $1 -- Directory to query. Defaults to $PWD.
+#   $1 -- Directory to query. Defaults to $PWD. Must be absolute.
 #
 # If the directory is not in a git repo, returns an error. Otherwise returns success and sets
 # the following global variables.
