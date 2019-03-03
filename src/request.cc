@@ -73,7 +73,7 @@ Request RequestReader::ReadRequest() {
     if (n == 0) {
       if (parent_pid_ > 0 && kill(parent_pid_, 0) != 0) {
         LOG(INFO) << "Parent [pid=" << parent_pid_ << "] is dead. Exiting.";
-        std::quick_exit(0);
+        std::exit(0);
       }
       continue;
     }
@@ -81,7 +81,7 @@ Request RequestReader::ReadRequest() {
     CHECK((n = read(fd_, buf, sizeof(buf))) >= 0) << Errno();
     if (n == 0) {
       LOG(INFO) << "EOF. Exiting.";
-      std::quick_exit(0);
+      std::exit(0);
     }
     read_.insert(read_.end(), buf, buf + n);
     int eol = std::find(buf, buf + n, kMsgSep) - buf;
