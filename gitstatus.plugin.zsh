@@ -74,9 +74,9 @@ function gitstatus_init() {
 
   function make_fifo() {
     local FIFO
-    FIFO=$(mktemp -tu gitstatus.$$.pipe.XXXXXXXXXX)
+    FIFO=$(mktemp -u "${TMPDIR:-/tmp}"/gitstatus.$$.pipe.XXXXXXXXXX)
     mkfifo $FIFO
-    eval "exec {$1}<>${(q)FIFO}"
+    eval "exec {$1}<>${(q)FIFO}" || { rm $FIFO && false }
     rm $FIFO
   }
 
@@ -85,7 +85,7 @@ function gitstatus_init() {
   make_fifo _GITSTATUS_RESP
 
   typeset -g GITSTATUS_DAEMON_LOG
-  GITSTATUS_DAEMON_LOG=$(mktemp -t gitstatus.$$.log.XXXXXXXXXX)
+  GITSTATUS_DAEMON_LOG=$(mktemp "${TMPDIR:-/tmp}"/gitstatus.$$.log.XXXXXXXXXX)
 
   nice -n -20 $GITSTATUS_DAEMON                                            \
     --dirty-max-index-size=$GITSTATUS_DIRTY_MAX_INDEX_SIZE --parent-pid=$$ \
@@ -107,7 +107,12 @@ if gitstatus_init; then
   : ${POWERLEVEL9K_VCS_STATUS_COMMAND=gitstatus_query_dir}
 else
   echo "gitstatus failed to initialize" >&2
-  unset GITSTATUS_DAEMON_PID
+  if [[ -n $GITSTATUS_DAEMON_PID ]]; then
+    kill $GITSTATUS_DAEMON_PID &>/dev/null
+    unset GITSTATUS_DAEMON_PID
+  fi
+  [[ -n $_GITSTATUS_REQ ]] && $_GITSTATUS_REQ>&-
+  [[ -n $_GITSTATUS_RESP ]] && $_GITSTATUS_RESP>&-
 fi
 
 unset -f gitstatus_init
