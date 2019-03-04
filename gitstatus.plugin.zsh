@@ -38,9 +38,10 @@ function gitstatus_query_dir() {
 
   [[ -v GITSTATUS_DAEMON_PID ]]
 
-  if ! print -nu $_GITSTATUS_REQ_FD 2>&/dev/null; then
+  if [[ $GITSTATUS_CLIENT_PID != $$ ]]; then
     exec {_GITSTATUS_REQ_FD}<>$_GITSTATUS_REQ_FIFO
     exec {_GITSTATUS_RESP_FD}<>$_GITSTATUS_RESP_FIFO
+    GITSTATUS_CLIENT_PID=$$
   fi
 
   local ID=$EPOCHREALTIME
@@ -77,7 +78,8 @@ function gitstatus_init() {
 
   [[ ! -v GITSTATUS_DAEMON_PID ]] || return 0
 
-  typeset -gH _GITSTATUS_REQ_FIFO _GITSTATUS_RESP_FIFO _GITSTATUS_REQ_FD _GITSTATUS_RESP_FD
+  typeset -gH _GITSTATUS_REQ_FIFO _GITSTATUS_RESP_FIFO
+  typeset -giH _GITSTATUS_REQ_FD _GITSTATUS_RESP_FD
 
   function make_fifos() {
     _GITSTATUS_REQ_FIFO=$(mktemp -u "${TMPDIR:-/tmp}"/gitstatus.$$.pipe.req.XXXXXXXXXX)
@@ -100,7 +102,7 @@ function gitstatus_init() {
     rm -f $_GITSTATUS_REQ_FIFO $_GITSTATUS_RESP_FIFO
   ) &!
 
-  typeset -g GITSTATUS_DAEMON_PID=$!
+  typeset -gi GITSTATUS_DAEMON_PID=$!
 
   local reply
   echo -nE $'hello\x1f\x1e' >&$_GITSTATUS_REQ_FD
@@ -111,6 +113,7 @@ function gitstatus_init() {
 zmodload zsh/datetime || return
 
 if gitstatus_init; then
+  typeset -gi GITSTATUS_CLIENT_PID=$$
   # Tell Powerlevel10k that it can now use gitstatus for querying the state of git repos.
   # It'lll make vcs prompt much faster.
   : ${POWERLEVEL9K_VCS_STATUS_COMMAND=gitstatus_query_dir}
@@ -120,8 +123,8 @@ else
     kill $GITSTATUS_DAEMON_PID &>/dev/null
   fi
   unset GITSTATUS_DAEMON_PID
-  [[ -n $_GITSTATUS_REQ_FD ]] && $_GITSTATUS_REQ_FD>&-
-  [[ -n $_GITSTATUS_RESP_FD ]] && $_GITSTATUS_RESP_FD>&-
+  [[ -n $_GITSTATUS_REQ_FD ]] && exec {_GITSTATUS_REQ_FD}>&-
+  [[ -n $_GITSTATUS_RESP_FD ]] && exec {_GITSTATUS_RESP_FD}>&-
   rm -f $_GITSTATUS_REQ_FIFO $_GITSTATUS_RESP_FIFO
 fi
 
