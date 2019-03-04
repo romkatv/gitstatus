@@ -76,8 +76,8 @@ function gitstatus_init() {
     local FIFO
     FIFO=$(mktemp -u "${TMPDIR:-/tmp}"/gitstatus.$$.pipe.XXXXXXXXXX)
     mkfifo $FIFO
-    eval "exec {$1}<>${(q)FIFO}" || { rm $FIFO && false }
-    rm $FIFO
+    eval "exec {$1}<>${(q)FIFO}" || { rm -f $FIFO && false }
+    rm -f $FIFO
   }
 
   typeset -gH _GITSTATUS_REQ _GITSTATUS_RESP
