@@ -1,4 +1,4 @@
-[[ -o interactive ]] || return
+[[ -o interactive ]] || [[ "${1-''}" == --force ]] || return
 zmodload zsh/datetime || return
 
 # Return an error from gitstatus_query_dir after this many seconds.
@@ -38,11 +38,11 @@ function gitstatus_query_dir() {
 
   [[ -v GITSTATUS_DAEMON_PID ]]
 
-  if [[ $GITSTATUS_CLIENT_PID != $$ ]]; then
+  [[ $GITSTATUS_CLIENT_PID == $$ ]] || {
     exec {_GITSTATUS_REQ_FD}<>$_GITSTATUS_REQ_FIFO
     exec {_GITSTATUS_RESP_FD}<>$_GITSTATUS_RESP_FIFO
     GITSTATUS_CLIENT_PID=$$
-  fi
+  }
 
   local ID=$EPOCHREALTIME
   echo -nE "${ID}"$'\x1f'"${1-"${PWD}"}"$'\x1e' >&$_GITSTATUS_REQ_FD
