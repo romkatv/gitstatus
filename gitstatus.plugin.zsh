@@ -1,8 +1,8 @@
+[[ -o interactive ]] || return
+zmodload zsh/datetime || return
+
 # Return an error from gitstatus_query_dir after this many seconds.
 : ${GITSTATUS_TIMEOUT_SEC=5}
-
-# Path to gitstatusd. Defaults to gitstatusd in the same directory as this file.
-: ${GITSTATUS_DAEMON=${${(%):-%x}:A:h}/gitstatusd}
 
 # Report -1 unstaged and untracked if there are more than this many files in the index; negative
 # value means infinity.
@@ -78,6 +78,15 @@ function gitstatus_init() {
 
   [[ ! -v GITSTATUS_DAEMON_PID ]] || return 0
 
+  function gitstatus_arch() {
+    local KERNEL && KERNEL=$(uname -s) && [[ -n $KERNEL ]]
+    local ARCH && ARCH=$(uname -m) && [[ -n $ARCH ]]
+    echo -E "${KERNEL:l}-${ARCH:l}"
+  }
+
+  local DAEMON && DAEMON=${GITSTATUS_DAEMON:-${${(%):-%x}:A:h}/bin/gitstatusd-$(gitstatus_arch)}
+  [[ -f $DAEMON ]] || { echo "file not found: $DAEMON" >&2 && return 1 }
+
   typeset -gH _GITSTATUS_REQ_FIFO _GITSTATUS_RESP_FIFO
   typeset -giH _GITSTATUS_REQ_FD _GITSTATUS_RESP_FD
 
@@ -96,7 +105,7 @@ function gitstatus_init() {
   GITSTATUS_DAEMON_LOG=$(mktemp "${TMPDIR:-/tmp}"/gitstatus.$$.log.XXXXXXXXXX)
 
   (
-    nice -n -20 $GITSTATUS_DAEMON                                            \
+    nice -n -20 $DAEMON                                                      \
       --dirty-max-index-size=$GITSTATUS_DIRTY_MAX_INDEX_SIZE --parent-pid=$$ \
       <&$_GITSTATUS_REQ_FD >&$_GITSTATUS_RESP_FD 2>$GITSTATUS_DAEMON_LOG || true
     rm -f $_GITSTATUS_REQ_FIFO $_GITSTATUS_RESP_FIFO
@@ -109,8 +118,6 @@ function gitstatus_init() {
   IFS='' read -r -d $'\x1e' -u $_GITSTATUS_RESP_FD -t $GITSTATUS_TIMEOUT_SEC reply
   [[ $reply == $'hello\x1f0' ]]
 }
-
-zmodload zsh/datetime || return
 
 if gitstatus_init; then
   typeset -gi GITSTATUS_CLIENT_PID=$$
