@@ -68,10 +68,10 @@ std::ostream& operator<<(std::ostream& strm, Errno e) {
   auto x = strerror_r(e.err, buf, sizeof(buf));
   // There are two versions of strerror_r with different semantics. We can figure out which
   // one we've got by looking at the result type.
-  if constexpr (std::is_same<decltype(x), int>()) {
+  if constexpr (std::is_same<decltype(x), int>::value) {
     // XSI-compliant version.
     strm << (x ? "unknown error" : buf);
-  } else if constexpr (std::is_same<decltype(x), char*>()) {
+  } else if constexpr (std::is_same<decltype(x), char*>::value) {
     // GNU-specific version.
     strm << x;
   } else {
