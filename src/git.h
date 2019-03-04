@@ -27,9 +27,9 @@ namespace gitstatus {
 
 struct Dirty {
   // Are there unstaged changes?
-  bool unstaged;
+  bool unstaged = false;
   // Are there untracked files?
-  bool untracked;
+  bool untracked = false;
 };
 
 // Not null.
