@@ -38,16 +38,21 @@ function gitstatus_query_dir() {
 
   [[ -v GITSTATUS_DAEMON_PID ]]
 
+  if ! print -nu $_GITSTATUS_REQ_FD 2>&/dev/null; then
+    exec {_GITSTATUS_REQ_FD}<>$_GITSTATUS_REQ_FIFO
+    exec {_GITSTATUS_RESP_FD}<>$_GITSTATUS_RESP_FIFO
+  fi
+
   local ID=$EPOCHREALTIME
-  echo -nE "${ID}"$'\x1f'"${1-"${PWD}"}"$'\x1e' >&$_GITSTATUS_REQ
+  echo -nE "${ID}"$'\x1f'"${1-"${PWD}"}"$'\x1e' >&$_GITSTATUS_REQ_FD
 
   while true; do
     typeset -g VCS_STATUS_ALL
-    IFS=$'\x1f' read -rd $'\x1e' -u $_GITSTATUS_RESP -t $GITSTATUS_TIMEOUT_SEC -A VCS_STATUS_ALL ||
-    {
-      echo "gitstatus: timed out" >&2
-      return 1
-    }
+    IFS=$'\x1f' \
+      read -rd $'\x1e' -u $_GITSTATUS_RESP_FD -t $GITSTATUS_TIMEOUT_SEC -A VCS_STATUS_ALL || {
+        echo "gitstatus: timed out" >&2
+        return 1
+      }
     [[ ${VCS_STATUS_ALL[1]} == $ID ]] || continue
     [[ ${VCS_STATUS_ALL[2]} == 1 ]]
 
@@ -72,30 +77,34 @@ function gitstatus_init() {
 
   [[ ! -v GITSTATUS_DAEMON_PID ]] || return 0
 
-  function make_fifo() {
-    local FIFO
-    FIFO=$(mktemp -u "${TMPDIR:-/tmp}"/gitstatus.$$.pipe.XXXXXXXXXX)
-    mkfifo $FIFO
-    eval "exec {$1}<>${(q)FIFO}" || { rm -f $FIFO && false }
-    rm -f $FIFO
+  typeset -gH _GITSTATUS_REQ_FIFO _GITSTATUS_RESP_FIFO _GITSTATUS_REQ_FD _GITSTATUS_RESP_FD
+
+  function make_fifos() {
+    _GITSTATUS_REQ_FIFO=$(mktemp -u "${TMPDIR:-/tmp}"/gitstatus.$$.pipe.req.XXXXXXXXXX)
+    _GITSTATUS_RESP_FIFO=$(mktemp -u "${TMPDIR:-/tmp}"/gitstatus.$$.pipe.resp.XXXXXXXXXX)
+    mkfifo $_GITSTATUS_REQ_FIFO
+    mkfifo $_GITSTATUS_RESP_FIFO
+    exec {_GITSTATUS_REQ_FD}<>$_GITSTATUS_REQ_FIFO
+    exec {_GITSTATUS_RESP_FD}<>$_GITSTATUS_RESP_FIFO
   }
 
-  typeset -gH _GITSTATUS_REQ _GITSTATUS_RESP
-  make_fifo _GITSTATUS_REQ
-  make_fifo _GITSTATUS_RESP
+  make_fifos || { rm -f $_GITSTATUS_REQ_FIFO $_GITSTATUS_RESP_FIFO && false }
 
   typeset -g GITSTATUS_DAEMON_LOG
   GITSTATUS_DAEMON_LOG=$(mktemp "${TMPDIR:-/tmp}"/gitstatus.$$.log.XXXXXXXXXX)
 
-  nice -n -20 $GITSTATUS_DAEMON                                            \
-    --dirty-max-index-size=$GITSTATUS_DIRTY_MAX_INDEX_SIZE --parent-pid=$$ \
-    <&$_GITSTATUS_REQ >&$_GITSTATUS_RESP 2>$GITSTATUS_DAEMON_LOG &!
+  (
+    nice -n -20 $GITSTATUS_DAEMON                                            \
+      --dirty-max-index-size=$GITSTATUS_DIRTY_MAX_INDEX_SIZE --parent-pid=$$ \
+      <&$_GITSTATUS_REQ_FD >&$_GITSTATUS_RESP_FD 2>$GITSTATUS_DAEMON_LOG || true
+    rm -f $_GITSTATUS_REQ_FIFO $_GITSTATUS_RESP_FIFO
+  ) &!
 
   typeset -g GITSTATUS_DAEMON_PID=$!
 
   local reply
-  echo -nE $'hello\x1f\x1e' >&$_GITSTATUS_REQ
-  IFS='' read -r -d $'\x1e' -u $_GITSTATUS_RESP -t $GITSTATUS_TIMEOUT_SEC reply
+  echo -nE $'hello\x1f\x1e' >&$_GITSTATUS_REQ_FD
+  IFS='' read -r -d $'\x1e' -u $_GITSTATUS_RESP_FD -t $GITSTATUS_TIMEOUT_SEC reply
   [[ $reply == $'hello\x1f0' ]]
 }
 
@@ -109,10 +118,11 @@ else
   echo "gitstatus failed to initialize" >&2
   if [[ -n $GITSTATUS_DAEMON_PID ]]; then
     kill $GITSTATUS_DAEMON_PID &>/dev/null
-    unset GITSTATUS_DAEMON_PID
   fi
-  [[ -n $_GITSTATUS_REQ ]] && $_GITSTATUS_REQ>&-
-  [[ -n $_GITSTATUS_RESP ]] && $_GITSTATUS_RESP>&-
+  unset GITSTATUS_DAEMON_PID
+  [[ -n $_GITSTATUS_REQ_FD ]] && $_GITSTATUS_REQ_FD>&-
+  [[ -n $_GITSTATUS_RESP_FD ]] && $_GITSTATUS_RESP_FD>&-
+  rm -f $_GITSTATUS_REQ_FIFO $_GITSTATUS_RESP_FIFO
 fi
 
 unset -f gitstatus_init
