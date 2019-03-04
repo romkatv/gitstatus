@@ -1,4 +1,5 @@
 [[ -o interactive ]] || [[ "${1-''}" == --force ]] || return
+
 zmodload zsh/datetime || return
 
 # Return an error from gitstatus_query_dir after this many seconds.
