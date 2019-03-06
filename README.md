@@ -98,8 +98,8 @@ On Mac OS:
 ```zsh
 $ otool -L gitstatusd
 gitstatusd:
- /usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 400.9.4)
- /usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1252.200.5)
+	/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 400.9.4)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1252.200.5)
 ```
 
 To verify that it works type the following command from a clean zsh shell (run `zsh -df` to get there):
