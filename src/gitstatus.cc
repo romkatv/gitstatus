@@ -100,6 +100,12 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   // Number of stashes.
   resp.Print(NumStashes(repo));
 
+  // Repository working directory.
+  std::string_view workdir = git_repository_workdir(repo) ?: "";
+  if (workdir.empty()) return;
+  if (workdir.size() > 1 && workdir.back() == '/') workdir.remove_suffix(1);
+  resp.Print(workdir);
+
   resp.Dump();
   timer.Report(req.id);
 }
