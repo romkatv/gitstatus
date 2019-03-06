@@ -79,7 +79,7 @@ make -j 20
 You can use `CXX=clang++ make` to compile with clang (the default compiler is gcc). On Mac OS you'll also need to override `LDLIBS`:
 
 ```zsh
-CXX=clang++ LDLIBS=-lgit2
+CXX=clang++ LDLIBS=-lgit2 make -j 20
 ```
 
 In order to achieve static linking with libgit2 and iconv on MacOS, make sure linker cannot find the dynamic versions of these libraries.
