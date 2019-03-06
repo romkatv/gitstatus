@@ -109,6 +109,7 @@ function gitstatus_init() {
     nice -n -20 $DAEMON                                                      \
       --dirty-max-index-size=$GITSTATUS_DIRTY_MAX_INDEX_SIZE --parent-pid=$$ \
       <&$_GITSTATUS_REQ_FD >&$_GITSTATUS_RESP_FD 2>$GITSTATUS_DAEMON_LOG || true
+    echo -E $'bye\x1f0\x1e' >&$_GITSTATUS_RESP_FD || true
     rm -f $_GITSTATUS_REQ_FIFO $_GITSTATUS_RESP_FIFO
   ) &!
 
