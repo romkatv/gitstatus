@@ -63,12 +63,12 @@ Request RequestReader::ReadRequest() {
   char buf[256];
   while (true) {
     int n;
-    fd_set fd_set;
-    FD_ZERO(&fd_set);
-    FD_SET(fd_, &fd_set);
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(fd_, &fds);
     struct timeval timeout = {.tv_sec = 1};
 
-    CHECK((n = select(fd_ + 1, &fd_set, NULL, NULL, parent_pid_ > 0 ? &timeout : nullptr)) >= 0)
+    CHECK((n = select(fd_ + 1, &fds, NULL, NULL, parent_pid_ > 0 ? &timeout : nullptr)) >= 0)
         << Errno();
     if (n == 0) {
       if (parent_pid_ > 0 && kill(parent_pid_, 0) != 0) {
