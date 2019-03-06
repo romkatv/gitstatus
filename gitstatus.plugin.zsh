@@ -45,17 +45,17 @@ function gitstatus_query_dir() {
     GITSTATUS_CLIENT_PID=$$
   }
 
-  local ID=$EPOCHREALTIME
-  echo -nE "${ID}"$'\x1f'"${1-"${PWD}"}"$'\x1e' >&$_GITSTATUS_REQ_FD
+  local -r id=$EPOCHREALTIME
+  echo -nE "${id}"$'\x1f'"${1-"${PWD}"}"$'\x1e' >&$_GITSTATUS_REQ_FD
 
   while true; do
-    typeset -g VCS_STATUS_ALL
+    typeset -ga VCS_STATUS_ALL
     IFS=$'\x1f' \
       read -rd $'\x1e' -u $_GITSTATUS_RESP_FD -t $GITSTATUS_TIMEOUT_SEC -A VCS_STATUS_ALL || {
         echo "gitstatus: timed out" >&2
         return 1
       }
-    [[ ${VCS_STATUS_ALL[1]} == $ID ]] || continue
+    [[ ${VCS_STATUS_ALL[1]} == $id ]] || continue
     [[ ${VCS_STATUS_ALL[2]} == 1 ]]
 
     shift 2 VCS_STATUS_ALL
@@ -80,13 +80,13 @@ function gitstatus_init() {
   [[ ! -v GITSTATUS_DAEMON_PID ]] || return 0
 
   function gitstatus_arch() {
-    local KERNEL && KERNEL=$(uname -s) && [[ -n $KERNEL ]]
-    local ARCH && ARCH=$(uname -m) && [[ -n $ARCH ]]
-    echo -E "${KERNEL:l}-${ARCH:l}"
+    local kernel && kernel=$(uname -s) && [[ -n $kernel ]]
+    local arch && arch=$(uname -m) && [[ -n $arch ]]
+    echo -E "${kernel:l}-${arch:l}"
   }
 
-  local DAEMON && DAEMON=${GITSTATUS_DAEMON:-${${(%):-%x}:A:h}/bin/gitstatusd-$(gitstatus_arch)}
-  [[ -f $DAEMON ]] || { echo "file not found: $DAEMON" >&2 && return 1 }
+  local daemon && daemon=${GITSTATUS_DAEMON:-${${(%):-%x}:A:h}/bin/gitstatusd-$(gitstatus_arch)}
+  [[ -f $daemon ]] || { echo "file not found: $daemon" >&2 && return 1 }
 
   typeset -gH _GITSTATUS_REQ_FIFO _GITSTATUS_RESP_FIFO
   typeset -giH _GITSTATUS_REQ_FD _GITSTATUS_RESP_FD
@@ -106,10 +106,9 @@ function gitstatus_init() {
   GITSTATUS_DAEMON_LOG=$(mktemp "${TMPDIR:-/tmp}"/gitstatus.$$.log.XXXXXXXXXX)
 
   (
-    nice -n -20 $DAEMON                                                      \
+    nice -n -20 $daemon                                                      \
       --dirty-max-index-size=$GITSTATUS_DIRTY_MAX_INDEX_SIZE --parent-pid=$$ \
       <&$_GITSTATUS_REQ_FD >&$_GITSTATUS_RESP_FD 2>$GITSTATUS_DAEMON_LOG || true
-    echo -E $'bye\x1f0\x1e' >&$_GITSTATUS_RESP_FD || true
     rm -f $_GITSTATUS_REQ_FIFO $_GITSTATUS_RESP_FIFO
   ) &!
 
