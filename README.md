@@ -1,6 +1,6 @@
 # gitstatus
 **gitstatus** enables much faster vcs/git prompt in
-[Powerlevel10k](https://github.com/romkatv/powerlevel10k) ZSH theme. It works on Linux and WSL. See [benchmarks](https://github.com/romkatv/powerlevel10k#how-fast-is-it).
+[Powerlevel10k](https://github.com/romkatv/powerlevel10k) ZSH theme. It works on Mac OS, Linux, FreeBSD and WSL. See [benchmarks](https://github.com/romkatv/powerlevel10k#how-fast-is-it).
 
 ## Installation
 
@@ -40,14 +40,15 @@ Some prompt generators attempt to work around this problem by rendering prompt a
 
 ## Requirements
 
-*  To compile: C++17 compiler, GNU make, libgit2.
-*  To run: Linux, GNU libc.
+*  To compile: C++17 compiler, GNU make, pkg-config, libgit2.
+*  To run: GNU libc on Linux, FreeBSD and WSL; nothing on Mac OS.
 
 ## Compiling
 
-There is a prebuilt `gitstatusd` ELF binary for x64 that should work on Linux and WSL. When you source `gitstatus.plugin.zsh`, it'll pick up `gitstatusd` automatically if it's in the same directory.
+There are prebuilt `gitstatusd` binaries for `{darwin,freebsd,linux}-x86_64` bundled with the plugin. When you source `gitstatus.plugin.zsh`, it'll pick the right binary for your architecture automatically.
 
-If the precompiled binary doesn't work for you, you'll need to get your hands dirty. First, download, compile and install libgit2. For best results, compile it statically with all optional features disabled and all required features bundled.
+If precompiled binaries don't work for you, you'll need to get your hands dirty. On Mac OS you'll first need to build [libiconv](https://www.gnu.org/software/libiconv/) as a static library. Then download, compile and install [libgit2](https://github.com/libgit2/libgit2). Compile it statically with all optional features disabled and all required features bundled.
+
 
 ```zsh
 git clone https://github.com/libgit2/libgit2.git
@@ -73,6 +74,38 @@ Then build gitstatus itself.
 git clone https://github.com/romkatv/gitstatus.git
 cd gitstatus
 make -j 20
+```
+
+You can use `CXX=clang++ make` to compile with clang (the default compiler is gcc). On Mac OS you'll also need to override `LDLIBS`:
+
+```zsh
+CXX=clang++ LDLIBS=-lgit2
+```
+
+In order to achieve static linking with libgit2 and iconv on MacOS, make sure linker cannot find the dynamic versions of these libraries.
+
+Here's what the resulting binary should look like on Linux, FreeBSD and WSL:
+
+```zsh
+$ ldd ./gitstatusd
+	linux-vdso.so.1 (0x00007ffccbfd4000)
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f59e6823000)
+	/lib64/ld-linux-x86-64.so.2 (0x00007f59e700b000)
+```
+
+On Mac OS:
+
+```zsh
+$ otool -L gitstatusd
+gitstatusd:
+ /usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 400.9.4)
+ /usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1252.200.5)
+```
+
+To verify that it works type the following command from a clean zsh shell (run `zsh -df` to get there):
+
+```zsh
+GITSTATUS_DAEMON=./gitstatusd source ./gitstatus.plugin.zsh && [[ -v GITSTATUS_DAEMON_PID ]] && echo works || echo broken
 ```
 
 ## More Docs
