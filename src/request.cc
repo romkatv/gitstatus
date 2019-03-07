@@ -35,12 +35,12 @@ namespace gitstatus {
 
 namespace {
 
-Request ParseRequest(std::string_view s) {
+Request ParseRequest(const std::string& s) {
   auto sep = s.find(kFieldSep);
-  VERIFY(sep != std::string_view::npos) << "Malformed request: " << s;
-  VERIFY(s.find(kFieldSep, sep + 1) == std::string_view::npos) << "Malformed request: " << s;
+  VERIFY(sep != std::string::npos) << "Malformed request: " << s;
+  VERIFY(s.find(kFieldSep, sep + 1) == std::string::npos) << "Malformed request: " << s;
   Request res;
-  res.id.assign(s.begin(), sep);
+  res.id.assign(s.begin(), s.begin() + sep);
   res.dir.assign(s.begin() + sep + 1, s.end());
   return res;
 }

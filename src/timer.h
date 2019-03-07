@@ -18,8 +18,6 @@
 #ifndef ROMKATV_GITSTATUS_TIMER_H_
 #define ROMKATV_GITSTATUS_TIMER_H_
 
-#include <string>
-
 namespace gitstatus {
 
 double CpuTimeMs();
@@ -28,7 +26,7 @@ class Timer {
  public:
   Timer() { Start(); }
   void Start() { ms_ = CpuTimeMs(); }
-  void Report(std::string_view msg);
+  void Report(const char* msg);
 
  private:
   double ms_;

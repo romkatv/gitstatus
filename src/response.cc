@@ -30,8 +30,9 @@ namespace {
 
 constexpr char kUnreadable = '?';
 
-void SafePrint(std::ostream& strm, std::string_view s) {
-  for (char c : s) {
+void SafePrint(std::ostream& strm, StringView s) {
+  for (size_t i = 0; i != s.len; ++i) {
+    char c = s.ptr[i];
     strm << (c > 127 || std::isprint(c) ? c : kUnreadable);
   }
 }
@@ -57,7 +58,7 @@ void ResponseWriter::Print(ssize_t val) {
   strm_ << val;
 }
 
-void ResponseWriter::Print(std::string_view val) {
+void ResponseWriter::Print(StringView val) {
   strm_ << kFieldSep;
   SafePrint(strm_, val);
 }

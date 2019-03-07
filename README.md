@@ -18,7 +18,7 @@ Some prompt generators attempt to work around this problem by rendering prompt a
 
 ## Requirements
 
-*  To compile: C++17 compiler, GNU make, pkg-config, libgit2.
+*  To compile: C++14 compiler, GNU make, pkg-config, libgit2.
 *  To run: GNU libc on Linux, FreeBSD and WSL; nothing on Mac OS.
 
 ## Compiling

@@ -19,8 +19,11 @@
 #define ROMKATV_GITSTATUS_RESPONSE_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <sstream>
 #include <string>
+
+#include "string_view.h"
 
 namespace gitstatus {
 
@@ -31,7 +34,8 @@ class ResponseWriter {
   ~ResponseWriter();
 
   void Print(ssize_t val);
-  void Print(std::string_view val);
+  void Print(StringView val);
+
   void Dump();
 
  private:
