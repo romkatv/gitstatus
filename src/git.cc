@@ -164,7 +164,8 @@ bool HasStaged(git_repository* repo, git_reference* head, git_index* index) {
   git_tree* tree = nullptr;
   VERIFY(!git_commit_tree(&tree, commit)) << GitError();
   git_diff_options opt = GIT_DIFF_OPTIONS_INIT;
-  opt.notify_cb = [](auto...) -> int { return GIT_EUSER; };
+  opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
+                      const char* matched_pathspec, void* payload) -> int { return GIT_EUSER; };
   git_diff* diff = nullptr;
   switch (git_diff_tree_to_index(&diff, repo, tree, index, &opt)) {
     case 0:
@@ -184,8 +185,8 @@ Dirty GetDirty(git_repository* repo, git_index* index) {
   opt.payload = &res;
   opt.flags = GIT_DIFF_INCLUDE_UNTRACKED;
   opt.ignore_submodules = GIT_SUBMODULE_IGNORE_DIRTY;
-  opt.notify_cb = [](const git_diff* diff, const git_diff_delta* delta,
-                     const char* matched_pathspec, void* payload) {
+  opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
+                      const char* matched_pathspec, void* payload) -> int {
     Dirty* dirty = static_cast<Dirty*>(payload);
     (delta->status == GIT_DELTA_UNTRACKED ? dirty->untracked : dirty->unstaged) = true;
     return dirty->unstaged && dirty->untracked ? GIT_EUSER : 1;
