@@ -2,29 +2,7 @@
 **gitstatus** enables much faster vcs/git prompt in
 [Powerlevel10k](https://github.com/romkatv/powerlevel10k) ZSH theme. It works on Mac OS, Linux, FreeBSD and WSL. See [benchmarks](https://github.com/romkatv/powerlevel10k#how-fast-is-it).
 
-## Installation
-
-1. Install [Powerlevel10k](https://github.com/romkatv/powerlevel10k) ZSH theme.
-
-2. If you use WSL (even occasionally), it's a good idea to define this option in your `.zshrc`:
-
-```zsh
-# When running on WSL, do not scan dirty files in git repos with over 4k files.
-[[ $(</proc/version) =~ Microsoft ]] && GITSTATUS_DIRTY_MAX_INDEX_SIZE=4096
-```
-
-With this option gitstatus won't be looking for dirty (unstaged and untracked) files in git repos with over 4k files. Scanning such repos is incredibly slow on WSL! The prompt will indicate with color that there _might_ be dirty files. With default color settings it means the prompt will never be green.
-
-The option must be set before sourcing gitstatus.
-
-3. Clone gitstatus repo.
-
-```zsh
-# Assuming oh-my-zsh at the standard location. Adjust to your circumstances.
-git clone https://github.com/romkatv/gitstatus.git ~/.oh-my-zsh/custom/plugins/gitstatus
-```
-
-4. Either manually source `gitstatus.plugin.zsh` from your `.zshrc` or enable `gitstatus` plugin in oh-my-zsh.
+Nowadays gitstatus is bundled with Powerlevel10k, so you don't have to install it separately.
 
 ## How it works
 
@@ -105,7 +83,10 @@ gitstatusd:
 To verify that it works type the following command from a clean zsh shell (run `zsh -df` to get there):
 
 ```zsh
-GITSTATUS_DAEMON=./gitstatusd source ./gitstatus.plugin.zsh && [[ -v GITSTATUS_DAEMON_PID ]] && echo works || echo broken
+GITSTATUS_DAEMON=./gitstatusd source ./gitstatus.plugin.zsh &&
+  gitstatus_start TEST &&
+  gitstatus_check TEST &&
+  echo works || echo broken
 ```
 
 ## More Docs
