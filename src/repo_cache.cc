@@ -32,7 +32,7 @@ git_repository* RepoCache::Intern(git_repository* repo) {
     auto x = cache_.emplace(work_dir, repo);
     if (!x.second) git_repository_free(repo);
     return x.first->second;
-  } catch(...) {
+  } catch (...) {
     git_repository_free(repo);
     throw;
   }
