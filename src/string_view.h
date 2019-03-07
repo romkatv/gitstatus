@@ -15,27 +15,24 @@
 // You should have received a copy of the GNU General Public License
 // along with GitStatus. If not, see <https://www.gnu.org/licenses/>.
 
-#include "timer.h"
+#ifndef ROMKATV_GITSTATUS_STRING_VIEW_H_
+#define ROMKATV_GITSTATUS_STRING_VIEW_H_
 
-#include <sys/resource.h>
-#include <sys/time.h>
-
-#include <iostream>
-
-#include "check.h"
+#include <cstddef>
+#include <cstring>
+#include <string>
 
 namespace gitstatus {
 
-double CpuTimeMs() {
-  auto ToMs = [](const timeval& tv) { return 1e3 * tv.tv_sec + 1e-3 * tv.tv_usec; };
-  rusage usage = {};
-  CHECK(getrusage(RUSAGE_SELF, &usage) == 0) << Errno();
-  return ToMs(usage.ru_utime) + ToMs(usage.ru_stime);
-}
+struct StringView {
+  StringView(const char* ptr, size_t len) : ptr(ptr), len(len) {}
+  StringView(const char* ptr) : StringView(ptr, ptr ? std::strlen(ptr) : 0) {}
+  StringView(const std::string& ptr) : StringView(ptr.c_str(), ptr.size()) {}
 
-void Timer::Report(const char* msg) {
-  std::cerr << "CPU time (ms): " << msg << " : " << CpuTimeMs() - ms_ << std::endl;
-  Start();
-}
+  const char* ptr;
+  size_t len;
+};
 
 }  // namespace gitstatus
+
+#endif  // ROMKATV_GITSTATUS_STRING_VIEW_H_

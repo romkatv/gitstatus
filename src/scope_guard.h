@@ -30,12 +30,14 @@
 namespace gitstatus {
 namespace internal_scope_guard {
 
+void Undefined();
+
 template <class F>
 class ScopeGuard {
  public:
   explicit ScopeGuard(F f) : f_(std::move(f)) {}
   ~ScopeGuard() { std::move(f_)(); }
-  ScopeGuard(ScopeGuard&&) = delete;
+  ScopeGuard(ScopeGuard&& other) : f_(std::move(other.f_)) { Undefined(); }
 
  private:
   F f_;

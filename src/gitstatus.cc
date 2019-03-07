@@ -101,18 +101,19 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   resp.Print(NumStashes(repo));
 
   // Repository working directory.
-  std::string_view workdir = git_repository_workdir(repo) ?: "";
-  if (workdir.empty()) return;
-  if (workdir.size() > 1 && workdir.back() == '/') workdir.remove_suffix(1);
+  StringView workdir = git_repository_workdir(repo) ?: "";
+  if (workdir.len == 0) return;
+  if (workdir.len > 1 && workdir.ptr[workdir.len - 1] == '/') --workdir.len;
   resp.Print(workdir);
 
   resp.Dump();
-  timer.Report(req.id);
+  timer.Report(req.id.c_str());
 }
 
 int GitStatus(int argc, char** argv) {
+  for (int i = 0; i != argc; ++i) LOG(INFO) << "argv[" << i << "]: " << argv[i];
+
   Options opts = ParseOptions(argc, argv);
-  LOG(INFO) << "Parent PID: " << opts.parent_pid;
   RequestReader reader(fileno(stdin), opts.parent_pid);
   RepoCache cache;
 

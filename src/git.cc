@@ -17,6 +17,8 @@
 
 #include "git.h"
 
+#include <cstring>
+
 #include "check.h"
 #include "scope_guard.h"
 
@@ -147,9 +149,10 @@ git_reference* Upstream(git_reference* local) {
   }
 }
 
-std::string_view BranchName(const git_reference* ref) {
-  std::string_view name = git_reference_name(ref);
-  return name.substr(name.find_last_of('/') + 1);
+const char* BranchName(const git_reference* ref) {
+  const char* name = git_reference_name(ref);
+  const char* sep = std::strrchr(name, '/');
+  return sep ? sep + 1 : name;
 }
 
 bool HasStaged(git_repository* repo, git_reference* head, git_index* index) {

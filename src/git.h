@@ -57,7 +57,7 @@ git_reference* Head(git_repository* repo);
 git_reference* Upstream(git_reference* local);
 
 // Returns the name of the branch. This is the segment after the last '/'.
-std::string_view BranchName(const git_reference* ref);
+const char* BranchName(const git_reference* ref);
 
 bool HasStaged(git_repository* repo, git_reference* head, git_index* index);
 
