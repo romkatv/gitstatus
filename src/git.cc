@@ -183,7 +183,7 @@ Dirty GetDirty(git_repository* repo, git_index* index) {
   Dirty res;
   git_diff_options opt = GIT_DIFF_OPTIONS_INIT;
   opt.payload = &res;
-  opt.flags = GIT_DIFF_INCLUDE_UNTRACKED;
+  opt.flags = GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_RECURSE_UNTRACKED_DIRS;
   opt.ignore_submodules = GIT_SUBMODULE_IGNORE_DIRTY;
   opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
                       const char* matched_pathspec, void* payload) -> int {
