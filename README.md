@@ -33,7 +33,9 @@ git clone https://github.com/libgit2/libgit2.git
 cd libgit2
 mkdir build
 cd build
-cmake                        \
+CC=gcc cmake                 \
+  -DUSE_ICONV=OFF            \
+  -DBUILD_CLAR=OFF           \
   -DUSE_SSH=OFF              \
   -DUSE_HTTPS=OFF            \
   -DTHREADSAFE=OFF           \
@@ -60,8 +62,6 @@ You can use `CXX=clang++ make` to compile with clang (the default compiler is gc
 CXX=clang++ LDLIBS=-lgit2 make -j 20
 ```
 
-In order to achieve static linking with libgit2 and iconv on MacOS, make sure linker cannot find the dynamic versions of these libraries.
-
 Here's what the resulting binary should look like on Linux, FreeBSD and WSL:
 
 ```zsh
@@ -80,7 +80,7 @@ gitstatusd:
 	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1252.200.5)
 ```
 
-To verify that it works type the following command from a clean zsh shell (run `zsh -df` to get there):
+To verify that it works, type the following command from a clean zsh shell (run `zsh -df` to get there):
 
 ```zsh
 GITSTATUS_DAEMON=./gitstatusd source ./gitstatus.plugin.zsh &&
