@@ -40,15 +40,18 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   Timer timer;
   ResponseWriter resp(req.id);
 
-  git_repository* repo = OpenRepo(req.dir);
-  if (!repo) return;
-  if (git_repository_is_bare(repo) || git_repository_is_empty(repo)) {
-    git_repository_free(repo);
-    return;
+  Repo* repo;
+  {
+    git_repository* p = OpenRepo(req.dir);
+    if (!p) return;
+    if (git_repository_is_bare(p) || git_repository_is_empty(p)) {
+      git_repository_free(p);
+      return;
+    }
+    repo = &cache.Intern(p);
   }
-  repo = cache.Intern(repo);
 
-  git_reference* head = Head(repo);
+  git_reference* head = Head(repo->repo);
   if (!head) return;
   ON_SCOPE_EXIT(=) { git_reference_free(head); };
 
@@ -63,45 +66,47 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   resp.Print(upstream ? BranchName(upstream) : "");
 
   // Remote url.
-  resp.Print(RemoteUrl(repo));
+  resp.Print(RemoteUrl(repo->repo));
 
   // Repository state, A.K.A. action.
-  resp.Print(RepoState(repo));
+  resp.Print(RepoState(repo->repo));
 
   git_index* index = nullptr;
-  VERIFY(!git_repository_index(&index, repo)) << GitError();
+  VERIFY(!git_repository_index(&index, repo->repo)) << GitError();
   ON_SCOPE_EXIT(=) { git_index_free(index); };
   VERIFY(!git_index_read(index, 0)) << GitError();
 
   // 1 if there are staged changes, 0 otherwise.
-  resp.Print(HasStaged(repo, head, index));
+  resp.Print(HasStaged(repo->repo, head, index));
 
+  UpdateDirty(*repo);
+
+  // 1 if there are unstaged changes, 0 if there aren't, -1 if we don't know.
+  // 1 if there are untracked changes, 0 if there aren't, -1 if we don't know.
   if (git_index_entrycount(index) <= opts.dirty_max_index_size) {
-    Dirty dirty = GetDirty(repo, index);
-    // 1 if there are unstaged changes, 0 otherwise.
-    resp.Print(dirty.unstaged);
-    // 1 if there are untracked files, 0 otherwise.
-    resp.Print(dirty.untracked);
+    ScanDirty(*repo, index);
+    resp.Print(!repo->unstaged.empty());
+    resp.Print(!repo->untracked.empty());
   } else {
-    resp.Print(-1);
-    resp.Print(-1);
+    resp.Print(repo->unstaged.empty() ? -1 : 1);
+    resp.Print(repo->untracked.empty() ? -1 : 1);
   }
 
   if (upstream) {
     // Number of commits we are ahead of upstream.
-    resp.Print(CountRange(repo, git_reference_shorthand(upstream) + "..HEAD"s));
+    resp.Print(CountRange(repo->repo, git_reference_shorthand(upstream) + "..HEAD"s));
     // Number of commits we are behind upstream.
-    resp.Print(CountRange(repo, "HEAD.."s + git_reference_shorthand(upstream)));
+    resp.Print(CountRange(repo->repo, "HEAD.."s + git_reference_shorthand(upstream)));
   } else {
     resp.Print(0);
     resp.Print(0);
   }
 
   // Number of stashes.
-  resp.Print(NumStashes(repo));
+  resp.Print(NumStashes(repo->repo));
 
   // Repository working directory.
-  StringView workdir = git_repository_workdir(repo) ?: "";
+  StringView workdir = git_repository_workdir(repo->repo) ?: "";
   if (workdir.len == 0) return;
   if (workdir.len > 1 && workdir.ptr[workdir.len - 1] == '/') --workdir.len;
   resp.Print(workdir);

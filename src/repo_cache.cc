@@ -22,10 +22,10 @@
 namespace gitstatus {
 
 RepoCache::~RepoCache() {
-  for (const auto& kv : cache_) git_repository_free(kv.second);
+  for (const auto& kv : cache_) git_repository_free(kv.second.repo);
 }
 
-git_repository* RepoCache::Intern(git_repository* repo) {
+Repo& RepoCache::Intern(git_repository* repo) {
   try {
     const char* work_dir = git_repository_workdir(repo);
     VERIFY(work_dir);

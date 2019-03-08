@@ -23,14 +23,9 @@
 #include <cstddef>
 #include <string>
 
-namespace gitstatus {
+#include "repo_cache.h"
 
-struct Dirty {
-  // Are there unstaged changes?
-  bool unstaged = false;
-  // Are there untracked files?
-  bool untracked = false;
-};
+namespace gitstatus {
 
 // Not null.
 const char* GitError();
@@ -61,7 +56,9 @@ const char* BranchName(const git_reference* ref);
 
 bool HasStaged(git_repository* repo, git_reference* head, git_index* index);
 
-Dirty GetDirty(git_repository* repo, git_index* index);
+void UpdateDirty(Repo& repo);
+
+void ScanDirty(Repo& repo, git_index* index);
 
 }  // namespace gitstatus
 
