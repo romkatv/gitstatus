@@ -18,6 +18,7 @@
 #include "git.h"
 
 #include <cstring>
+#include <utility>
 
 #include "check.h"
 #include "scope_guard.h"
@@ -179,24 +180,57 @@ bool HasStaged(git_repository* repo, git_reference* head, git_index* index) {
   }
 }
 
-Dirty GetDirty(git_repository* repo, git_index* index) {
-  Dirty res;
+void UpdateDirty(Repo& repo) {
+  constexpr unsigned kUnstaged =
+      GIT_STATUS_WT_MODIFIED | GIT_STATUS_WT_DELETED | GIT_STATUS_WT_TYPECHANGE;
+  constexpr unsigned kUntracked = GIT_STATUS_WT_NEW;
+
+  auto Update = [&](std::string& f1, std::string& f2, unsigned m1, unsigned m2) {
+    if (f1.empty()) return false;
+    unsigned int flags = 0;
+    if (git_status_file(&flags, repo.repo, f1.c_str())) {
+      f1.clear();
+      return false;
+    }
+    if (flags & m2) {
+      f2 = std::move(f1);
+      f1.clear();
+      return true;
+    }
+    if (!(flags & m1)) f1.clear();
+    return false;
+  };
+
+  Update(repo.unstaged, repo.untracked, kUnstaged, kUntracked) ||
+      Update(repo.untracked, repo.unstaged, kUntracked, kUnstaged);
+}
+
+void ScanDirty(Repo& repo, git_index* index) {
+  if (!repo.unstaged.empty() && !repo.untracked.empty()) return;
   git_diff_options opt = GIT_DIFF_OPTIONS_INIT;
-  opt.payload = &res;
-  opt.flags = GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_RECURSE_UNTRACKED_DIRS;
+  opt.payload = &repo;
+  opt.flags = GIT_DIFF_SKIP_BINARY_CHECK;
+  if (repo.untracked.empty()) {
+    opt.flags |= GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_RECURSE_UNTRACKED_DIRS;
+  }
   opt.ignore_submodules = GIT_SUBMODULE_IGNORE_DIRTY;
   opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
                       const char* matched_pathspec, void* payload) -> int {
-    Dirty* dirty = static_cast<Dirty*>(payload);
-    (delta->status == GIT_DELTA_UNTRACKED ? dirty->untracked : dirty->unstaged) = true;
-    return dirty->unstaged && dirty->untracked ? GIT_EUSER : 1;
+    Repo* repo = static_cast<Repo*>(payload);
+    if (delta->status == GIT_DELTA_UNTRACKED) {
+      if (repo->untracked.empty()) repo->untracked = delta->new_file.path;
+    } else {
+      if (repo->unstaged.empty()) repo->unstaged = delta->new_file.path;
+    }
+    return !repo->unstaged.empty() && !repo->untracked.empty() ? GIT_EUSER : 1;
   };
   git_diff* diff = nullptr;
-  switch (git_diff_index_to_workdir(&diff, repo, index, &opt)) {
+  switch (git_diff_index_to_workdir(&diff, repo.repo, index, &opt)) {
     case 0:
       git_diff_free(diff);
+      break;
     case GIT_EUSER:
-      return res;
+      break;
     default:
       LOG(ERROR) << "git_diff_index_to_workdir: " << GitError();
       throw Exception();
