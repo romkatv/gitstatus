@@ -313,8 +313,8 @@ void Repo::ScanDirty() {
 
   for (size_t i = 0; i != splits_.size() - 1; ++i) {
     RunAsync([this, opt, start = splits_[i], end = splits_[i + 1]]() mutable {
-      opt.entry_start = start.c_str();
-      opt.entry_end = end.c_str();
+      opt.range_start = start.c_str();
+      opt.range_end = end.c_str();
       git_diff* diff = nullptr;
       switch (git_diff_index_to_workdir(&diff, repo_, index_, &opt)) {
         case 0:
@@ -342,6 +342,7 @@ void Repo::UpdateSplits() {
   size_t n = git_index_entrycount(index_);
   ON_SCOPE_EXIT(&) {
     LOG(INFO) << "Index size = " << n << "; number of shards = " << (splits_.size() - 1);
+    for (const std::string& s : splits_) LOG(INFO) << "Split: '" << s << "'";
   };
 
   if (n <= kEntriesPerShard || g_thread_pool.num_threads() < 2) {
@@ -349,35 +350,57 @@ void Repo::UpdateSplits() {
     return;
   }
 
-  std::vector<char*> entries(n);
-  std::vector<char*> patches;
-  patches.reserve(8 * n);
+  std::vector<const char*> entries_lo(n);
+  std::vector<char*> slashes;
+  slashes.reserve(8 * n);
+
+  ON_SCOPE_EXIT(&) {
+    for (char* p : slashes) *p = '/';
+  };
+
+  constexpr char kSep[] = {1, 255, 0};
+
   for (size_t i = 0; i != n; ++i) {
     char* path = const_cast<char*>(git_index_get_byindex(index_, i)->path);
-    if (std::strchr(path, 1)) {
+    if (std::strstr(path, kSep)) {
       splits_ = {""s, ""s};
       return;
     }
-    entries[i] = path;
+    entries_lo[i] = path;
     while ((path = std::strchr(path, '/'))) {
       static_assert(std::is_unsigned<char>());
-      patches.push_back(path);
-      *path = 1;
+      *path = kSep[0];
+      slashes.push_back(path);
     }
   }
-  std::sort(entries.begin(), entries.end(),
+  std::sort(entries_lo.begin(), entries_lo.end(),
             [](const char* x, const char* y) { return std::strcmp(x, y) < 0; });
-  for (char* p : patches) *p = '/';
+
+  std::vector<const char*> entries_hi = entries_lo;
+  for (char* p : slashes) *p = kSep[1];
+  std::sort(entries_hi.begin(), entries_hi.end(),
+            [](const char* x, const char* y) { return std::strcmp(x, y) < 0; });
+
+  const char* last = "";
+  for (size_t i = 0; i != n; ++i) {
+    if (entries_lo[i] == entries_hi[i]) {
+      last = entries_lo[i];
+    } else {
+      entries_hi[i] = last;
+    }
+  }
 
   size_t shards = std::min(n / kEntriesPerShard + 1, g_thread_pool.num_threads());
   splits_.clear();
   splits_.reserve(shards + 1);
   splits_.push_back("");
   for (size_t i = 0; i != shards - 1; ++i) {
-    splits_.push_back(entries[(i + 1) * n / shards]);
+    std::string split = entries_hi[(i + 1) * n / shards];
+    std::replace(split.begin(), split.end(), kSep[1], '/');
+    if (split != splits_.back()) splits_.push_back(std::move(split));
   }
   splits_.push_back("");
-  CHECK(splits_.size() == shards + 1);
+  CHECK(splits_.size() <= shards + 1);
 }
 
 void Repo::DecInflight() {
