@@ -20,9 +20,8 @@
 #include <sys/resource.h>
 #include <sys/time.h>
 
-#include <iostream>
-
 #include "check.h"
+#include "logging.h"
 
 namespace gitstatus {
 
@@ -33,8 +32,21 @@ double CpuTimeMs() {
   return ToMs(usage.ru_utime) + ToMs(usage.ru_stime);
 }
 
+double WallTimeMs() {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+  return 1e3 * ts.tv_sec + 1e-6 * ts.tv_nsec;
+}
+
+void Timer::Start() {
+  cpu_ = CpuTimeMs();
+  wall_ = WallTimeMs();
+}
+
 void Timer::Report(const char* msg) {
-  std::cerr << "CPU time (ms): " << msg << " : " << CpuTimeMs() - ms_ << std::endl;
+  double cpu = CpuTimeMs() - cpu_;
+  double wall = WallTimeMs() - wall_;
+  LOG(INFO) << "Timing for: " << msg << ": " << cpu << "ms cpu, " << wall << "ms wall";
   Start();
 }
 

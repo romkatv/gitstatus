@@ -17,13 +17,53 @@
 
 #include "git.h"
 
+#include <algorithm>
+#include <atomic>
 #include <cstring>
+#include <memory>
+#include <type_traits>
 #include <utility>
 
 #include "check.h"
 #include "scope_guard.h"
+#include "thread_pool.h"
+#include "timer.h"
 
 namespace gitstatus {
+
+namespace {
+
+using namespace std::string_literals;
+
+static ThreadPool g_thread_pool;
+
+template <class T>
+T Load(const std::atomic<T>& x) {
+  return x.load(std::memory_order_relaxed);
+}
+
+template <class T>
+void Store(std::atomic<T>& x, T v) {
+  x.store(v, std::memory_order_relaxed);
+}
+
+template <class T>
+void Inc(std::atomic<T>& x) {
+  x.fetch_add(1, std::memory_order_relaxed);
+}
+
+template <class T>
+void Dec(std::atomic<T>& x) {
+  x.fetch_sub(1, std::memory_order_relaxed);
+}
+
+git_index* Index(git_repository* repo) {
+  git_index* res = nullptr;
+  VERIFY(!git_repository_index(&res, repo)) << GitError();
+  return res;
+}
+
+}  // namespace
 
 const char* GitError() {
   // There is no git_error_last() on OSX, so we use a deprecated alternative.
@@ -180,15 +220,31 @@ bool HasStaged(git_repository* repo, git_reference* head, git_index* index) {
   }
 }
 
-void UpdateDirty(Repo& repo) {
-  constexpr unsigned kUnstaged =
-      GIT_STATUS_WT_MODIFIED | GIT_STATUS_WT_DELETED | GIT_STATUS_WT_TYPECHANGE;
+Repo::Repo(git_repository* repo) try : repo_(repo), index_(Index(repo_)) {
+  UpdateSplits();
+} catch (...) {
+  git_repository_free(repo);
+  throw;
+}
+
+Repo::~Repo() {
+  Wait(true);
+  git_index_free(index_);
+  git_repository_free(repo_);
+}
+
+void Repo::UpdateDirty() {
+  Wait(true);
+
   constexpr unsigned kUntracked = GIT_STATUS_WT_NEW;
+  constexpr unsigned kUnstaged = GIT_STATUS_WT_MODIFIED | GIT_STATUS_WT_DELETED |
+                                 GIT_STATUS_WT_TYPECHANGE | GIT_STATUS_WT_RENAMED |
+                                 GIT_STATUS_CONFLICTED;
 
   auto Update = [&](std::string& f1, std::string& f2, unsigned m1, unsigned m2) {
     if (f1.empty()) return false;
     unsigned int flags = 0;
-    if (git_status_file(&flags, repo.repo, f1.c_str())) {
+    if (git_status_file(&flags, repo_, f1.c_str())) {
       f1.clear();
       return false;
     }
@@ -201,40 +257,164 @@ void UpdateDirty(Repo& repo) {
     return false;
   };
 
-  Update(repo.unstaged, repo.untracked, kUnstaged, kUntracked) ||
-      Update(repo.untracked, repo.unstaged, kUntracked, kUnstaged);
+  Update(unstaged_, untracked_, kUnstaged, kUntracked) ||
+      Update(untracked_, unstaged_, kUntracked, kUnstaged);
+  Store(has_unstaged_, !unstaged_.empty());
+  Store(has_untracked_, !untracked_.empty());
 }
 
-void ScanDirty(Repo& repo, git_index* index) {
-  if (!repo.unstaged.empty() && !repo.untracked.empty()) return;
+void Repo::ScanDirty() {
+  ON_SCOPE_EXIT(&) {
+    if (HasUnstaged()) LOG(INFO) << "Unstaged: " << unstaged_;
+    if (HasUntracked()) LOG(INFO) << "Untracked: " << untracked_;
+  };
+
+  Wait(true);
+
+  if (HasUnstaged() && HasUntracked()) return;
+
+  CHECK(Load(inflight_) == 0);
+  Inc(inflight_);
+  ON_SCOPE_EXIT(&) { DecInflight(); };
+
   git_diff_options opt = GIT_DIFF_OPTIONS_INIT;
-  opt.payload = &repo;
+  opt.payload = this;
   opt.flags = GIT_DIFF_SKIP_BINARY_CHECK;
-  if (repo.untracked.empty()) {
+  if (!HasUntracked()) {
+    // We could remove GIT_DIFF_RECURSE_UNTRACKED_DIRS and manually check in OnDirty whether
+    // the allegedly untracked file is an empty directory. Unfortunately, it'll break UpdateDirty()
+    // because we cannot use git_status_file on a directory. Seems like there is no way to quickly
+    // get any untracked file from a directory that definitely has untracked files.
+    // git_diff_index_to_workdir actually computes this before telling us that a directory is
+    // untracked, but it doesn't give us the file path.
     opt.flags |= GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_RECURSE_UNTRACKED_DIRS;
   }
   opt.ignore_submodules = GIT_SUBMODULE_IGNORE_DIRTY;
   opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
                       const char* matched_pathspec, void* payload) -> int {
-    Repo* repo = static_cast<Repo*>(payload);
-    if (delta->status == GIT_DELTA_UNTRACKED) {
-      if (repo->untracked.empty()) repo->untracked = delta->new_file.path;
-    } else {
-      if (repo->unstaged.empty()) repo->unstaged = delta->new_file.path;
-    }
-    return !repo->unstaged.empty() && !repo->untracked.empty() ? GIT_EUSER : 1;
+    return static_cast<Repo*>(payload)->OnDelta(delta->status, delta->new_file.path);
   };
-  git_diff* diff = nullptr;
-  switch (git_diff_index_to_workdir(&diff, repo.repo, index, &opt)) {
-    case 0:
-      git_diff_free(diff);
-      break;
-    case GIT_EUSER:
-      break;
-    default:
-      LOG(ERROR) << "git_diff_index_to_workdir: " << GitError();
-      throw Exception();
+
+  for (size_t i = 0; i != splits_.size() - 1; ++i) {
+    RunAsync([this, opt, start = splits_[i], end = splits_[i + 1]]() mutable {
+      opt.entry_start = start.c_str();
+      opt.entry_end = end.c_str();
+      git_diff* diff = nullptr;
+      switch (git_diff_index_to_workdir(&diff, repo_, index_, &opt)) {
+        case 0:
+          git_diff_free(diff);
+          break;
+        case GIT_EUSER:
+          break;
+        default:
+          LOG(ERROR) << "git_diff_index_to_workdir: " << GitError();
+          throw Exception();
+      }
+    });
   }
+
+  Wait(false);
+  RunAsync([this] { UpdateSplits(); });
+}
+
+bool Repo::HasUnstaged() const { return Load(has_unstaged_); }
+bool Repo::HasUntracked() const { return Load(has_untracked_); }
+
+void Repo::UpdateSplits() {
+  constexpr size_t kEntriesPerShard = 1024;
+
+  size_t n = git_index_entrycount(index_);
+  if (n <= kEntriesPerShard || g_thread_pool.num_threads() < 2) {
+    splits_ = {""s, ""s};
+    return;
+  }
+
+  std::vector<char*> entries(n);
+  std::vector<char*> patches;
+  patches.reserve(8 * n);
+  for (size_t i = 0; i != n; ++i) {
+    char* path = const_cast<char*>(git_index_get_byindex(index_, i)->path);
+    if (std::strchr(path, 1)) {
+      splits_ = {""s, ""s};
+      return;
+    }
+    entries[i] = path;
+    while ((path = std::strchr(path, '/'))) {
+      static_assert(std::is_unsigned<char>());
+      patches.push_back(path);
+      *path = 1;
+    }
+  }
+  std::sort(entries.begin(), entries.end(),
+            [](const char* x, const char* y) { return std::strcmp(x, y) < 0; });
+  for (char* p : patches) *p = '/';
+
+  size_t shards = std::min(n / kEntriesPerShard + 1, 2 * g_thread_pool.num_threads());
+  splits_.clear();
+  splits_.reserve(shards + 1);
+  splits_.push_back("");
+  for (size_t i = 0; i != shards - 1; ++i) {
+    splits_.push_back(entries[(i + 1) * n / shards]);
+  }
+  splits_.push_back("");
+  CHECK(splits_.size() == shards + 1);
+}
+
+void Repo::DecInflight() {
+  std::unique_lock<std::mutex> lock(mutex_);
+  CHECK(inflight_ > 0);
+  if (--inflight_ < 2) cv_.notify_one();
+}
+
+void Repo::RunAsync(std::function<void()> f) {
+  Inc(inflight_);
+  try {
+    g_thread_pool.Schedule([this, f = std::move(f)] {
+      ON_SCOPE_EXIT(&) { DecInflight(); };
+      f();
+    });
+  } catch (...) {
+    DecInflight();
+    throw;
+  }
+}
+
+int Repo::OnDelta(git_delta_t status, const char* path) {
+  VERIFY(path && *path);
+  if (status == GIT_DELTA_UNTRACKED) {
+    if (!HasUntracked()) {
+      std::unique_lock<std::mutex> lock(mutex_);
+      if (untracked_.empty()) {
+        untracked_ = path;
+        Store(has_untracked_, true);
+        if (HasUnstaged()) cv_.notify_one();
+      }
+    }
+  } else {
+    if (!HasUnstaged()) {
+      std::unique_lock<std::mutex> lock(mutex_);
+      if (unstaged_.empty()) {
+        unstaged_ = path;
+        Store(has_unstaged_, true);
+        if (HasUntracked()) cv_.notify_one();
+      }
+    }
+  }
+  return HasUnstaged() && HasUntracked() ? GIT_EUSER : 1;
+}
+
+void Repo::Wait(bool full_stop) {
+  std::unique_lock<std::mutex> lock(mutex_);
+  while (true) {
+    if (inflight_ == 0) break;
+    if (!full_stop) {
+      if (inflight_ == 1) break;
+      if (HasUnstaged() && HasUntracked()) break;
+    }
+    cv_.wait(lock);
+  }
+  CHECK(HasUnstaged() == !unstaged_.empty());
+  CHECK(HasUntracked() == !untracked_.empty());
 }
 
 }  // namespace gitstatus

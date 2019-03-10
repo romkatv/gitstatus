@@ -3,7 +3,7 @@ APPNAME ?= gitstatusd
 CXX ?= g++
 
 CXXFLAGS += -std=c++14 -funsigned-char -O3 -DNDEBUG -Wall -Werror
-LDFLAGS += -s -static-libstdc++ -static-libgcc
+LDFLAGS += -s -static-libstdc++ -static-libgcc -pthread
 
 CXXFLAGS += $(shell pkg-config --cflags libgit2)
 LDFLAGS += $(shell pkg-config --libs-only-L libgit2)

@@ -19,30 +19,21 @@
 #define ROMKATV_GITSTATUS_REPO_CACHE_H_
 
 #include <string>
+#include <memory>
 #include <unordered_map>
 
 #include <git2.h>
 
+#include "git.h"
+
 namespace gitstatus {
-
-struct Repo {
-  Repo(git_repository* repo) : repo(repo) {}
-
-  git_repository* const repo;
-  std::string untracked;
-  std::string unstaged;
-};
 
 class RepoCache {
  public:
-  RepoCache() {}
-  RepoCache(RepoCache&&) = delete;
-  ~RepoCache();
-
   Repo& Intern(git_repository* repo);
 
  private:
-  std::unordered_map<std::string, Repo> cache_;
+  std::unordered_map<std::string, std::unique_ptr<Repo>> cache_;
 };
 
 }  // namespace gitstatus
