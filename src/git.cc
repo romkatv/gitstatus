@@ -342,7 +342,6 @@ void Repo::UpdateSplits() {
   size_t n = git_index_entrycount(index_);
   ON_SCOPE_EXIT(&) {
     LOG(INFO) << "Index size = " << n << "; number of shards = " << (splits_.size() - 1);
-    for (const std::string& s : splits_) LOG(INFO) << "Split: '" << s << "'";
   };
 
   if (n <= kEntriesPerShard || g_thread_pool.num_threads() < 2) {
