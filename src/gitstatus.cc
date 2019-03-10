@@ -72,10 +72,10 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   // Repository state, A.K.A. action.
   resp.Print(RepoState(repo->repo()));
 
-  // 1 if there are staged changes, 0 otherwise.
-  resp.Print(HasStaged(repo->repo(), head, repo->index()));
+  repo->UpdateKnown();
 
-  repo->UpdateDirty();
+  // 1 if there are staged changes, 0 otherwise.
+  resp.Print(repo->HasStaged(head));
 
   // 1 if there are unstaged changes, 0 if there aren't, -1 if we don't know.
   // 1 if there are untracked changes, 0 if there aren't, -1 if we don't know.
@@ -108,7 +108,7 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   resp.Print(workdir);
 
   resp.Dump();
-  timer.Report(req.id.c_str());
+  timer.Report("request");
 }
 
 int GitStatus(int argc, char** argv) {
