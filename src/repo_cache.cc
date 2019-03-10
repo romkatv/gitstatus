@@ -21,21 +21,14 @@
 
 namespace gitstatus {
 
-RepoCache::~RepoCache() {
-  for (const auto& kv : cache_) git_repository_free(kv.second.repo);
-}
-
 Repo& RepoCache::Intern(git_repository* repo) {
-  try {
-    const char* work_dir = git_repository_workdir(repo);
-    VERIFY(work_dir);
-    auto x = cache_.emplace(work_dir, repo);
-    if (!x.second) git_repository_free(repo);
-    return x.first->second;
-  } catch (...) {
-    git_repository_free(repo);
-    throw;
+  const char* work_dir = git_repository_workdir(repo);
+  CHECK(work_dir);
+  auto x = cache_.emplace(work_dir, nullptr);
+  if (x.first->second == nullptr) {
+    x.first->second = std::make_unique<Repo>(repo);
   }
+  return *x.first->second;
 }
 
 }  // namespace gitstatus

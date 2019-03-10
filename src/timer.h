@@ -21,15 +21,17 @@
 namespace gitstatus {
 
 double CpuTimeMs();
+double WallTimeMs();
 
 class Timer {
  public:
   Timer() { Start(); }
-  void Start() { ms_ = CpuTimeMs(); }
+  void Start();
   void Report(const char* msg);
 
  private:
-  double ms_;
+  double cpu_;
+  double wall_;
 };
 
 }  // namespace gitstatus

@@ -20,12 +20,50 @@
 
 #include <git2.h>
 
+#include <atomic>
+#include <condition_variable>
 #include <cstddef>
+#include <functional>
+#include <mutex>
 #include <string>
-
-#include "repo_cache.h"
+#include <vector>
 
 namespace gitstatus {
+
+class Repo {
+ public:
+  explicit Repo(git_repository* repo);
+  Repo(Repo&& other) = delete;
+  ~Repo();
+
+  git_repository* repo() const { return repo_; }
+  git_index* index() const { return index_; }
+
+  void UpdateDirty();
+  void ScanDirty();
+
+  bool HasUnstaged() const;
+  bool HasUntracked() const;
+
+ private:
+  void UpdateSplits();
+  void DecInflight();
+  void RunAsync(std::function<void()> f);
+  int OnDelta(git_delta_t status, const char* path);
+  void Wait(bool full_stop);
+
+  git_repository* const repo_;
+  git_index* const index_;
+  std::vector<std::string> splits_;
+
+  std::mutex mutex_;
+  std::string untracked_;
+  std::string unstaged_;
+  std::condition_variable cv_;
+  std::atomic<bool> has_unstaged_{false};
+  std::atomic<bool> has_untracked_{false};
+  std::atomic<size_t> inflight_{0};
+};
 
 // Not null.
 const char* GitError();
@@ -55,10 +93,6 @@ git_reference* Upstream(git_reference* local);
 const char* BranchName(const git_reference* ref);
 
 bool HasStaged(git_repository* repo, git_reference* head, git_index* index);
-
-void UpdateDirty(Repo& repo);
-
-void ScanDirty(Repo& repo, git_index* index);
 
 }  // namespace gitstatus
 
