@@ -196,30 +196,6 @@ const char* BranchName(const git_reference* ref) {
   return sep ? sep + 1 : name;
 }
 
-bool HasStaged(git_repository* repo, git_reference* head, git_index* index) {
-  const git_oid* oid = git_reference_target(head);
-  VERIFY(oid);
-  git_commit* commit = nullptr;
-  VERIFY(!git_commit_lookup(&commit, repo, oid)) << GitError();
-  ON_SCOPE_EXIT(=) { git_commit_free(commit); };
-  git_tree* tree = nullptr;
-  VERIFY(!git_commit_tree(&tree, commit)) << GitError();
-  git_diff_options opt = GIT_DIFF_OPTIONS_INIT;
-  opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
-                      const char* matched_pathspec, void* payload) -> int { return GIT_EUSER; };
-  git_diff* diff = nullptr;
-  switch (git_diff_tree_to_index(&diff, repo, tree, index, &opt)) {
-    case 0:
-      git_diff_free(diff);
-      return false;
-    case GIT_EUSER:
-      return true;
-    default:
-      LOG(ERROR) << "git_diff_tree_to_index: " << GitError();
-      throw Exception();
-  }
-}
-
 Repo::Repo(git_repository* repo) try : repo_(repo), index_(Index(repo_)) {
   UpdateSplits();
 } catch (...) {
@@ -233,42 +209,82 @@ Repo::~Repo() {
   git_repository_free(repo_);
 }
 
-void Repo::UpdateDirty() {
+bool Repo::HasStaged(git_reference* head) {
   Wait(true);
 
-  constexpr unsigned kUntracked = GIT_STATUS_WT_NEW;
-  constexpr unsigned kUnstaged = GIT_STATUS_WT_MODIFIED | GIT_STATUS_WT_DELETED |
-                                 GIT_STATUS_WT_TYPECHANGE | GIT_STATUS_WT_RENAMED |
-                                 GIT_STATUS_CONFLICTED;
+  if (!staged_.empty()) return true;
 
-  auto Update = [&](std::string& f1, std::string& f2, unsigned m1, unsigned m2) {
-    if (f1.empty()) return false;
-    unsigned int flags = 0;
-    if (git_status_file(&flags, repo_, f1.c_str())) {
-      f1.clear();
+  const git_oid* oid = git_reference_target(head);
+  VERIFY(oid);
+  git_commit* commit = nullptr;
+  VERIFY(!git_commit_lookup(&commit, repo_, oid)) << GitError();
+  ON_SCOPE_EXIT(=) { git_commit_free(commit); };
+  git_tree* tree = nullptr;
+  VERIFY(!git_commit_tree(&tree, commit)) << GitError();
+  git_diff_options opt = GIT_DIFF_OPTIONS_INIT;
+  opt.payload = this;
+  opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
+                      const char* matched_pathspec, void* payload) -> int {
+    static_cast<Repo*>(payload)->staged_ = delta->new_file.path;
+    LOG(INFO) << "Staged: " << delta->new_file.path;
+    return GIT_EUSER;
+  };
+  git_diff* diff = nullptr;
+  switch (git_diff_tree_to_index(&diff, repo_, tree, index_, &opt)) {
+    case 0:
+      git_diff_free(diff);
       return false;
-    }
-    if (flags & m2) {
-      f2 = std::move(f1);
-      f1.clear();
+    case GIT_EUSER:
       return true;
-    }
-    if (!(flags & m1)) f1.clear();
-    return false;
+    default:
+      LOG(ERROR) << "git_diff_tree_to_index: " << GitError();
+      throw Exception();
+  }
+}
+
+void Repo::UpdateKnown() {
+  Wait(true);
+
+  struct File {
+    unsigned flags = 0;
+    std::string path;
   };
 
-  Update(unstaged_, untracked_, kUnstaged, kUntracked) ||
-      Update(untracked_, unstaged_, kUntracked, kUnstaged);
+  auto Fetch = [&](std::string& path) {
+    File res;
+    if (!path.empty()) {
+      std::swap(res.path, path);
+      if (git_status_file(&res.flags, repo_, res.path.c_str())) res.flags = 0;
+    }
+    return res;
+  };
+
+  File files[] = {Fetch(staged_), Fetch(unstaged_), Fetch(untracked_)};
+
+  auto Snatch = [&](unsigned mask, const char* label) {
+    for (File& f : files) {
+      if (f.flags & mask) {
+        f.flags = 0;
+        LOG(INFO) << "Fast path for " << label << ": " << f.path;
+        return std::move(f.path);
+      }
+    }
+    return std::string();
+  };
+
+  staged_ = Snatch(GIT_STATUS_INDEX_NEW | GIT_STATUS_INDEX_MODIFIED | GIT_STATUS_INDEX_DELETED |
+                       GIT_STATUS_INDEX_RENAMED | GIT_STATUS_INDEX_TYPECHANGE,
+                   "staged");
+  unstaged_ = Snatch(GIT_STATUS_WT_MODIFIED | GIT_STATUS_WT_DELETED | GIT_STATUS_WT_TYPECHANGE |
+                         GIT_STATUS_WT_RENAMED | GIT_STATUS_CONFLICTED,
+                     "unstaged");
+  untracked_ = Snatch(GIT_STATUS_WT_NEW, "untracked");
+
   Store(has_unstaged_, !unstaged_.empty());
   Store(has_untracked_, !untracked_.empty());
 }
 
 void Repo::ScanDirty() {
-  ON_SCOPE_EXIT(&) {
-    if (HasUnstaged()) LOG(INFO) << "Unstaged: " << unstaged_;
-    if (HasUntracked()) LOG(INFO) << "Untracked: " << untracked_;
-  };
-
   Wait(true);
 
   if (HasUnstaged() && HasUntracked()) return;
@@ -324,6 +340,10 @@ void Repo::UpdateSplits() {
   constexpr size_t kEntriesPerShard = 1024;
 
   size_t n = git_index_entrycount(index_);
+  ON_SCOPE_EXIT(&) {
+    LOG(INFO) << "Index size = " << n << "; number of shards = " << (splits_.size() - 1);
+  };
+
   if (n <= kEntriesPerShard || g_thread_pool.num_threads() < 2) {
     splits_ = {""s, ""s};
     return;
@@ -349,7 +369,7 @@ void Repo::UpdateSplits() {
             [](const char* x, const char* y) { return std::strcmp(x, y) < 0; });
   for (char* p : patches) *p = '/';
 
-  size_t shards = std::min(n / kEntriesPerShard + 1, 2 * g_thread_pool.num_threads());
+  size_t shards = std::min(n / kEntriesPerShard + 1, g_thread_pool.num_threads());
   splits_.clear();
   splits_.reserve(shards + 1);
   splits_.push_back("");
@@ -387,6 +407,7 @@ int Repo::OnDelta(git_delta_t status, const char* path) {
       if (untracked_.empty()) {
         untracked_ = path;
         Store(has_untracked_, true);
+        LOG(INFO) << "Untracked: " << untracked_;
         if (HasUnstaged()) cv_.notify_one();
       }
     }
@@ -396,6 +417,7 @@ int Repo::OnDelta(git_delta_t status, const char* path) {
       if (unstaged_.empty()) {
         unstaged_ = path;
         Store(has_unstaged_, true);
+        LOG(INFO) << "Unstaged: " << unstaged_;
         if (HasUntracked()) cv_.notify_one();
       }
     }

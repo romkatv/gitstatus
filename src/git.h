@@ -39,7 +39,10 @@ class Repo {
   git_repository* repo() const { return repo_; }
   git_index* index() const { return index_; }
 
-  void UpdateDirty();
+  void UpdateKnown();
+
+  bool HasStaged(git_reference* head);
+
   void ScanDirty();
 
   bool HasUnstaged() const;
@@ -57,6 +60,7 @@ class Repo {
   std::vector<std::string> splits_;
 
   std::mutex mutex_;
+  std::string staged_;
   std::string untracked_;
   std::string unstaged_;
   std::condition_variable cv_;
@@ -91,8 +95,6 @@ git_reference* Upstream(git_reference* local);
 
 // Returns the name of the branch. This is the segment after the last '/'.
 const char* BranchName(const git_reference* ref);
-
-bool HasStaged(git_repository* repo, git_reference* head, git_index* index);
 
 }  // namespace gitstatus
 

@@ -18,8 +18,8 @@
 #ifndef ROMKATV_GITSTATUS_REPO_CACHE_H_
 #define ROMKATV_GITSTATUS_REPO_CACHE_H_
 
-#include <string>
 #include <memory>
+#include <string>
 #include <unordered_map>
 
 #include <git2.h>
