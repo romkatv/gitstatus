@@ -19,6 +19,7 @@
 
 #include <sys/resource.h>
 #include <sys/time.h>
+#include <time.h>
 
 #include "check.h"
 #include "logging.h"
@@ -34,7 +35,7 @@ double CpuTimeMs() {
 
 double WallTimeMs() {
   struct timespec ts;
-  clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+  clock_gettime(CLOCK_MONOTONIC, &ts);
   return 1e3 * ts.tv_sec + 1e-6 * ts.tv_nsec;
 }
 
