@@ -35,6 +35,8 @@ namespace {
 
 using namespace std::string_literals;
 
+constexpr auto kSplitUpdatePeriod = std::chrono::seconds(60);
+
 ThreadPool* g_thread_pool = nullptr;
 
 template <class T>
@@ -271,8 +273,9 @@ bool Repo::GetIndexStats(git_reference* head, bool scan_dirty, IndexStats* stats
       std::unique_lock<std::mutex> lock(mutex_);
       while (Load(inflight_) > 1 && !Load(error_) && !Done()) cv_.wait(lock);
     }
-    RunAsync([this] { UpdateSplits(); });
   }
+
+  if (Clock::now() - splits_ts_ >= kSplitUpdatePeriod) RunAsync([this] { UpdateSplits(); });
 
   *stats = {};
   if (Load(error_)) return false;
@@ -374,6 +377,7 @@ void Repo::UpdateSplits() {
 
   size_t n = git_index_entrycount(index_);
   ON_SCOPE_EXIT(&) {
+    splits_ts_ = Clock::now();
     LOG(INFO) << "Index size = " << n << "; number of shards = " << (splits_.size() - 1);
   };
 
