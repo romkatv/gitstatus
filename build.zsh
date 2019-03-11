@@ -1,4 +1,8 @@
 #!/bin/zsh
+#
+# How to build:
+#
+#   mkdir /tmp/gitstatus && cd /tmp/gitstatus && zsh -c "$(https://raw.githubusercontent.com/romkatv/gitstatus/master/build.zsh)"
 
 readonly GITSTATUS_REPO_URL=https://github.com/romkatv/gitstatus.git
 readonly LIBGIT2_REPO_URL=https://github.com/romkatv/libgit2.git
