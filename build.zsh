@@ -62,7 +62,8 @@ function build_gitstatus() {
   git clone $GITSTATUS_REPO_URL
   cd gitstatus
   local cxxflags=${CXXFLAGS:-''}
-  local ldflags=${LDFLAGS:-''};
+  local ldflags=${LDFLAGS:-''}
+  local make=make
   cxxflags+=" -I$DIR/libgit2/include"
   ldflags+=" -L$DIR/libgit2/build"
   case $OS in
@@ -71,8 +72,9 @@ function build_gitstatus() {
       ;;
     FreeBSD)
       ldflags+=" -static"
+      make=gmake
   esac
-  CXXFLAGS=$cxxflags LDFLAGS=$ldflags make -j $CPUS
+  CXXFLAGS=$cxxflags LDFLAGS=$ldflags $make -j $CPUS
   strip gitstatusd
   local arch && arch=$(uname -m)
   local target=$PWD/bin/gitstatusd-${OS:l}-${arch:l}
