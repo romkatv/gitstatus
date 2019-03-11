@@ -39,16 +39,8 @@ using namespace std::string_literals;
 void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   Timer timer;
   ResponseWriter resp(req.id);
-  Repo* repo;
-  {
-    git_repository* p = OpenRepo(req.dir);
-    if (!p) return;
-    if (git_repository_is_bare(p) || git_repository_is_empty(p) || !git_repository_workdir(p)) {
-      git_repository_free(p);
-      return;
-    }
-    repo = &cache.Intern(p);
-  }
+  Repo* repo = cache.Intern(OpenRepo(req.dir));
+  if (!repo) return;
 
   git_reference* head = Head(repo->repo());
   if (!head) return;
@@ -72,21 +64,16 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   // Repository state, A.K.A. action.
   resp.Print(RepoState(repo->repo()));
 
-  repo->UpdateKnown();
+  IndexStats stats;
+  const bool scan_dirty = git_index_entrycount(repo->index()) <= opts.dirty_max_index_size;
+  if (!repo->GetIndexStats(head, scan_dirty, &stats)) return;
 
   // 1 if there are staged changes, 0 otherwise.
-  resp.Print(repo->HasStaged(head));
-
+  resp.Print(stats.has_staged);
   // 1 if there are unstaged changes, 0 if there aren't, -1 if we don't know.
+  resp.Print(stats.has_unstaged ? 1 : scan_dirty ? 0 : -1);
   // 1 if there are untracked changes, 0 if there aren't, -1 if we don't know.
-  if (git_index_entrycount(repo->index()) <= opts.dirty_max_index_size) {
-    repo->ScanDirty();
-    resp.Print(repo->HasUnstaged());
-    resp.Print(repo->HasUntracked());
-  } else {
-    resp.Print(repo->HasUnstaged() ? 1 : -1);
-    resp.Print(repo->HasUntracked() ? 1 : -1);
-  }
+  resp.Print(stats.has_untracked ? 1 : scan_dirty ? 0 : -1);
 
   if (upstream) {
     // Number of commits we are ahead of upstream.
@@ -119,6 +106,7 @@ int GitStatus(int argc, char** argv) {
   RepoCache cache;
 
   git_libgit2_init();
+  InitThreadPool(opts.num_threads);
 
   while (true) {
     try {

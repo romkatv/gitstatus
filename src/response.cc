@@ -64,10 +64,10 @@ void ResponseWriter::Print(StringView val) {
   SafePrint(strm_, val);
 }
 
-void ResponseWriter::Dump() {
+void ResponseWriter::Dump(bool verbose) {
   CHECK(!done_);
   done_ = true;
-  LOG(INFO) << "Replying with git status";
+  if (verbose) LOG(INFO) << "Replying with git status";
   std::cout << strm_.str() << kMsgSep << std::flush;
 }
 

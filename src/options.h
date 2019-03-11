@@ -26,6 +26,10 @@ struct Options {
   // If a repo has more files in its index than this, don't scan its files to see what's dirty.
   // Instead, report -1 as the the number of unstaged changes and untracked files.
   size_t dirty_max_index_size = -1;
+  // Use this many threads to scan git workdir for unstaged and untracked files.
+  // Zero means as many threads as there are CPUs. E.g., on a quad-core machine with hyperthreading
+  // enabled gitstatusd will use 8 threads.
+  size_t num_threads = 0;
   int parent_pid = -1;
 };
 
