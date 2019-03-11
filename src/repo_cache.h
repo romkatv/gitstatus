@@ -30,7 +30,7 @@ namespace gitstatus {
 
 class RepoCache {
  public:
-  Repo& Intern(git_repository* repo);
+  Repo* Intern(git_repository* repo);
 
  private:
   std::unordered_map<std::string, std::unique_ptr<Repo>> cache_;

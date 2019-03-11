@@ -36,7 +36,7 @@ class ResponseWriter {
   void Print(ssize_t val);
   void Print(StringView val);
 
-  void Dump();
+  void Dump(bool verbose = false);
 
  private:
   bool done_ = false;

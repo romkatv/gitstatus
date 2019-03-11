@@ -217,9 +217,10 @@ function gitstatus_start() {
       log=$(mktemp "${TMPDIR:-/tmp}"/gitstatus.$$.log.XXXXXXXXXX) ||
       log=/dev/null
 
+    local -i threads=${GITSTATUS_NUM_THREADS:-0}
     # We use `zsh -c` instead of plain {} or () to work around bugs in zplug. It hangs on startup.
     zsh -c "
-      ${(q)daemon} --dirty-max-index-size=${(q)max_dirty} --parent-pid=$$
+      ${(q)daemon} --parent-pid=$$ --dirty-max-index-size=${(q)max_dirty} --num-threads=$threads
       echo -nE $'bye\x1f0\x1e'
       rm -f ${(q)req_fifo} ${(q)resp_fifo}
     " <&$req_fd >&$resp_fd 2>$log &!

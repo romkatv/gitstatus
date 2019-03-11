@@ -18,17 +18,23 @@
 #include "repo_cache.h"
 
 #include "check.h"
+#include "scope_guard.h"
 
 namespace gitstatus {
 
-Repo& RepoCache::Intern(git_repository* repo) {
+Repo* RepoCache::Intern(git_repository* repo) {
+  ON_SCOPE_EXIT(&) {
+    if (repo) git_repository_free(repo);
+  };
+  if (!repo) return nullptr;
   const char* work_dir = git_repository_workdir(repo);
-  CHECK(work_dir);
+  if (!work_dir) return nullptr;
   auto x = cache_.emplace(work_dir, nullptr);
   if (x.first->second == nullptr) {
-    x.first->second = std::make_unique<Repo>(repo);
+    if (git_repository_is_bare(repo) || git_repository_is_empty(repo)) return nullptr;
+    x.first->second = std::make_unique<Repo>(std::exchange(repo, nullptr));
   }
-  return *x.first->second;
+  return x.first->second.get();
 }
 
 }  // namespace gitstatus

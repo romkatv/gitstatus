@@ -18,8 +18,10 @@
 #include "options.h"
 
 #include <getopt.h>
+#include <sys/sysinfo.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <climits>
 #include <cstdlib>
 #include <iostream>
@@ -56,6 +58,11 @@ void PrintUsage() {
             << "  -p, --parent-pid=NUM [default=-1]\n"
             << "   If positive, exit when there is no process with the specified pid.\n"
             << "\n"
+            << "  -t, --num-threads=NUM [default=-1]\n"
+            << "   Use this many threads to scan git workdir for unstaged and untracked files.\n"
+            << "   Non-positive value means as many threads as there are CPUs. E.g., on a\n"
+            << "   quad-core machine with hyperthreading enabled gitstatusd will use 8 threads.\n"
+            << "\n"
             << "  -m, --dirty-max-index-size=NUM [default=-1]\n"
             << "   Report -1 unstaged and untracked if there are more than this many files in\n"
             << "   the index; negative value means infinity.\n"
@@ -65,37 +72,66 @@ void PrintUsage() {
             << "\n"
             << "INPUT\n"
             << "\n"
-            << "  Standard input should consist of absolute directory paths, one per line, with\n"
-            << "  no quoting.\n"
+            << "  Requests are read from stdin, separated by ascii 30 (record separator). Each\n"
+            << "  request is made of the following fields, in the specified order, separated by\n"
+            << "  ascii 31 (unit separator):\n"
+            << "\n"
+            << "    1. Request ID. Any string. Can be empty.\n"
+            << "    2. Path to the directory for which git stats are being requested.\n"
             << "\n"
             << "OUTPUT\n"
             << "\n"
-            << "  For every input directory there is one line of output written to stdout. Each\n"
-            << "  line is either just \"0\" (without quotes) or 11 space-separated values, the\n"
-            << "  first of which is \"1\" (without quotes). The remaining values are:\n"
+            << "  For every request read from stdin there is response written to stdout.\n"
+            << "  Responses are separated by ascii 30 (record separator). Each response is made\n"
+            << "  of the following fields, in the specified order, separated by ascii 31\n"
+            << "  (unit separator):\n"
             << "\n"
-            << "     1. Repository HEAD. Usually branch name. Not empty.\n"
-            << "     2. Upstream branch name. Can be empty.\n"
-            << "     3. Remote URL. Can be empty.\n"
-            << "     4. Repository state, A.K.A. action. Can be empty.\n"
-            << "     5. 1 if there are staged changes, 0 otherwise.\n"
-            << "     6. 1 if there are unstaged changes, 0 if there aren't, -1 if unknown.\n"
-            << "     7. 1 if there are untracked files, 0 if there aren't, -1 if unknown.\n"
-            << "     8. Number of commits the current branch is ahead of upstream.\n"
-            << "     9. Number of commits the current branch is behind upstream.\n"
-            << "    10. Number of stashes.\n"
+            << "     1. Request id. The same as the first field in the request.\n"
+            << "     2. 0 if the directory isn't a git repo, 1 otherwise. If 0, all the\n"
+            << "        following fields are missing.\n"
+            << "     3. Repository HEAD. Usually branch name. Not empty.\n"
+            << "     4. Upstream branch name. Can be empty.\n"
+            << "     5. Remote URL. Can be empty.\n"
+            << "     6. Repository state, A.K.A. action. Can be empty.\n"
+            << "     7. 1 if there are staged changes, 0 otherwise.\n"
+            << "     8. 1 if there are unstaged changes, 0 if there aren't, -1 if unknown.\n"
+            << "     9. 1 if there are untracked files, 0 if there aren't, -1 if unknown.\n"
+            << "    10. Number of commits the current branch is ahead of upstream.\n"
+            << "    11. Number of commits the current branch is behind upstream.\n"
+            << "    12. Number of stashes.\n"
+            << "    13. Absolute path to the git repository workdir.\n"
             << "\n"
-            << "  All string values are enclosed in double quotes. Embedded quotes, backslashes\n"
-            << "  and LF characters are backslash-escaped.\n"
+            << "EXAMPLE\n"
             << "\n"
-            << "  Example:\n"
+            << "  Send a single request and print response (zsh syntax):\n"
             << "\n"
-            << "    1 \"master\" \"master\" \"git@github.com:foo/bar.git\" \"\" 1 1 0 3 0 2\n"
+            << "    local req_id=id\n"
+            << "    local dir=$PWD\n"
+            << "    echo -nE $req_id$'\\x1f'$dir$'\\x1e' | ./gitstatusd | {\n"
+            << "      local resp\n"
+            << "      IFS=$'\\x1f' read -rd $'\\x1e' -A resp && print -lr -- \"${(@qq)resp}\"\n"
+            << "    }\n"
+            << "\n"
+            << "  Output:"
+            << "\n"
+            << "    'id'\n"
+            << "    '1'\n"
+            << "    'master'\n"
+            << "    'master'\n"
+            << "    'git@github.com:romkatv/gitstatus.git'\n"
+            << "    ''\n"
+            << "    '0'\n"
+            << "    '1'\n"
+            << "    '0'\n"
+            << "    '0'\n"
+            << "    '0'\n"
+            << "    '0'\n"
+            << "    '/home/romka/.oh-my-zsh/custom/plugins/gitstatus'\n"
             << "\n"
             << "EXIT STATUS\n"
             << "\n"
-            << "  The command returns zero on success, non-zero on failure. In the latter case\n"
-            << "  the output is unspecified.\n"
+            << "  The command returns zero on success (when printing help or on EOF),\n"
+            << "  non-zero on failure. In the latter case the output is unspecified.\n"
             << "\n"
             << "COPYRIGHT\n"
             << "\n"
@@ -110,11 +146,12 @@ void PrintUsage() {
 Options ParseOptions(int argc, char** argv) {
   const struct option opts[] = {{"help", no_argument, nullptr, 'h'},
                                 {"parent-pid", required_argument, nullptr, 'p'},
+                                {"num-threads", required_argument, nullptr, 't'},
                                 {"dirty-max-index-size", required_argument, nullptr, 'm'},
                                 {}};
   Options res;
   while (true) {
-    switch (getopt_long(argc, argv, "hp:m:", opts, nullptr)) {
+    switch (getopt_long(argc, argv, "hp:t:m:", opts, nullptr)) {
       case -1:
         return res;
       case 'h':
@@ -122,6 +159,10 @@ Options ParseOptions(int argc, char** argv) {
         std::exit(0);
       case 'p':
         res.parent_pid = ParseInt(optarg);
+        break;
+      case 't':
+        res.num_threads = std::max(0L, ParseLong(optarg));
+        if (res.num_threads == 0) res.num_threads = get_nprocs();
         break;
       case 'm':
         res.dirty_max_index_size = ParseLong(optarg);
