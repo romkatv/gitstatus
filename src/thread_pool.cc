@@ -1,7 +1,6 @@
 #include "thread_pool.h"
 
 #include <cassert>
-#include <optional>
 #include <utility>
 
 namespace gitstatus {
