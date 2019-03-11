@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "check.h"
+#include "time.h"
 
 namespace gitstatus {
 
@@ -101,6 +102,7 @@ class Repo {
   git_repository* const repo_;
   git_index* const index_;
   std::vector<std::string> splits_;
+  Time splits_ts_;
 
   std::mutex mutex_;
   OptionalFile staged_;
