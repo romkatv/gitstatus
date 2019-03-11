@@ -17,8 +17,6 @@ namespace gitstatus {
 
 class ThreadPool {
  public:
-  // Equivalent to ThreadPool(get_nprocs()).
-  ThreadPool();
   explicit ThreadPool(size_t num_threads);
   ThreadPool(ThreadPool&&) = delete;
 

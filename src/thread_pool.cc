@@ -1,14 +1,10 @@
 #include "thread_pool.h"
 
-#include <sys/sysinfo.h>
-
 #include <cassert>
 #include <optional>
 #include <utility>
 
 namespace gitstatus {
-
-ThreadPool::ThreadPool() : ThreadPool(get_nprocs()) {}
 
 ThreadPool::ThreadPool(size_t num_threads) : num_inflight_(num_threads) {
   for (size_t i = 0; i != num_threads; ++i) {
