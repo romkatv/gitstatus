@@ -18,7 +18,6 @@
 #include "options.h"
 
 #include <getopt.h>
-#include <sys/sysinfo.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -160,10 +159,15 @@ Options ParseOptions(int argc, char** argv) {
       case 'p':
         res.parent_pid = ParseInt(optarg);
         break;
-      case 't':
-        res.num_threads = std::max(0L, ParseLong(optarg));
-        if (res.num_threads == 0) res.num_threads = get_nprocs();
+      case 't': {
+        long n = ParseLong(optarg);
+        if (n <= 0) {
+          std::cerr << "invalid number of threads: " << n << std::endl;
+          std::exit(1);
+        }
+        res.num_threads = n;
         break;
+      }
       case 'm':
         res.dirty_max_index_size = ParseLong(optarg);
         break;

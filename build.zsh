@@ -2,7 +2,12 @@
 #
 # How to build:
 #
-#   mkdir /tmp/gitstatus && cd /tmp/gitstatus && zsh -c "$(curl -fsSL https://raw.githubusercontent.com/romkatv/gitstatus/master/build.zsh)"
+#   zsh -c "$(curl -fsSL https://raw.githubusercontent.com/romkatv/gitstatus/master/build.zsh)"
+#
+# If everything goes well, the path to your newly built binary will be printed at the end.
+#
+# If something breaks due to a missing dependency (e.g., `cmake` not found), install the
+# dependency, remove `/tmp/gitstatus` and retry.
 
 readonly GITSTATUS_REPO_URL=https://github.com/romkatv/gitstatus.git
 readonly LIBGIT2_REPO_URL=https://github.com/romkatv/libgit2.git
