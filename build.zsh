@@ -10,12 +10,12 @@ readonly LIBGIT2_REPO_URL=https://github.com/romkatv/libgit2.git
 emulate -L zsh
 setopt err_return err_exit no_unset pipe_fail
 
-[[ $# == 1 && -n $1 ]] || {
-  echo "Usage: build.sh DIR" >&2
+[[ $# -lt 2 ]] || {
+  echo "Usage: build.sh [DIR]" >&2
   return 1
 }
 
-local DIR=${1:a}
+local DIR=${${1:-/tmp/gitstatus}:a}
 local OS && OS=$(uname -s)
 local CPUS && CPUS=$(getconf _NPROCESSORS_ONLN)
 
@@ -79,6 +79,7 @@ function verify_gitstatus() {
   echo "self-check successful" >&2
 }
 
+echo "Building gitstatus in $DIR ..." >&2
 prepare
 build_libgit2
 build_gitstatus
