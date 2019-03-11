@@ -68,7 +68,7 @@ function build_gitstatus() {
       ldflags+=" -static"
   esac
   CXXFLAGS=$cxxflags LDFLAGS=$ldflags make -j $CPUS
-  strip -s gitstatusd
+  strip gitstatusd
   local arch && arch=$(uname -m)
   local target=bin/gitstatusd-${OS:l}-${arch:l}
   cp -f gitstatusd $target
