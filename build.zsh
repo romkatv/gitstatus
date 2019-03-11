@@ -22,7 +22,12 @@ setopt err_return err_exit no_unset pipe_fail
 
 local DIR=${${1:-/tmp/gitstatus}:a}
 local OS && OS=$(uname -s)
-local CPUS && CPUS=$(getconf _NPROCESSORS_ONLN)
+
+local CPUS
+case $OS in
+  FreeBSD) CPUS=$(sysctl -n hw.ncpu);;
+  *) CPUS=$(getconf _NPROCESSORS_ONLN);;
+esac
 
 function prepare() {
   [[ ! -d $DIR ]] || {
@@ -70,7 +75,7 @@ function build_gitstatus() {
   CXXFLAGS=$cxxflags LDFLAGS=$ldflags make -j $CPUS
   strip gitstatusd
   local arch && arch=$(uname -m)
-  local target=bin/gitstatusd-${OS:l}-${arch:l}
+  local target=$PWD/bin/gitstatusd-${OS:l}-${arch:l}
   cp -f gitstatusd $target
   echo "built: $target" >&2
 }
