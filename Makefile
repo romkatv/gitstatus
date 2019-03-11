@@ -3,12 +3,8 @@ APPNAME ?= gitstatusd
 CXX ?= g++
 
 CXXFLAGS += -std=c++14 -funsigned-char -O3 -DNDEBUG -Wall -Werror
-LDFLAGS += -s -static-libstdc++ -static-libgcc -pthread
-
-CXXFLAGS += $(shell pkg-config --cflags libgit2)
-LDFLAGS += $(shell pkg-config --libs-only-L libgit2)
-
-LDLIBS ?= -l:libgit2.a
+LDFLAGS += -pthread
+LDLIBS += -lgit2
 
 SRCS := $(shell find src -name "*.cc")
 OBJS := $(patsubst src/%.cc, obj/%.o, $(SRCS))
