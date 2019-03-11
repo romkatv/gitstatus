@@ -400,7 +400,7 @@ void Repo::UpdateSplits() {
     }
     entries_lo[i] = path;
     while ((path = std::strchr(path, '/'))) {
-      static_assert(std::is_unsigned<char>());
+      static_assert(std::is_unsigned<char>(), "");
       *path = kSep[0];
       slashes.push_back(path);
     }
