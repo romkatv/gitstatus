@@ -2,17 +2,31 @@
 #
 # How to build:
 #
-#   mkdir /tmp/gitstatus && cd /tmp/gitstatus && zsh -c "$(https://raw.githubusercontent.com/romkatv/gitstatus/master/build.zsh)"
+#   mkdir /tmp/gitstatus && cd /tmp/gitstatus && zsh -c "$(curl -fsSL https://raw.githubusercontent.com/romkatv/gitstatus/master/build.zsh)"
 
 readonly GITSTATUS_REPO_URL=https://github.com/romkatv/gitstatus.git
 readonly LIBGIT2_REPO_URL=https://github.com/romkatv/libgit2.git
 
 emulate -L zsh
-setopt err_return no_unset pipe_fail xtrace
+setopt err_return err_exit no_unset pipe_fail
 
-local DIR && DIR=$PWD
+[[ $# == 1 && -n $1 ]] || {
+  echo "Usage: build.sh DIR" >&2
+  return 1
+}
+
+local DIR=${1:a}
 local OS && OS=$(uname -s)
 local CPUS && CPUS=$(getconf _NPROCESSORS_ONLN)
+
+function prepare() {
+  [[ ! -d $DIR ]] || {
+    echo "directory exists: $DIR" >&2
+    echo "remove it with \`rm -rf $DIR\` and retry" >&2
+    return 1
+  }
+  mkdir $DIR
+}
 
 function build_libgit2() {
   cd $DIR
@@ -51,18 +65,21 @@ function build_gitstatus() {
   CXXFLAGS=$cxxflags LDFLAGS=$ldflags make -j $CPUS
   strip -s gitstatusd
   local arch && arch=$(uname -m)
-  cp -f gitstatusd bin/gitstatusd-${OS:l}-${arch:l}
+  local target=bin/gitstatusd-${OS:l}-${arch:l}
+  cp -f gitstatusd $target
+  echo "built: $target" >&2
 }
 
 function verify_gitstatus() {
   local reply
-  echo -nE $'hello\x1f\x1e' | $DIR/gitstatus/gitstatusd | {
+  echo -nE $'hello\x1f\x1e' | $DIR/gitstatus/gitstatusd 2>/dev/null | {
     IFS='' read -r -d $'\x1e' -t 5 reply
     [[ $reply == $'hello\x1f0' ]]
   }
+  echo "self-check successful" >&2
 }
 
+prepare
 build_libgit2
 build_gitstatus
 verify_gitstatus
-echo SUCCESS
