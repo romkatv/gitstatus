@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstring>
+#include <exception>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -203,6 +204,55 @@ const char* BranchName(const git_reference* ref) {
   return sep ? sep + 1 : name;
 }
 
+std::future<std::string> GetTagName(git_repository* repo, const git_oid* target) {
+  auto* promise = new std::promise<std::string>;
+  std::future<std::string> res = promise->get_future();
+  g_thread_pool->Schedule([=] {
+    ON_SCOPE_EXIT(&) { delete promise; };
+    try {
+      struct State {
+        git_repository* repo;
+        const git_oid* target;
+        std::string tag_name;
+      } state = {repo, target};
+      git_tag_foreach_cb cb = +[](const char* name, git_oid* oid, void* payload) -> int {
+        State* state = static_cast<State*>(payload);
+        if (git_oid_equal(oid, state->target)) {
+          // Lightweight tag.
+          state->tag_name = name;
+          return GIT_EUSER;
+        }
+        git_tag* tag = nullptr;
+        if (git_tag_lookup(&tag, state->repo, oid)) return 0;
+        ON_SCOPE_EXIT(&) { git_tag_free(tag); };
+        const git_oid* tag_target = git_tag_target_id(tag);
+        if (tag_target && git_oid_equal(tag_target, state->target)) {
+          // Heavyweight tag.
+          state->tag_name = name;
+          return GIT_EUSER;
+        }
+        return 0;
+      };
+      switch (git_tag_foreach(repo, cb, &state)) {
+        case 0:
+          promise->set_value("");
+          break;
+        case GIT_EUSER:
+          static constexpr char kTagPrefix[] = "refs/tags/";
+          VERIFY(state.tag_name.find(kTagPrefix) == 0);
+          promise->set_value(state.tag_name.substr(sizeof(kTagPrefix) - 1));
+          break;
+        default:
+          LOG(ERROR) << "git_tag_foreach: " << GitError();
+          throw Exception();
+      }
+    } catch (const Exception&) {
+      promise->set_exception(std::current_exception());
+    }
+  });
+  return res;
+}
+
 Repo::Repo(git_repository* repo) try : repo_(repo), index_(Index(repo_)) {
   UpdateSplits();
 } catch (...) {
@@ -293,9 +343,9 @@ void Repo::StartDirtyScan() {
   opt.flags = GIT_DIFF_SKIP_BINARY_CHECK;
   if (untracked_.Empty()) {
     // We could remove GIT_DIFF_RECURSE_UNTRACKED_DIRS and manually check in OnDirty whether
-    // the allegedly untracked file is an empty directory. Unfortunately, it'll break UpdateDirty()
-    // because we cannot use git_status_file on a directory. Seems like there is no way to quickly
-    // get any untracked file from a directory that definitely has untracked files.
+    // the allegedly untracked file is an empty directory. Unfortunately, it'll break
+    // UpdateDirty() because we cannot use git_status_file on a directory. Seems like there is no
+    // way to quickly get any untracked file from a directory that definitely has untracked files.
     // git_diff_index_to_workdir actually computes this before telling us that a directory is
     // untracked, but it doesn't give us the file path.
     opt.flags |= GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_RECURSE_UNTRACKED_DIRS;

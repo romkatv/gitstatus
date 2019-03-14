@@ -17,6 +17,7 @@
 
 #include <cstddef>
 
+#include <future>
 #include <string>
 
 #include <git2.h>
@@ -46,10 +47,30 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   if (!head) return;
   ON_SCOPE_EXIT(=) { git_reference_free(head); };
 
+  const git_oid* head_target = git_reference_target(head);
+  if (!head_target) return;
+
   VERIFY(!git_index_read(repo->index(), 0)) << GitError();
 
-  // Repository HEAD. Usually branch name.
-  resp.Print(git_reference_shorthand(head));
+  std::future<std::string> tag = GetTagName(repo->repo(), head_target);
+  ON_SCOPE_EXIT(&) {
+    if (tag.valid()) try {
+      tag.wait();
+    } catch (const Exception&) {
+    }
+  };
+
+  // Repository working directory.
+  StringView workdir = git_repository_workdir(repo->repo()) ?: "";
+  if (workdir.len == 0) return;
+  if (workdir.len > 1 && workdir.ptr[workdir.len - 1] == '/') --workdir.len;
+  resp.Print(workdir);
+
+  // Revision. 40 hex digits.
+  resp.Print(git_oid_tostr_s(head_target));
+
+  // Local branch name (e.g., "master") or empty string if not on a branch.
+  resp.Print(git_reference_is_branch(head) ? git_reference_shorthand(head) : "");
 
   git_reference* upstream = Upstream(head);
   ON_SCOPE_EXIT(=) {
@@ -88,11 +109,8 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   // Number of stashes.
   resp.Print(NumStashes(repo->repo()));
 
-  // Repository working directory.
-  StringView workdir = git_repository_workdir(repo->repo()) ?: "";
-  if (workdir.len == 0) return;
-  if (workdir.len > 1 && workdir.ptr[workdir.len - 1] == '/') --workdir.len;
-  resp.Print(workdir);
+  // Tag or empty string.
+  resp.Print(tag.get());
 
   resp.Dump();
   timer.Report("request");
