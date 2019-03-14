@@ -25,6 +25,7 @@
 #include <condition_variable>
 #include <cstddef>
 #include <functional>
+#include <future>
 #include <mutex>
 #include <string>
 #include <utility>
@@ -141,6 +142,8 @@ git_reference* Upstream(git_reference* local);
 
 // Returns the name of the branch. This is the segment after the last '/'.
 const char* BranchName(const git_reference* ref);
+
+std::future<std::string> GetTagName(git_repository* repo, const git_oid* target);
 
 }  // namespace gitstatus
 
