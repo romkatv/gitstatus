@@ -80,7 +80,7 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   resp.Print(upstream ? RemoteBranchName(repo->repo(), upstream) : "");
 
   // Remote url.
-  resp.Print(RemoteUrl(repo->repo()));
+  resp.Print(upstream ? RemoteUrl(repo->repo(), upstream) : "");
 
   // Repository state, A.K.A. action.
   resp.Print(RepoState(repo->repo()));
