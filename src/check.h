@@ -31,7 +31,7 @@
 #define VERIFY(cond...)                                               \
   static_cast<void>(0), ::gitstatus::internal_check::Thrower(!(cond)) \
                             ? static_cast<void>(0)                    \
-                            : LOG(FATAL) << #cond << ": "
+                            : LOG(ERROR) << #cond << ": "
 
 namespace gitstatus {
 

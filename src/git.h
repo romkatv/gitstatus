@@ -141,7 +141,7 @@ git_reference* Head(git_repository* repo);
 git_reference* Upstream(git_reference* local);
 
 // Returns the name of the branch. This is the segment after the last '/'.
-const char* BranchName(const git_reference* ref);
+const char* RemoteBranchName(git_repository* repo, const git_reference* ref);
 
 std::future<std::string> GetTagName(git_repository* repo, const git_oid* target);
 
