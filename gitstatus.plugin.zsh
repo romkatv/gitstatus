@@ -1,6 +1,4 @@
-[[ -o interactive ]] || return
-
-zmodload zsh/datetime || return
+[[ -o interactive ]] && autoload -Uz add-zsh-hook && zmodload zsh/datetime || return
 
 # Retrives status of a git repo from a directory under its working tree.
 #
@@ -91,8 +89,8 @@ function gitstatus_query() {
     typeset -g $req_fd_var=$req_fd
     typeset -g $resp_fd_var=$resp_fd
     typeset -giH $client_pid_var=$client_pid
-    typeset -gfH _gitstatus_process_response_${name}() {
-      _gitstatus_process_response ${0#_gitstatus_process_response_} 0 ''
+    function _gitstatus_process_response_${name}() {
+      _gitstatus_process_response ${${(%)${:-%N}}#_gitstatus_process_response_} 0 ''
     }
     zle -F $resp_fd _gitstatus_process_response_${name}
   }
@@ -212,8 +210,8 @@ function gitstatus_start() {
     mkfifo $resp_fifo
     exec {req_fd}<>$req_fifo
     exec {resp_fd}<>$resp_fifo
-    typeset -gfH _gitstatus_process_response_${name}() {
-      _gitstatus_process_response ${0#_gitstatus_process_response_} 0 ''
+    function _gitstatus_process_response_${name}() {
+      _gitstatus_process_response ${${(%)${:-%N}}#_gitstatus_process_response_} 0 ''
     }
     zle -F $resp_fd _gitstatus_process_response_${name}
 
@@ -237,6 +235,11 @@ function gitstatus_start() {
     " <&$req_fd >&$resp_fd 2>$log &!
 
     daemon_pid=$!
+
+    function _gitstatus_kill_daemon_${daemon_pid}() {
+      kill ${${(%)${:-%N}}#_gitstatus_kill_daemon_} >&2
+    }
+    add-zsh-hook zshexit _gitstatus_kill_daemon_${daemon_pid}
 
     local reply
     echo -nE $'hello\x1f\x1e' >&$req_fd
