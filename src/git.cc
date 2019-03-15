@@ -198,10 +198,14 @@ git_reference* Upstream(git_reference* local) {
   }
 }
 
-const char* BranchName(const git_reference* ref) {
-  const char* name = git_reference_name(ref);
-  const char* sep = std::strrchr(name, '/');
-  return sep ? sep + 1 : name;
+const char* RemoteBranchName(git_repository* repo, const git_reference* ref) {
+  const char* branch = nullptr;
+  if (git_branch_name(&branch, ref)) return nullptr;
+  git_buf remote = {};
+  if (git_branch_remote_name(&remote, repo, git_reference_name(ref))) return nullptr;
+  VERIFY(std::strstr(branch, remote.ptr) == branch);
+  VERIFY(branch[remote.size] == '/');
+  return branch + remote.size + 1;
 }
 
 std::future<std::string> GetTagName(git_repository* repo, const git_oid* target) {

@@ -77,7 +77,7 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
     if (upstream) git_reference_free(upstream);
   };
   // Upstream branch name.
-  resp.Print(upstream ? BranchName(upstream) : "");
+  resp.Print(upstream ? RemoteBranchName(repo->repo(), upstream) : "");
 
   // Remote url.
   resp.Print(RemoteUrl(repo->repo()));
