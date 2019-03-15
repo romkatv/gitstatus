@@ -132,7 +132,7 @@ git_repository* OpenRepo(const std::string& dir);
 size_t NumStashes(git_repository* repo);
 
 // Returns the origin URL or an empty string. Not null.
-const char* RemoteUrl(git_repository* repo);
+const char* RemoteUrl(git_repository* repo, const git_reference* ref);
 
 // Returns reference to HEAD or null if not found.
 git_reference* Head(git_repository* repo);

@@ -155,9 +155,13 @@ size_t NumStashes(git_repository* repo) {
   return res;
 }
 
-const char* RemoteUrl(git_repository* repo) {
+const char* RemoteUrl(git_repository* repo, const git_reference* ref) {
+  git_buf remote_name = {};
+  if (git_branch_remote_name(&remote_name, repo, git_reference_name(ref))) return "";
+  ON_SCOPE_EXIT(&) { git_buf_free(&remote_name); };
+
   git_remote* remote = nullptr;
-  switch (git_remote_lookup(&remote, repo, "origin")) {
+  switch (git_remote_lookup(&remote, repo, remote_name.ptr)) {
     case 0:
       return git_remote_url(remote) ?: "";
     case GIT_ENOTFOUND:
@@ -200,9 +204,10 @@ git_reference* Upstream(git_reference* local) {
 
 const char* RemoteBranchName(git_repository* repo, const git_reference* ref) {
   const char* branch = nullptr;
-  if (git_branch_name(&branch, ref)) return nullptr;
+  if (git_branch_name(&branch, ref)) return "";
   git_buf remote = {};
-  if (git_branch_remote_name(&remote, repo, git_reference_name(ref))) return nullptr;
+  if (git_branch_remote_name(&remote, repo, git_reference_name(ref))) return "";
+  ON_SCOPE_EXIT(&) { git_buf_free(&remote); };
   VERIFY(std::strstr(branch, remote.ptr) == branch);
   VERIFY(branch[remote.size] == '/');
   return branch + remote.size + 1;
