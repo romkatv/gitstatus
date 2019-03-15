@@ -201,7 +201,7 @@ function gitstatus_start() {
   [[ -f $daemon ]] || { echo "file not found: $daemon" >&2 && return 1 }
 
   local req_fifo resp_fifo log
-  local -i req_fd resp_fd daemon_pid
+  local -i req_fd=-1 resp_fd=-1 daemon_pid=-1
 
   function start() {
     req_fifo=$(mktemp -u "${TMPDIR:-/tmp}"/gitstatus.$$.pipe.req.XXXXXXXXXX)
@@ -236,15 +236,24 @@ function gitstatus_start() {
 
     daemon_pid=$!
 
-    function _gitstatus_kill_daemon_${daemon_pid}() {
-      kill ${${(%)${:-%N}}#_gitstatus_kill_daemon_} >&2
-    }
-    add-zsh-hook zshexit _gitstatus_kill_daemon_${daemon_pid}
-
     local reply
     echo -nE $'hello\x1f\x1e' >&$req_fd
     IFS='' read -r -d $'\x1e' -u $resp_fd -t $timeout reply
     [[ $reply == $'hello\x1f0' ]]
+
+    function _gitstatus_cleanup_${name}() {
+      emulate -L zsh
+      local name=${${(%)${:-%N}}#_gitstatus_cleanup_}
+      local daemon_pid_var=GITSTATUS_DAEMON_PID_${name}
+      local req_fifo_var=_GITSTATUS_REQ_FIFO_${name}
+      local resp_fifo_var=_GITSTATUS_RESP_FIFO_${name}
+      local -i daemon_pid=${(P)daemon_pid_var}
+      local req_fifo=${(P)req_fifo_var}
+      local resp_fifo=${(P)resp_fifo_var}
+      [[ $daemon_pid -ge 0 ]] && kill -- -$daemon_pid &>/dev/null
+      rm -f $req_fifo $resp_fifo
+    }
+    add-zsh-hook zshexit _gitstatus_cleanup_${name}
   }
 
   start && {
@@ -257,9 +266,9 @@ function gitstatus_start() {
     typeset -giH _GITSTATUS_CLIENT_PID_${name}=$$
   } || {
     echo "gitstatus failed to initialize" >&2
-    [[ -n $daemon_pid ]] && kill $daemon_pid &>/dev/null || true
-    [[ -n $req_fd ]] && exec {req_fd}>&- || true
-    [[ -n $resp_fd ]] && { zle -F $resp_fd || true } && { exec {resp_fd}>&- || true}
+    [[ $daemon_pid -ge 0 ]] && kill -- -$daemon_pid &>/dev/null || true
+    [[ $req_fd -ge 0 ]] && exec {req_fd}>&- || true
+    [[ $resp_fd -ge 0 ]] && { zle -F $resp_fd || true } && { exec {resp_fd}>&- || true}
     rm -f $req_fifo $resp_fifo
     return 1
   }
