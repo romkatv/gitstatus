@@ -28,7 +28,9 @@ struct Options {
   size_t dirty_max_index_size = -1;
   // Use this many threads to scan git workdir for unstaged and untracked files. Must be positive.
   size_t num_threads = 1;
-  int parent_pid = -1;
+  // File descriptor locked by the parent process. Once the lock is gone, gitstatusd will exit.
+  // Negative value disables lock monitoring.
+  int lock_fd = -1;
 };
 
 Options ParseOptions(int argc, char** argv);

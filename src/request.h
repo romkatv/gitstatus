@@ -33,12 +33,12 @@ std::ostream& operator<<(std::ostream& strm, const Request& req);
 
 class RequestReader {
  public:
-  RequestReader(int fd, int parent_pid) : fd_(fd), parent_pid_(parent_pid) {}
+  RequestReader(int fd, int lock_fd);
   Request ReadRequest();
 
  private:
   int fd_;
-  int parent_pid_;
+  int lock_fd_;
   std::deque<char> read_;
 };
 }  // namespace gitstatus
