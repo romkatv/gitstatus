@@ -51,11 +51,12 @@ long ParseInt(const char* s) {
 
 void PrintUsage() {
   std::cout << "Usage: gitstatusd [OPTION]...\n"
-            << "Print machine-readable status of the git repos for directores in stdin..\n"
+            << "Print machine-readable status of the git repos for directores in stdin.\n"
             << "\n"
             << "OPTIONS\n"
-            << "  -p, --parent-pid=NUM [default=-1]\n"
-            << "   If positive, exit when there is no process with the specified pid.\n"
+            << "  -l, --lock-fd=NUM [default=-1]\n"
+            << "   If non-negative, exit as soon as the specified file descriptor isn't locked\n"
+            << "   for reading.\n"
             << "\n"
             << "  -t, --num-threads=NUM [default=-1]\n"
             << "   Use this many threads to scan git workdir for unstaged and untracked files.\n"
@@ -147,20 +148,20 @@ void PrintUsage() {
 
 Options ParseOptions(int argc, char** argv) {
   const struct option opts[] = {{"help", no_argument, nullptr, 'h'},
-                                {"parent-pid", required_argument, nullptr, 'p'},
+                                {"lock-fd", required_argument, nullptr, 'l'},
                                 {"num-threads", required_argument, nullptr, 't'},
                                 {"dirty-max-index-size", required_argument, nullptr, 'm'},
                                 {}};
   Options res;
   while (true) {
-    switch (getopt_long(argc, argv, "hp:t:m:", opts, nullptr)) {
+    switch (getopt_long(argc, argv, "hl:t:m:", opts, nullptr)) {
       case -1:
         return res;
       case 'h':
         PrintUsage();
         std::exit(0);
-      case 'p':
-        res.parent_pid = ParseInt(optarg);
+      case 'l':
+        res.lock_fd = ParseInt(optarg);
         break;
       case 't': {
         long n = ParseLong(optarg);

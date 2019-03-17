@@ -45,11 +45,22 @@ Request ParseRequest(const std::string& s) {
   return res;
 }
 
+bool IsLockedFd(int fd) {
+  CHECK(fd >= 0);
+  struct flock flock = {F_RDLCK, SEEK_SET};
+  CHECK(fcntl(fd, F_GETLK, &flock) != -1) << Errno();
+  return flock.l_type != F_UNLCK;
+}
+
 }  // namespace
 
 std::ostream& operator<<(std::ostream& strm, const Request& req) {
   strm << req.id << " [" << req.dir << "]";
   return strm;
+}
+
+RequestReader::RequestReader(int fd, int lock_fd) : fd_(fd), lock_fd_(lock_fd) {
+  CHECK(fd != lock_fd);
 }
 
 Request RequestReader::ReadRequest() {
@@ -68,11 +79,11 @@ Request RequestReader::ReadRequest() {
     FD_SET(fd_, &fds);
     struct timeval timeout = {.tv_sec = 1};
 
-    CHECK((n = select(fd_ + 1, &fds, NULL, NULL, parent_pid_ > 0 ? &timeout : nullptr)) >= 0)
+    CHECK((n = select(fd_ + 1, &fds, NULL, NULL, lock_fd_ >= 0 ? &timeout : nullptr)) >= 0)
         << Errno();
     if (n == 0) {
-      if (parent_pid_ > 0 && kill(parent_pid_, 0) != 0) {
-        LOG(INFO) << "Parent [pid=" << parent_pid_ << "] is dead. Exiting.";
+      if (lock_fd_ >= 0 && !IsLockedFd(lock_fd_)) {
+        LOG(INFO) << "Lock on fd " << lock_fd_ << " is gone. Exiting.";
         std::exit(0);
       }
       continue;

@@ -120,7 +120,7 @@ int GitStatus(int argc, char** argv) {
   for (int i = 0; i != argc; ++i) LOG(INFO) << "argv[" << i << "]: " << argv[i];
 
   Options opts = ParseOptions(argc, argv);
-  RequestReader reader(fileno(stdin), opts.parent_pid);
+  RequestReader reader(fileno(stdin), opts.lock_fd);
   RepoCache cache;
 
   git_libgit2_init();
