@@ -47,7 +47,9 @@ Request ParseRequest(const std::string& s) {
 
 bool IsLockedFd(int fd) {
   CHECK(fd >= 0);
-  struct flock flock = {F_RDLCK, SEEK_SET};
+  struct flock flock = {};
+  flock.l_type = F_RDLCK;
+  flock.l_whence = SEEK_SET;
   CHECK(fcntl(fd, F_GETLK, &flock) != -1) << Errno();
   return flock.l_type != F_UNLCK;
 }
