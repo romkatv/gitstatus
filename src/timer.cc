@@ -21,10 +21,15 @@
 #include <sys/time.h>
 #include <time.h>
 
+#include <cmath>
+#include <limits>
+
 #include "check.h"
 #include "logging.h"
 
 namespace gitstatus {
+
+namespace {
 
 double CpuTimeMs() {
   auto ToMs = [](const timeval& tv) { return 1e3 * tv.tv_sec + 1e-3 * tv.tv_usec; };
@@ -34,10 +39,19 @@ double CpuTimeMs() {
 }
 
 double WallTimeMs() {
+  // An attempt to call clock_gettime on an ancient version of MacOS fails at runtime.
+  // It's possible to detect the presence of clock_gettime at runtime but I don't have
+  // an ancient MacOS to test the code. Hence this.
+#ifdef __APPLE__
+  return std::numeric_limits<double>::quiet_NaN();
+#else
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
   return 1e3 * ts.tv_sec + 1e-6 * ts.tv_nsec;
+#endif
 }
+
+}  // namespace
 
 void Timer::Start() {
   cpu_ = CpuTimeMs();
@@ -46,8 +60,12 @@ void Timer::Start() {
 
 void Timer::Report(const char* msg) {
   double cpu = CpuTimeMs() - cpu_;
-  double wall = WallTimeMs() - wall_;
-  LOG(INFO) << "Timing for: " << msg << ": " << cpu << "ms cpu, " << wall << "ms wall";
+  if (std::isnan(wall_)) {
+    LOG(INFO) << "Timing for: " << msg << ": " << cpu << "ms cpu";  
+  } else {
+    double wall = WallTimeMs() - wall_;
+    LOG(INFO) << "Timing for: " << msg << ": " << cpu << "ms cpu, " << wall << "ms wall";
+  }
   Start();
 }
 

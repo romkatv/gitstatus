@@ -20,9 +20,6 @@
 
 namespace gitstatus {
 
-double CpuTimeMs();
-double WallTimeMs();
-
 class Timer {
  public:
   Timer() { Start(); }
