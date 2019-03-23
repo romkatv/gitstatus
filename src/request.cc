@@ -61,7 +61,8 @@ std::ostream& operator<<(std::ostream& strm, const Request& req) {
   return strm;
 }
 
-RequestReader::RequestReader(int fd, int lock_fd) : fd_(fd), lock_fd_(lock_fd) {
+RequestReader::RequestReader(int fd, int lock_fd, int sigwinch_pid)
+    : fd_(fd), lock_fd_(lock_fd), sigwinch_pid_(sigwinch_pid) {
   CHECK(fd != lock_fd);
 }
 
@@ -75,17 +76,21 @@ Request RequestReader::ReadRequest() {
 
   char buf[256];
   while (true) {
-    int n;
     fd_set fds;
     FD_ZERO(&fds);
     FD_SET(fd_, &fds);
-    struct timeval timeout = {.tv_sec = 1};
+    struct timeval second = {.tv_sec = 1};
+    struct timeval* timeout = lock_fd_ >= 0 || sigwinch_pid_ >= 0 ? &second : nullptr;
 
-    CHECK((n = select(fd_ + 1, &fds, NULL, NULL, lock_fd_ >= 0 ? &timeout : nullptr)) >= 0)
-        << Errno();
+    int n;
+    CHECK((n = select(fd_ + 1, &fds, NULL, NULL, timeout)) >= 0) << Errno();
     if (n == 0) {
       if (lock_fd_ >= 0 && !IsLockedFd(lock_fd_)) {
         LOG(INFO) << "Lock on fd " << lock_fd_ << " is gone. Exiting.";
+        std::exit(0);
+      }
+      if (sigwinch_pid_ >= 0 && kill(sigwinch_pid_, SIGWINCH)) {
+        LOG(INFO) << "Unable to send SIGWINCH to " << sigwinch_pid_ << ". Exiting.";
         std::exit(0);
       }
       continue;
