@@ -40,7 +40,7 @@ using namespace std::string_literals;
 void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   Timer timer;
   ResponseWriter resp(req.id);
-  Repo* repo = cache.Intern(OpenRepo(req.dir));
+  Repo* repo = cache.Open(req.dir);
   if (!repo) return;
 
   git_reference* head = Head(repo->repo());
@@ -48,10 +48,6 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   ON_SCOPE_EXIT(=) { git_reference_free(head); };
 
   const git_oid* head_target = git_reference_target(head);
-  if (!head_target) return;
-
-  VERIFY(!git_index_read(repo->index(), 0)) << GitError();
-
   std::future<std::string> tag = GetTagName(repo->repo(), head_target);
   ON_SCOPE_EXIT(&) {
     if (tag.valid()) try {
@@ -66,11 +62,11 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   if (workdir.len > 1 && workdir.ptr[workdir.len - 1] == '/') --workdir.len;
   resp.Print(workdir);
 
-  // Revision. 40 hex digits.
-  resp.Print(git_oid_tostr_s(head_target));
+  // Revision. Either 40 hex digits or an empty string for empty repo.
+  resp.Print(head_target ? git_oid_tostr_s(head_target) : "");
 
   // Local branch name (e.g., "master") or empty string if not on a branch.
-  resp.Print(git_reference_is_branch(head) ? git_reference_shorthand(head) : "");
+  resp.Print(LocalBranchName(head));
 
   git_reference* upstream = Upstream(head);
   ON_SCOPE_EXIT(=) {
@@ -85,16 +81,14 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   // Repository state, A.K.A. action.
   resp.Print(RepoState(repo->repo()));
 
-  IndexStats stats;
-  const bool scan_dirty = git_index_entrycount(repo->index()) <= opts.dirty_max_index_size;
-  if (!repo->GetIndexStats(head, scan_dirty, &stats)) return;
+  const IndexStats stats = repo->GetIndexStats(head_target, opts.dirty_max_index_size);
 
   // 1 if there are staged changes, 0 otherwise.
   resp.Print(stats.has_staged);
   // 1 if there are unstaged changes, 0 if there aren't, -1 if we don't know.
-  resp.Print(stats.has_unstaged ? 1 : scan_dirty ? 0 : -1);
+  resp.Print(stats.has_unstaged);
   // 1 if there are untracked changes, 0 if there aren't, -1 if we don't know.
-  resp.Print(stats.has_untracked ? 1 : scan_dirty ? 0 : -1);
+  resp.Print(stats.has_untracked);
 
   if (upstream) {
     // Number of commits we are ahead of upstream.
@@ -112,7 +106,7 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   // Tag or empty string.
   resp.Print(tag.get());
 
-  resp.Dump();
+  resp.Dump("with git status");
   timer.Report("request");
 }
 

@@ -36,7 +36,7 @@ class ResponseWriter {
   void Print(ssize_t val);
   void Print(StringView val);
 
-  void Dump(bool verbose = false);
+  void Dump(const char* log);
 
  private:
   bool done_ = false;
