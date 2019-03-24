@@ -70,10 +70,16 @@ class OptionalFile {
   std::atomic<bool> has_{false};
 };
 
+enum Tribool : int {
+  kFalse = 0,
+  kTrue = 1,
+  kUnknown = -1
+};
+
 struct IndexStats {
   bool has_staged = false;
-  bool has_unstaged = false;
-  bool has_untracked = false;
+  Tribool has_unstaged = kUnknown;
+  Tribool has_untracked = kUnknown;
 };
 
 class Repo {
@@ -85,18 +91,19 @@ class Repo {
   git_repository* repo() const { return repo_; }
   git_index* index() const { return index_; }
 
-  bool GetIndexStats(git_reference* head, bool scan_dirty, IndexStats* stats);
+  // Head can be null, in which case has_staged will be false.
+  IndexStats GetIndexStats(const git_oid* head, size_t dirty_max_index_size);
 
  private:
   void UpdateKnown();
   void UpdateSplits();
 
-  void StartStagedScan(git_reference* head);
+  void StartStagedScan(const git_oid* head);
   void StartDirtyScan();
 
   void DecInflight();
   void RunAsync(std::function<void()> f);
-  void Wait();
+  void Wait(size_t inflight = 0);
 
   void UpdateFile(OptionalFile& file, const char* label, const char* path);
 
@@ -134,15 +141,21 @@ size_t NumStashes(git_repository* repo);
 // Returns the origin URL or an empty string. Not null.
 const char* RemoteUrl(git_repository* repo, const git_reference* ref);
 
-// Returns reference to HEAD or null if not found.
+// Returns reference to HEAD or null if not found. The reference is symbolic if the repo is empty
+// and direct otherwise.
 git_reference* Head(git_repository* repo);
 
 // Returns reference to the upstream branch or null if there isn't one.
 git_reference* Upstream(git_reference* local);
 
-// Returns the name of the branch. This is the segment after the last '/'.
+// Returns the name of the local branch, or an empty string.
+const char* LocalBranchName(const git_reference* ref);
+
+// Returns the name of the remote tracking branch, or an empty string.
 const char* RemoteBranchName(git_repository* repo, const git_reference* ref);
 
+// Returns the first tag in lexicographic order whose target is equal to the given, or an
+// empty string. Target can be null, in which case the tag is empty.
 std::future<std::string> GetTagName(git_repository* repo, const git_oid* target);
 
 }  // namespace gitstatus

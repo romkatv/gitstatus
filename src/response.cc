@@ -46,11 +46,10 @@ ResponseWriter::ResponseWriter(std::string request_id) : request_id_(std::move(r
 
 ResponseWriter::~ResponseWriter() {
   if (!done_) {
-    LOG(INFO) << "Replying without git status";
     strm_.str("");
     SafePrint(strm_, request_id_);
     Print(0);
-    Dump();
+    Dump("without git status");
   }
 }
 
@@ -64,10 +63,10 @@ void ResponseWriter::Print(StringView val) {
   SafePrint(strm_, val);
 }
 
-void ResponseWriter::Dump(bool verbose) {
+void ResponseWriter::Dump(const char* log) {
   CHECK(!done_);
   done_ = true;
-  if (verbose) LOG(INFO) << "Replying with git status";
+  LOG(INFO) << "Replying " << log;
   std::cout << strm_.str() << kMsgSep << std::flush;
 }
 

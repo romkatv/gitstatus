@@ -174,17 +174,24 @@ const char* RemoteUrl(git_repository* repo, const git_reference* ref) {
 }
 
 git_reference* Head(git_repository* repo) {
-  git_reference* head = nullptr;
-  switch (git_repository_head(&head, repo)) {
+  git_reference* symbolic = nullptr;
+  switch (git_reference_lookup(&symbolic, repo, "HEAD")) {
     case 0:
-      return head;
+      break;
     case GIT_ENOTFOUND:
-    case GIT_EUNBORNBRANCH:
       return nullptr;
     default:
-      LOG(ERROR) << "git_repository_head: " << GitError();
+      LOG(ERROR) << "git_reference_lookup: " << GitError();
       throw Exception();
   }
+
+  git_reference* direct = nullptr;
+  if (git_reference_resolve(&direct, symbolic)) {
+    LOG(INFO) << "Empty git repo (no HEAD)";
+    return symbolic;
+  }
+  git_reference_free(symbolic);
+  return direct;
 }
 
 git_reference* Upstream(git_reference* local) {
@@ -200,6 +207,30 @@ git_reference* Upstream(git_reference* local) {
       VERIFY(giterr_last()->klass == GITERR_INVALID) << "git_branch_upstream: " << GitError();
       return nullptr;
   }
+}
+
+const char* LocalBranchName(const git_reference* ref) {
+  CHECK(ref);
+  git_reference_t type = git_reference_type(ref);
+  switch (type) {
+    case GIT_REFERENCE_DIRECT: {
+      return git_reference_is_branch(ref) ? git_reference_shorthand(ref) : "";
+    }
+    case GIT_REFERENCE_SYMBOLIC: {
+      static constexpr char kHeadPrefix[] = "refs/heads/";
+      const char* target = git_reference_symbolic_target(ref);
+      if (!target) return "";
+      size_t len = std::strlen(target);
+      if (len < sizeof(kHeadPrefix)) return "";
+      if (std::memcmp(target, kHeadPrefix, sizeof(kHeadPrefix) - 1)) return "";
+      return target + (sizeof(kHeadPrefix) - 1);
+    }
+    case GIT_REFERENCE_INVALID:
+    case GIT_REFERENCE_ALL:
+      break;
+  }
+  LOG(ERROR) << "Invalid reference type: " << type;
+  throw Exception();
 }
 
 const char* RemoteBranchName(git_repository* repo, const git_reference* ref) {
@@ -218,6 +249,10 @@ std::future<std::string> GetTagName(git_repository* repo, const git_oid* target)
   std::future<std::string> res = promise->get_future();
   g_thread_pool->Schedule([=] {
     ON_SCOPE_EXIT(&) { delete promise; };
+    if (!target) {
+      promise->set_value("");
+      return;
+    }
     try {
       struct State {
         git_repository* repo;
@@ -312,36 +347,49 @@ void Repo::UpdateKnown() {
   Snatch(GIT_STATUS_WT_NEW, untracked_, "untracked");
 }
 
-bool Repo::GetIndexStats(git_reference* head, bool scan_dirty, IndexStats* stats) {
-  auto Done = [&] {
-    return !staged_.Empty() && (!scan_dirty || (!unstaged_.Empty() && !untracked_.Empty()));
-  };
-
+IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size) {
   Wait();
+  VERIFY(!git_index_read(index_, 0)) << GitError();
   Store(error_, false);
   UpdateKnown();
 
+  const size_t index_size = git_index_entrycount(index_);
+  const bool scan_dirty = index_size <= dirty_max_index_size;
+
+  auto Done = [&] {
+    return (!head || !staged_.Empty()) &&
+           (!scan_dirty || (!unstaged_.Empty() && !untracked_.Empty()));
+  };
+
+  LOG(INFO) << "Index size: " << index_size;
+
   if (!Done()) {
     CHECK(Load(inflight_) == 0);
-    Inc(inflight_);
-    ON_SCOPE_EXIT(&) { DecInflight(); };
     if (scan_dirty) StartDirtyScan();
-    StartStagedScan(head);
+    if (head) StartStagedScan(head);
 
     {
       std::unique_lock<std::mutex> lock(mutex_);
-      while (Load(inflight_) > 1 && !Load(error_) && !Done()) cv_.wait(lock);
+      while (Load(inflight_) && !Load(error_) && !Done()) cv_.wait(lock);
     }
   }
 
-  if (Clock::now() - splits_ts_ >= kSplitUpdatePeriod) RunAsync([this] { UpdateSplits(); });
+  if (Clock::now() - splits_ts_ >= kSplitUpdatePeriod) {
+    RunAsync([this] {
+      Wait(1);
+      UpdateSplits();
+    });
+  }
 
-  *stats = {};
-  if (Load(error_)) return false;
-  stats->has_staged = !staged_.Empty();
-  stats->has_unstaged = !unstaged_.Empty();
-  stats->has_untracked = !untracked_.Empty();
-  return true;
+  if (Load(error_)) throw Exception();
+
+  return {
+    // An empty repo with non-empty index must have staged changes since it cannot have unstaged
+    // changes.
+    .has_staged = !staged_.Empty() || (!head && index_size),
+    .has_unstaged = !unstaged_.Empty() ? kTrue : scan_dirty ? kFalse : kUnknown,
+    .has_untracked = !untracked_.Empty() ? kTrue : scan_dirty ? kFalse : kUnknown,
+  };
 }
 
 void Repo::StartDirtyScan() {
@@ -392,13 +440,10 @@ void Repo::StartDirtyScan() {
   }
 }
 
-void Repo::StartStagedScan(git_reference* head) {
+void Repo::StartStagedScan(const git_oid* head) {
   if (!staged_.Empty()) return;
-
-  const git_oid* oid = git_reference_target(head);
-  VERIFY(oid);
   git_commit* commit = nullptr;
-  VERIFY(!git_commit_lookup(&commit, repo_, oid)) << GitError();
+  VERIFY(!git_commit_lookup(&commit, repo_, head)) << GitError();
   ON_SCOPE_EXIT(=) { git_commit_free(commit); };
   git_tree* tree = nullptr;
   VERIFY(!git_commit_tree(&tree, commit)) << GitError();
@@ -498,10 +543,12 @@ void Repo::UpdateSplits() {
   CHECK(splits_.size() <= shards + 1);
 }
 
+constexpr size_t kMaxWaitInflight = 1;
+
 void Repo::DecInflight() {
   std::unique_lock<std::mutex> lock(mutex_);
   CHECK(Load(inflight_) > 0);
-  if (Dec(inflight_) < 3) cv_.notify_one();
+  if (Dec(inflight_) <= kMaxWaitInflight + 1) cv_.notify_one();
 }
 
 void Repo::RunAsync(std::function<void()> f) {
@@ -536,9 +583,13 @@ void Repo::UpdateFile(OptionalFile& file, const char* label, const char* path) {
   }
 }
 
-void Repo::Wait() {
+void Repo::Wait(size_t inflight) {
+  CHECK(inflight <= kMaxWaitInflight);
   std::unique_lock<std::mutex> lock(mutex_);
-  while (inflight_) cv_.wait(lock);
+  while (inflight_ != inflight) {
+    CHECK(inflight_ > inflight);
+    cv_.wait(lock);
+  }
 }
 
 }  // namespace gitstatus
