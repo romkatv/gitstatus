@@ -25,7 +25,7 @@ namespace gitstatus {
 Repo* RepoCache::Open(const std::string& dir) {
   git_repository* repo = OpenRepo(dir);
   if (!repo) {
-    cache_.erase(dir) || cache_.erase(dir + '/');
+    cache_.erase(dir + '/') || cache_.erase(dir);
     return nullptr;
   }
   ON_SCOPE_EXIT(&) {
@@ -35,10 +35,14 @@ Repo* RepoCache::Open(const std::string& dir) {
   if (!work_dir) return nullptr;
   auto x = cache_.emplace(work_dir, nullptr);
   if (x.first->second == nullptr) {
-    if (git_repository_is_bare(repo)) return nullptr;
+    if (git_repository_is_bare(repo)) {
+      LOG(INFO) << "Bare repository";
+      return nullptr;
+    }
+    LOG(INFO) << "Initializing new repository: " << work_dir;
     // Query an attribute (doesn't matter which) to initialize repo's attribute
-    // cache. It's a workaround for synchronization bugs (data races) in libgit2.
-    // It initialized attribute cache lazily without any synchrnonization.
+    // cache. It's a workaround for synchronization bugs (data races) in libgit2
+    // that result from lazy cache initialization with no synchrnonization whatsoever.
     const char* attr;
     VERIFY(git_attr_get(&attr, repo, 0, "x", "x") == 0) << GitError();
     x.first->second = std::make_unique<Repo>(std::exchange(repo, nullptr));

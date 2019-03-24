@@ -482,7 +482,7 @@ void Repo::UpdateSplits() {
   size_t n = git_index_entrycount(index_);
   ON_SCOPE_EXIT(&) {
     splits_ts_ = Clock::now();
-    LOG(INFO) << "Index size = " << n << "; number of shards = " << (splits_.size() - 1);
+    LOG(INFO) << "Splitting " << n << " object(s) into " << (splits_.size() - 1) << " shard(s)";
   };
 
   if (n <= kEntriesPerShard || g_thread_pool->num_threads() < 2) {
@@ -490,43 +490,48 @@ void Repo::UpdateSplits() {
     return;
   }
 
-  std::vector<const char*> entries_lo(n);
-  std::vector<char*> slashes;
-  slashes.reserve(8 * n);
+  std::vector<const char*> entries(n);
 
-  ON_SCOPE_EXIT(&) {
-    for (char* p : slashes) *p = '/';
-  };
+  {
+    std::vector<char*> patches;
+    patches.reserve(8 * n);
 
-  constexpr char kSep[] = {1, 255, 0};
+    ON_SCOPE_EXIT(&) {
+      for (char* p : patches) *p = '/';
+    };
 
-  for (size_t i = 0; i != n; ++i) {
-    char* path = const_cast<char*>(git_index_get_byindex(index_, i)->path);
-    if (std::strstr(path, kSep)) {
-      splits_ = {""s, ""s};
-      return;
+    for (size_t i = 0; i != n; ++i) {
+      char* path = const_cast<char*>(git_index_get_byindex(index_, i)->path);
+      if (std::strchr(path, 1)) {
+        splits_ = {""s, ""s};
+        return;
+      }
+      entries[i] = path;
+      while ((path = std::strchr(path, '/'))) {
+        static_assert(std::is_unsigned<char>(), "");
+        *path = 1;
+        patches.push_back(path);
+      }
     }
-    entries_lo[i] = path;
-    while ((path = std::strchr(path, '/'))) {
-      static_assert(std::is_unsigned<char>(), "");
-      *path = kSep[0];
-      slashes.push_back(path);
-    }
-  }
-  std::sort(entries_lo.begin(), entries_lo.end(),
-            [](const char* x, const char* y) { return std::strcmp(x, y) < 0; });
 
-  std::vector<const char*> entries_hi = entries_lo;
-  for (char* p : slashes) *p = kSep[1];
-  std::sort(entries_hi.begin(), entries_hi.end(),
-            [](const char* x, const char* y) { return std::strcmp(x, y) < 0; });
+    std::sort(entries.begin(), entries.end(),
+              [](const char* x, const char* y) { return std::strcmp(x, y) < 0; });
 
-  const char* last = "";
-  for (size_t i = 0; i != n; ++i) {
-    if (entries_lo[i] == entries_hi[i]) {
-      last = entries_lo[i];
-    } else {
-      entries_hi[i] = last;
+    const char* last = "";
+    const char* max = "";
+    for (size_t i = 0; i < n; ++i) {
+      const char* idx = git_index_get_byindex(index_, i)->path;
+      if (entries[i] == idx && !*max) {
+        last = entries[i];
+      } else {
+        if (std::strcmp(idx, max) > 0) max = idx;
+        if (entries[i] == idx && std::strcmp(entries[i], max) >= 0) {
+          last = entries[i];
+          max = "";
+        } else {
+          entries[i] = last;
+        }
+      }
     }
   }
 
@@ -535,12 +540,18 @@ void Repo::UpdateSplits() {
   splits_.reserve(shards + 1);
   splits_.push_back("");
   for (size_t i = 0; i != shards - 1; ++i) {
-    std::string split = entries_hi[(i + 1) * n / shards];
-    std::replace(split.begin(), split.end(), kSep[1], '/');
-    if (split != splits_.back()) splits_.push_back(std::move(split));
+    std::string split = entries[(i + 1) * n / shards];
+    auto pos = split.find_last_of('/');
+    if (pos != std::string::npos) {
+      split = split.substr(0, pos);
+      if (split > splits_.back()) {
+        splits_.push_back(split);
+      }
+    }
   }
+  CHECK(splits_.size() <= shards);
+  CHECK(std::is_sorted(splits_.begin(), splits_.end()));
   splits_.push_back("");
-  CHECK(splits_.size() <= shards + 1);
 }
 
 constexpr size_t kMaxWaitInflight = 1;
