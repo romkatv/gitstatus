@@ -298,7 +298,6 @@ std::future<std::string> GetTagName(git_repository* repo, const git_oid* target)
 }
 
 Repo::Repo(git_repository* repo) try : repo_(repo), index_(Index(repo_)) {
-  UpdateSplits();
 } catch (...) {
   git_repository_free(repo);
   throw;
@@ -350,6 +349,7 @@ void Repo::UpdateKnown() {
 IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size) {
   Wait();
   VERIFY(!git_index_read(index_, 0)) << GitError();
+  if (splits_.empty()) UpdateSplits();
   Store(error_, false);
   UpdateKnown();
 
@@ -477,7 +477,7 @@ void Repo::StartStagedScan(const git_oid* head) {
 }
 
 void Repo::UpdateSplits() {
-  constexpr size_t kEntriesPerShard = 1024;
+  constexpr size_t kEntriesPerShard = 512;
 
   size_t n = git_index_entrycount(index_);
   ON_SCOPE_EXIT(&) {
