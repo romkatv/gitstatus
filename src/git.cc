@@ -254,41 +254,60 @@ std::future<std::string> GetTagName(git_repository* repo, const git_oid* target)
       return;
     }
     try {
-      struct State {
-        git_repository* repo;
-        const git_oid* target;
-        std::string tag_name;
-      } state = {repo, target};
-      git_tag_foreach_cb cb = +[](const char* name, git_oid* oid, void* payload) -> int {
-        State* state = static_cast<State*>(payload);
-        if (git_oid_equal(oid, state->target)) {
-          // Lightweight tag.
-          state->tag_name = name;
-          return GIT_EUSER;
+      Timer t;
+      std::string arena;
+      arena.reserve(4096);
+      std::vector<size_t> names;
+      names.reserve(1024);
+      {
+        git_reference_iterator* iter;
+        VERIFY(!git_reference_iterator_glob_new(&iter, repo, "refs/tags/*")) << GitError();
+        ON_SCOPE_EXIT(&) { git_reference_iterator_free(iter); };
+
+        while (true) {
+          const char* name;
+          int error = git_reference_next_name(&name, iter);
+          if (error == GIT_ITEROVER) break;
+          VERIFY(!error) << "git_reference_next_name: " << GitError();
+          names.push_back(arena.size());
+          arena += name;
+          arena += '\0';
         }
-        git_tag* tag = nullptr;
-        if (git_tag_lookup(&tag, state->repo, oid)) return 0;
-        ON_SCOPE_EXIT(&) { git_tag_free(tag); };
-        const git_oid* tag_target = git_tag_target_id(tag);
-        if (tag_target && git_oid_equal(tag_target, state->target)) {
-          // Heavyweight tag.
-          state->tag_name = name;
-          return GIT_EUSER;
-        }
-        return 0;
-      };
-      switch (git_tag_foreach(repo, cb, &state)) {
-        case 0:
-          promise->set_value("");
-          break;
-        case GIT_EUSER:
+      }
+
+      for (size_t pos : names) {
+        const char* name = arena.c_str() + pos;
+        auto MakeName = [&] {
+          t.Report("tag");
           static constexpr char kTagPrefix[] = "refs/tags/";
-          VERIFY(state.tag_name.find(kTagPrefix) == 0);
-          promise->set_value(state.tag_name.substr(sizeof(kTagPrefix) - 1));
-          break;
-        default:
-          LOG(ERROR) << "git_tag_foreach: " << GitError();
-          throw Exception();
+          CHECK(std::strstr(name, kTagPrefix) == name);
+          return name + (sizeof(kTagPrefix) - 1);
+        };
+        git_reference* ref;
+        VERIFY(!git_reference_lookup(&ref, repo, name)) << GitError();
+        ON_SCOPE_EXIT(&) { git_reference_free(ref); };
+        for (int i = 0; i != 10 && git_reference_type(ref) == GIT_REFERENCE_SYMBOLIC; ++i) {
+          git_reference* dst;
+          if (git_reference_resolve(&dst, ref)) break;
+          git_reference_free(ref);
+          ref = dst;
+        }
+        if (git_reference_type(ref) == GIT_REFERENCE_SYMBOLIC) continue;
+        if (git_oid_equal(git_reference_target(ref), target)) {
+          LOG(INFO) << "HEAD is tagged with soft tag: " << name;
+          promise->set_value(MakeName());
+          return;
+        }
+        git_object* obj;
+        if (git_reference_peel(&obj, ref, GIT_OBJECT_TAG)) continue;
+        ON_SCOPE_EXIT(&) { git_object_free(obj); };
+        if (const git_oid* tag_target = git_tag_target_id((git_tag*)obj)) {
+          if (git_oid_equal(tag_target, target)) {
+            LOG(INFO) << "HEAD is tagged with hard tag: " << name;
+            promise->set_value(MakeName());
+            return;
+          }
+        }
       }
     } catch (const Exception&) {
       promise->set_exception(std::current_exception());
@@ -384,11 +403,11 @@ IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size)
   if (Load(error_)) throw Exception();
 
   return {
-    // An empty repo with non-empty index must have staged changes since it cannot have unstaged
-    // changes.
-    .has_staged = !staged_.Empty() || (!head && index_size),
-    .has_unstaged = !unstaged_.Empty() ? kTrue : scan_dirty ? kFalse : kUnknown,
-    .has_untracked = !untracked_.Empty() ? kTrue : scan_dirty ? kFalse : kUnknown,
+      // An empty repo with non-empty index must have staged changes since it cannot have unstaged
+      // changes.
+      .has_staged = !staged_.Empty() || (!head && index_size),
+      .has_unstaged = !unstaged_.Empty() ? kTrue : scan_dirty ? kFalse : kUnknown,
+      .has_untracked = !untracked_.Empty() ? kTrue : scan_dirty ? kFalse : kUnknown,
   };
 }
 
