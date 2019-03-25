@@ -118,6 +118,8 @@ int GitStatus(int argc, char** argv) {
   RepoCache cache;
 
   git_libgit2_init();
+  git_index_disable_checksum_verification = true;
+  git_index_disable_path_validation = true;
   InitThreadPool(opts.num_threads);
 
   while (true) {
