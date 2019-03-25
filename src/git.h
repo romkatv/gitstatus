@@ -110,6 +110,7 @@ class Repo {
   git_repository* const repo_;
   git_index* const index_;
   std::vector<std::string> splits_;
+  size_t index_size_ = 0;
   Time splits_ts_;
 
   std::mutex mutex_;

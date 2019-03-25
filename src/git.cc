@@ -383,7 +383,7 @@ IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size)
     }
   }
 
-  if (Clock::now() - splits_ts_ >= kSplitUpdatePeriod) {
+  if (Clock::now() - splits_ts_ >= kSplitUpdatePeriod || index_size != index_size_) {
     RunAsync([this] {
       Wait(1);
       UpdateSplits();
@@ -488,28 +488,29 @@ void Repo::StartStagedScan(const git_oid* head) {
 void Repo::UpdateSplits() {
   constexpr size_t kEntriesPerShard = 512;
 
-  size_t n = git_index_entrycount(index_);
+  index_size_ = git_index_entrycount(index_);
   ON_SCOPE_EXIT(&) {
     splits_ts_ = Clock::now();
-    LOG(INFO) << "Splitting " << n << " object(s) into " << (splits_.size() - 1) << " shard(s)";
+    LOG(INFO) << "Splitting " << index_size_ << " object(s) into " << (splits_.size() - 1)
+              << " shard(s)";
   };
 
-  if (n <= kEntriesPerShard || g_thread_pool->num_threads() < 2) {
+  if (index_size_ <= kEntriesPerShard || g_thread_pool->num_threads() < 2) {
     splits_ = {""s, ""s};
     return;
   }
 
-  std::vector<const char*> entries(n);
+  std::vector<const char*> entries(index_size_);
 
   {
     std::vector<char*> patches;
-    patches.reserve(8 * n);
+    patches.reserve(8 * index_size_);
 
     ON_SCOPE_EXIT(&) {
       for (char* p : patches) *p = '/';
     };
 
-    for (size_t i = 0; i != n; ++i) {
+    for (size_t i = 0; i != index_size_; ++i) {
       char* path = const_cast<char*>(git_index_get_byindex(index_, i)->path);
       if (std::strchr(path, 1)) {
         splits_ = {""s, ""s};
@@ -528,7 +529,7 @@ void Repo::UpdateSplits() {
 
     const char* last = "";
     const char* max = "";
-    for (size_t i = 0; i < n; ++i) {
+    for (size_t i = 0; i < index_size_; ++i) {
       const char* idx = git_index_get_byindex(index_, i)->path;
       if (entries[i] == idx && !*max) {
         last = entries[i];
@@ -544,12 +545,12 @@ void Repo::UpdateSplits() {
     }
   }
 
-  size_t shards = std::min(n / kEntriesPerShard + 1, g_thread_pool->num_threads());
+  size_t shards = std::min(index_size_ / kEntriesPerShard + 1, g_thread_pool->num_threads());
   splits_.clear();
   splits_.reserve(shards + 1);
   splits_.push_back("");
   for (size_t i = 0; i != shards - 1; ++i) {
-    std::string split = entries[(i + 1) * n / shards];
+    std::string split = entries[(i + 1) * index_size_ / shards];
     auto pos = split.find_last_of('/');
     if (pos != std::string::npos) {
       split = split.substr(0, pos);
