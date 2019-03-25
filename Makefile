@@ -2,9 +2,9 @@ APPNAME ?= gitstatusd
 
 CXX ?= g++
 
-CXXFLAGS += -std=c++14 -funsigned-char -O3 -DNDEBUG -Wall -Werror
-LDFLAGS += -pthread
-LDLIBS += -lgit2
+CXXFLAGS += -std=c++14 -funsigned-char -O3 -DNDEBUG -Wall -Werror # -g -fsanitize=thread
+LDFLAGS += -pthread # -fsanitize=thread
+LDLIBS += -lgit2 # -ltcmalloc_and_profiler -lunwind
 
 SRCS := $(shell find src -name "*.cc")
 OBJS := $(patsubst src/%.cc, obj/%.o, $(SRCS))
