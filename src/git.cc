@@ -244,6 +244,27 @@ const char* RemoteBranchName(git_repository* repo, const git_reference* ref) {
   return branch + remote.size + 1;
 }
 
+bool TagHasTarget(git_refdb* refdb, const char* name, const git_oid* target) {
+  git_reference* ref;
+  if (git_refdb_lookup(&ref, refdb, name)) return false;
+  ON_SCOPE_EXIT(&) { git_reference_free(ref); };
+  for (int i = 0; i != 10 && git_reference_type(ref) == GIT_REFERENCE_SYMBOLIC; ++i) {
+    git_reference* dst;
+    if (git_refdb_lookup(&dst, refdb, git_reference_name(ref))) return false;
+    git_reference_free(ref);
+    ref = dst;
+  }
+  if (git_reference_type(ref) == GIT_REFERENCE_SYMBOLIC) return false;
+  if (git_oid_equal(git_reference_target(ref), target)) return true;
+  git_object* obj;
+  if (git_reference_peel(&obj, ref, GIT_OBJECT_TAG)) return false;
+  ON_SCOPE_EXIT(&) { git_object_free(obj); };
+  if (const git_oid* tag_target = git_tag_target_id((git_tag*)obj)) {
+    if (git_oid_equal(tag_target, target)) return true;
+  }
+  return false;
+}
+
 std::future<std::string> GetTagName(git_repository* repo, const git_oid* target) {
   auto* promise = new std::promise<std::string>;
   std::future<std::string> res = promise->get_future();
@@ -254,59 +275,28 @@ std::future<std::string> GetTagName(git_repository* repo, const git_oid* target)
       return;
     }
     try {
-      Timer t;
-      std::string arena;
-      arena.reserve(4096);
-      std::vector<size_t> names;
-      names.reserve(1024);
-      {
-        git_reference_iterator* iter;
-        VERIFY(!git_reference_iterator_glob_new(&iter, repo, "refs/tags/*")) << GitError();
-        ON_SCOPE_EXIT(&) { git_reference_iterator_free(iter); };
+      git_reference_iterator* iter;
+      VERIFY(!git_reference_iterator_glob_new(&iter, repo, "refs/tags/*")) << GitError();
+      ON_SCOPE_EXIT(&) { git_reference_iterator_free(iter); };
 
-        while (true) {
-          const char* name;
-          int error = git_reference_next_name(&name, iter);
-          if (error == GIT_ITEROVER) break;
-          VERIFY(!error) << "git_reference_next_name: " << GitError();
-          names.push_back(arena.size());
-          arena += name;
-          arena += '\0';
-        }
-      }
+      git_refdb* refdb;
+      VERIFY(!git_repository_refdb(&refdb, repo)) << GitError();
+      ON_SCOPE_EXIT(&) { git_refdb_free(refdb); };
 
-      for (size_t pos : names) {
-        const char* name = arena.c_str() + pos;
-        auto MakeName = [&] {
-          t.Report("tag");
-          static constexpr char kTagPrefix[] = "refs/tags/";
-          CHECK(std::strstr(name, kTagPrefix) == name);
-          return name + (sizeof(kTagPrefix) - 1);
-        };
-        git_reference* ref;
-        VERIFY(!git_reference_lookup(&ref, repo, name)) << GitError();
-        ON_SCOPE_EXIT(&) { git_reference_free(ref); };
-        for (int i = 0; i != 10 && git_reference_type(ref) == GIT_REFERENCE_SYMBOLIC; ++i) {
-          git_reference* dst;
-          if (git_reference_resolve(&dst, ref)) break;
-          git_reference_free(ref);
-          ref = dst;
-        }
-        if (git_reference_type(ref) == GIT_REFERENCE_SYMBOLIC) continue;
-        if (git_oid_equal(git_reference_target(ref), target)) {
-          LOG(INFO) << "HEAD is tagged with soft tag: " << name;
-          promise->set_value(MakeName());
-          return;
-        }
-        git_object* obj;
-        if (git_reference_peel(&obj, ref, GIT_OBJECT_TAG)) continue;
-        ON_SCOPE_EXIT(&) { git_object_free(obj); };
-        if (const git_oid* tag_target = git_tag_target_id((git_tag*)obj)) {
-          if (git_oid_equal(tag_target, target)) {
-            LOG(INFO) << "HEAD is tagged with hard tag: " << name;
-            promise->set_value(MakeName());
+      while (true) {
+        const char* name;
+        if (int error = git_reference_next_name(&name, iter)) {
+          if (error == GIT_ITEROVER) {
+            promise->set_value("");
             return;
           }
+          continue;
+        }
+        if (TagHasTarget(refdb, name, target)) {
+          static constexpr char kTagPrefix[] = "refs/tags/";
+          CHECK(std::strstr(name, kTagPrefix) == name);
+          promise->set_value(name + (sizeof(kTagPrefix) - 1));
+          return;
         }
       }
     } catch (const Exception&) {
