@@ -22,12 +22,15 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <mutex>
 #include <string>
 
 namespace gitstatus {
 namespace internal_logging {
 
 namespace {
+
+std::mutex g_log_mutex;
 
 const char* Str(Severity severity) {
   switch (severity) {
@@ -51,6 +54,7 @@ LogStreamBase::LogStreamBase(const char* file, int line, Severity severity)
 }
 
 void LogStreamBase::Flush() {
+  std::unique_lock<std::mutex> lock(g_log_mutex);
   std::time_t time = std::time(nullptr);
   char time_str[64];
   if (std::strftime(time_str, sizeof(time_str), "%F %T", std::localtime(&time)) == 0) {
