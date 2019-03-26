@@ -50,9 +50,11 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   const git_oid* head_target = git_reference_target(head);
   std::future<std::string> tag = GetTagName(repo->repo(), head_target);
   ON_SCOPE_EXIT(&) {
-    if (tag.valid()) try {
-      tag.wait();
-    } catch (const Exception&) {
+    if (tag.valid()) {
+      try {
+        tag.wait();
+      } catch (const Exception&) {
+      }
     }
   };
 

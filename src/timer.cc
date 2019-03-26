@@ -61,7 +61,7 @@ void Timer::Start() {
 void Timer::Report(const char* msg) {
   double cpu = CpuTimeMs() - cpu_;
   if (std::isnan(wall_)) {
-    LOG(INFO) << "Timing for: " << msg << ": " << cpu << "ms cpu";  
+    LOG(INFO) << "Timing for: " << msg << ": " << cpu << "ms cpu";
   } else {
     double wall = WallTimeMs() - wall_;
     LOG(INFO) << "Timing for: " << msg << ": " << cpu << "ms cpu, " << wall << "ms wall";

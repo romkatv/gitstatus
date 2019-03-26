@@ -70,11 +70,7 @@ class OptionalFile {
   std::atomic<bool> has_{false};
 };
 
-enum Tribool : int {
-  kFalse = 0,
-  kTrue = 1,
-  kUnknown = -1
-};
+enum Tribool : int { kFalse = 0, kTrue = 1, kUnknown = -1 };
 
 struct IndexStats {
   bool has_staged = false;
