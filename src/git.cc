@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <memory>
@@ -58,12 +59,6 @@ T Inc(std::atomic<T>& x) {
 template <class T>
 T Dec(std::atomic<T>& x) {
   return x.fetch_sub(1, std::memory_order_relaxed);
-}
-
-git_index* Index(git_repository* repo) {
-  git_index* res = nullptr;
-  VERIFY(!git_repository_index(&res, repo)) << GitError();
-  return res;
 }
 
 }  // namespace
@@ -244,23 +239,28 @@ const char* RemoteBranchName(git_repository* repo, const git_reference* ref) {
   return branch + remote.size + 1;
 }
 
-bool TagHasTarget(git_refdb* refdb, const char* name, const git_oid* target) {
+bool TagHasTarget(git_repository* repo, git_refdb* refdb, const char* name, const git_oid* target) {
+  static constexpr size_t kMaxDerefCount = 10;
   git_reference* ref;
   if (git_refdb_lookup(&ref, refdb, name)) return false;
   ON_SCOPE_EXIT(&) { git_reference_free(ref); };
-  for (int i = 0; i != 10 && git_reference_type(ref) == GIT_REFERENCE_SYMBOLIC; ++i) {
+  for (int i = 0; i != kMaxDerefCount && git_reference_type(ref) == GIT_REFERENCE_SYMBOLIC; ++i) {
     git_reference* dst;
     if (git_refdb_lookup(&dst, refdb, git_reference_name(ref))) return false;
     git_reference_free(ref);
     ref = dst;
   }
   if (git_reference_type(ref) == GIT_REFERENCE_SYMBOLIC) return false;
-  if (git_oid_equal(git_reference_target(ref), target)) return true;
-  git_object* obj;
-  if (git_reference_peel(&obj, ref, GIT_OBJECT_TAG)) return false;
-  ON_SCOPE_EXIT(&) { git_object_free(obj); };
-  if (const git_oid* tag_target = git_tag_target_id((git_tag*)obj)) {
-    if (git_oid_equal(tag_target, target)) return true;
+  const git_oid* oid = git_reference_target_peel(ref) ?: git_reference_target(ref);
+  if (git_oid_equal(oid, target)) return true;
+  for (int i = 0; i != kMaxDerefCount; ++i) {
+    git_tag* tag;
+    if (git_tag_lookup(&tag, repo, oid)) return false;
+    ON_SCOPE_EXIT(&) { git_tag_free(tag); };
+    if (git_tag_target_type(tag) == GIT_OBJECT_COMMIT) {
+      return git_oid_equal(git_tag_target_id(tag), target);
+    }
+    oid = git_tag_target_id(tag);
   }
   return false;
 }
@@ -292,7 +292,7 @@ std::future<std::string> GetTagName(git_repository* repo, const git_oid* target)
           }
           continue;
         }
-        if (TagHasTarget(refdb, name, target)) {
+        if (TagHasTarget(repo, refdb, name, target)) {
           static constexpr char kTagPrefix[] = "refs/tags/";
           CHECK(std::strstr(name, kTagPrefix) == name);
           promise->set_value(name + (sizeof(kTagPrefix) - 1));
@@ -306,15 +306,11 @@ std::future<std::string> GetTagName(git_repository* repo, const git_oid* target)
   return res;
 }
 
-Repo::Repo(git_repository* repo) try : repo_(repo), index_(Index(repo_)) {
-} catch (...) {
-  git_repository_free(repo);
-  throw;
-}
+Repo::Repo(git_repository* repo) : repo_(repo) {}
 
 Repo::~Repo() {
   Wait();
-  git_index_free(index_);
+  if (index_) git_index_free(index_);
   git_repository_free(repo_);
 }
 
@@ -357,7 +353,16 @@ void Repo::UpdateKnown() {
 
 IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size) {
   Wait();
-  VERIFY(!git_index_read(index_, 0)) << GitError();
+  if (index_) {
+    VERIFY(!git_index_read(index_, 0)) << GitError();
+  } else {
+    VERIFY(!git_repository_index(&index_, repo_)) << GitError();
+    // Query an attribute (doesn't matter which) to initialize repo's attribute
+    // cache. It's a workaround for synchronization bugs (data races) in libgit2
+    // that result from lazy cache initialization with no synchrnonization whatsoever.
+    const char* attr;
+    VERIFY(!git_attr_get(&attr, repo_, 0, "x", "x")) << GitError();
+  }
   if (splits_.empty()) UpdateSplits();
   Store(error_, false);
   UpdateKnown();
@@ -487,6 +492,7 @@ void Repo::StartStagedScan(const git_oid* head) {
 
 void Repo::UpdateSplits() {
   constexpr size_t kEntriesPerShard = 512;
+  static_assert(std::is_unsigned<char>(), "");
 
   index_size_ = git_index_entrycount(index_);
   ON_SCOPE_EXIT(&) {
@@ -512,20 +518,23 @@ void Repo::UpdateSplits() {
 
     for (size_t i = 0; i != index_size_; ++i) {
       char* path = const_cast<char*>(git_index_get_byindex(index_, i)->path);
-      if (std::strchr(path, 1)) {
-        splits_ = {""s, ""s};
-        return;
-      }
       entries[i] = path;
-      while ((path = std::strchr(path, '/'))) {
-        static_assert(std::is_unsigned<char>(), "");
-        *path = 1;
-        patches.push_back(path);
+      for (; *path; ++path) {
+        if (*path == '/') {
+          *path = 1;
+          patches.push_back(path);
+        } else if (*path == 1) {
+          splits_ = {""s, ""s};
+          return;
+        }
       }
     }
 
-    std::sort(entries.begin(), entries.end(),
-              [](const char* x, const char* y) { return std::strcmp(x, y) < 0; });
+    std::qsort(entries.data(), entries.size(), sizeof(*entries.data()),
+               +[](const void* a, const void* b) {
+                 return std::strcmp(*static_cast<const char* const*>(a),
+                                    *static_cast<const char* const*>(b));
+               });
 
     const char* last = "";
     const char* max = "";

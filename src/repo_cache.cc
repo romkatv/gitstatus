@@ -39,12 +39,20 @@ Repo* RepoCache::Open(const std::string& dir) {
       LOG(INFO) << "Bare repository";
       return nullptr;
     }
+
     LOG(INFO) << "Initializing new repository: " << work_dir;
-    // Query an attribute (doesn't matter which) to initialize repo's attribute
-    // cache. It's a workaround for synchronization bugs (data races) in libgit2
-    // that result from lazy cache initialization with no synchrnonization whatsoever.
-    const char* attr;
-    VERIFY(git_attr_get(&attr, repo, 0, "x", "x") == 0) << GitError();
+
+    // Libgit2 initializes odb and refdb lazily with double-locking. To avoid useless work
+    // when multiple threads attempt to initialize the same db at the same time, we trigger
+    // initialization manually before threads are in play.
+    git_odb* odb;
+    VERIFY(!git_repository_odb(&odb, repo)) << GitError();
+    git_odb_free(odb);
+
+    git_refdb* refdb;
+    VERIFY(!git_repository_refdb(&refdb, repo)) << GitError();
+    git_refdb_free(refdb);
+
     x.first->second = std::make_unique<Repo>(std::exchange(repo, nullptr));
   }
   return x.first->second.get();
