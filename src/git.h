@@ -89,7 +89,6 @@ class Repo {
   ~Repo();
 
   git_repository* repo() const { return repo_; }
-  git_index* index() const { return index_; }
 
   // Head can be null, in which case has_staged will be false.
   IndexStats GetIndexStats(const git_oid* head, size_t dirty_max_index_size);
@@ -108,7 +107,7 @@ class Repo {
   void UpdateFile(OptionalFile& file, const char* label, const char* path);
 
   git_repository* const repo_;
-  git_index* const index_;
+  git_index* index_ = nullptr;
   std::vector<std::string> splits_;
   size_t index_size_ = 0;
   Time splits_ts_;
