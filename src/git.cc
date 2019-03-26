@@ -563,9 +563,7 @@ void Repo::UpdateSplits() {
     auto pos = split.find_last_of('/');
     if (pos != std::string::npos) {
       split = split.substr(0, pos);
-      if (split > splits_.back()) {
-        splits_.push_back(split);
-      }
+      if (split > splits_.back()) splits_.push_back(split);
     }
   }
   CHECK(splits_.size() <= shards);
