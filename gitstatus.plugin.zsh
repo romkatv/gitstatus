@@ -3,7 +3,7 @@
 
 # Retrives status of a git repo from a directory under its working tree.
 #
-#   -d STR    Directory to query. Defaults to $PWD. Must be absolute.
+#   -d STR    Directory to query. Defaults to ${${GIT_DIR:-$PWD}:a}. Must be absolute.
 #   -c STR    Callback function to call once the results are available. Called only after
 #             gitstatus_query returns 0 with VCS_STATUS_RESULT=tout.
 #   -t FLOAT  Timeout in seconds. Will block for at most this long. If no results are
@@ -58,7 +58,7 @@ function gitstatus_query() {
   setopt err_return no_unset
 
   local opt
-  local dir=$PWD
+  local dir=${${GIT_DIR:-$PWD}:a}
   local callback=''
   local -F timeout=-1
   while true; do
