@@ -1,32 +1,77 @@
 # gitstatus
-**gitstatus** enables fast vcs/git prompt in interactive shells. It works on Mac OS, Linux, FreeBSD
-and WSL.
+**gitstatus** is a fast alternative to `git status`. Its primary use case is to enable fast git
+prompt in interactive shells.
 
-[Powerlevel10k](https://github.com/romkatv/powerlevel10k) ZSH theme users don't need to do anything
-manually to take advantage of gitstatus because the plugin is bundled with the theme. Other theme
-develpers and shell prompt enthusiasts are welcome to integrate with gitstatus.
+![Pure Power ZSH Theme](https://github.com/romkatv/gitstatus/tree/purepower.png)
+
+gitstatus is bundled with several ZSH themes including
+[Powerlevel10k](https://github.com/romkatv/powerlevel10k).
+
+## Table of Contents
+
+1. [What it does](#what-it-does)
+2. [How it works](#how-it-works)
+3. [Benchmarks](#benchmarks)
+4. [Requirements](#requirements)
+5. [Compiling](#compiling)
+6. [User documentation](#user-documentation)
+7. [License](#license)
+
+## What it does
+
+gitstatus reads requests from stdin and prints responses to stdout. Request contain an ID and
+a directory. Response contains the same ID and machine-readable git status for the directory.
+gitstatus keeps some state in memory for the directories it has seen in order to serve future
+requests faster.
+
+[ZSH bindings](https://github.com/romkatv/gitstatus/blob/master/gitstatus.plugin.zsh) start
+gitstatus in the background and communicate with it via pipes.
+[Powerlevel10k](https://github.com/romkatv/powerlevel10k) uses these bindings to put git status
+into `PROMPT`.
 
 ## How it works
 
-When using common tools such as
-[vcs_info](http://zsh.sourceforge.net/Doc/Release/User-Contributions.html#vcs_005finfo-Quickstart)
-to embed git status in shell prompt, latency is high for three main reasons:
+gitstatus is built on top of [patched libgit2](https://github.com/romkatv/libgit2) with a few
+large performance optimizations, a number of small ones, and a score of bug fixes. The biggest
+performance wins come from the following sources:
 
-  1. About a dozen processes are created to generate each prompt. Creating processes and pipes to
-     communicate with them is expensive.
-  2. There is a lot of redundancy between different `git` commands that are invoked. For example,
-     every command has to scan parent directories in search of `.git`. Many commands have to
-     resolve HEAD. Several have to read index.
-  3. There is redundancy between consecutive prompts, too. Even if you stay within the same repo,
-     each prompt will read git index form disk.
+  * Using all available cores to scan index and work directory in parallel.
+  * Reducing the number of `stat` calls to the absolute minimum.
+  * Avoiding unnecessary string comparisons, especially with long shared prefixes.
+  * Parsing and evaluating `.gitignore` rules lazily.
 
-gitstatus solves these problems by running a daemon next to each interactive shell. Whenever prompt
-needs to refresh, it sends the current directory to the daemon and receives git info back, all with
-a single roundtrip. The daemon is written in C++ and is using a
-[patched version of libgit2](https://github.com/romkatv/libgit2.git) optimized for efficiency. It
-keeps indices of all repos in memory for faster access and does a lot of crazy things to give you
-the status of your git repo as fast as possible. It never serves stale data -- every prompt receives
-accurate representation of the current state of the repo.
+Changes to libgit2 are extensive but the testing they underwent isn't. It is _not recommended_ to
+use the patched libgit2 or gitstatus in production.
+
+## Benchmarks
+
+The following benchmark results were obtained on Intel i9-7900X running Ubuntu 18.04 in
+a clean [chromium](https://github.com/chromium/chromium) repository synced to `9bcb0ae`. The
+repository was checked out to an ext4 filesysem on M.2 SSD.
+
+Three functionally equivalent tools for obtaining git status were benchmarked:
+
+  * gitstatus itself
+  * `git status` with untracked cache enabled
+  * `lg2 status` -- a subset of `git status` functionality implemented on libgit2 as a demo/example;
+    for the purposes of this benchmark the subset is sufficient to generate the same data as the
+    other tools
+
+Every tool was benchmark in cold and hot conditions. For `git status` the first run in a repository
+was considered cold, with the following runs considered hot. `lg2 status` was patched to compute
+status twice in a single invocation without freeing the repository in between; the second run was
+considered hot. Similarly with gitstatus -- the same request was sent to it twice, the second being
+hot.
+
+| Tool          |      Cold  |       Hot |
+|---------------|-----------:| ---------:|
+| **gitstatus** | **329 ms** | **73 ms** |
+| `git status`  |     876 ms |    663 ms |
+| `lg2 status`  |    1731 ms |   1311 ms |
+
+In this benchmark gitstatus is 9 times faster than `git status` and 18 times faster than
+`lg2 status` when status for the same repository is requested for the second time. This is the
+primary use case for interactive shells.
 
 ## Requirements
 
@@ -36,8 +81,8 @@ accurate representation of the current state of the repo.
 ## Compiling
 
 There are prebuilt `gitstatusd` binaries in
-[bin](https://github.com/romkatv/gitstatus/tree/master/bin). When you source `gitstatus.plugin.zsh`,
-it'll pick the right binary for your architecture automatically.
+[bin](https://github.com/romkatv/gitstatus/tree/master/bin). When using ZSH bindings privided by
+`gitstatus.plugin.zsh`, the right binary for your architecture is picked up automatically.
 
 If precompiled binaries don't work for you, you'll need to get your hands dirty.
 
@@ -50,15 +95,19 @@ If everything goes well, the path to your newly built binary will be printed at 
 If something breaks due to a missing dependency (e.g., `cmake` not found), install the dependency,
 remove `/tmp/gitstatus` and retry.
 
-## More Docs
+To build from locally modified sources, read
+[build.zsh](https://github.com/romkatv/gitstatus/tree/build.zsh) and improvise.
+
+## User documentation
 
 Run `gitstatusd --help` for help or read the same thing in
 [options.cc](https://github.com/romkatv/gitstatus/blob/master/src/options.cc).
 
-There are also docs in
+ZSH bindings are documented in
 [gitstatus.plugin.zsh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.plugin.zsh).
 
 ## License
 
 GNU General Public License v3.0. See
-[LICENSE](https://github.com/romkatv/gitstatus/blob/master/LICENSE).
+[LICENSE](https://github.com/romkatv/gitstatus/blob/master/LICENSE). Contributions are covered by
+the same license.
