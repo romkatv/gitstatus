@@ -313,7 +313,8 @@ std::future<std::string> GetTagName(git_repository* repo, const git_oid* target)
       std::mutex mutex;
       std::condition_variable cv;
 
-      for (size_t i = 0; i != g_thread_pool->num_threads(); ++i) {
+      const size_t kNumShards = g_thread_pool->num_threads();
+      for (size_t i = 0; i != kNumShards; ++i) {
         size_t begin = i * positions.size() / g_thread_pool->num_threads();
         size_t end = (i + 1) * positions.size() / g_thread_pool->num_threads();
         if (begin == end) continue;
@@ -343,7 +344,7 @@ std::future<std::string> GetTagName(git_repository* repo, const git_oid* target)
         };
 
         std::unique_lock<std::mutex>{mutex}, ++inflight;
-        if (i == g_thread_pool->num_threads() - 1) {
+        if (i == kNumShards - 1) {
           F();
         } else {
           g_thread_pool->Schedule(std::move(F));
