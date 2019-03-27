@@ -90,23 +90,26 @@ class Repo {
   IndexStats GetIndexStats(const git_oid* head, size_t dirty_max_index_size);
 
  private:
+  struct Shard {
+    std::string start;
+    std::string end;
+  };
+
   void UpdateKnown();
-  void UpdateSplits();
+  void UpdateShards();
 
   void StartStagedScan(const git_oid* head);
   void StartDirtyScan();
 
   void DecInflight();
   void RunAsync(std::function<void()> f);
-  void Wait(size_t inflight = 0);
+  void Wait();
 
   void UpdateFile(OptionalFile& file, const char* label, const char* path);
 
   git_repository* const repo_;
   git_index* index_ = nullptr;
-  std::vector<std::string> splits_;
-  size_t index_size_ = 0;
-  Time splits_ts_;
+  std::vector<Shard> shards_;
 
   std::mutex mutex_;
   OptionalFile staged_;
