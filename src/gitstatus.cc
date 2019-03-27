@@ -39,6 +39,8 @@ using namespace std::string_literals;
 
 void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   Timer timer;
+  ON_SCOPE_EXIT(&) { timer.Report("request"); };
+
   ResponseWriter resp(req.id);
   Repo* repo = cache.Open(req.dir);
   if (!repo) return;
@@ -109,7 +111,6 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   resp.Print(tag.get());
 
   resp.Dump("with git status");
-  timer.Report("request");
 }
 
 int GitStatus(int argc, char** argv) {
