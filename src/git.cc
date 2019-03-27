@@ -37,8 +37,6 @@ namespace {
 
 using namespace std::string_literals;
 
-constexpr auto kSplitUpdatePeriod = std::chrono::seconds(60);
-
 ThreadPool* g_thread_pool = nullptr;
 
 template <class T>
@@ -59,6 +57,56 @@ T Inc(std::atomic<T>& x) {
 template <class T>
 T Dec(std::atomic<T>& x) {
   return x.fetch_sub(1, std::memory_order_relaxed);
+}
+
+bool TagHasTarget(git_repository* repo, git_refdb* refdb, const char* name, const git_oid* target) {
+  static constexpr size_t kMaxDerefCount = 10;
+
+  git_reference* ref;
+  if (git_refdb_lookup(&ref, refdb, name)) return false;
+  ON_SCOPE_EXIT(&) { git_reference_free(ref); };
+
+  for (int i = 0; i != kMaxDerefCount && git_reference_type(ref) == GIT_REFERENCE_SYMBOLIC; ++i) {
+    git_reference* dst;
+    if (git_refdb_lookup(&dst, refdb, git_reference_name(ref))) return false;
+    git_reference_free(ref);
+    ref = dst;
+  }
+
+  if (git_reference_type(ref) == GIT_REFERENCE_SYMBOLIC) return false;
+  const git_oid* oid = git_reference_target_peel(ref) ?: git_reference_target(ref);
+  if (git_oid_equal(oid, target)) return true;
+
+  for (int i = 0; i != kMaxDerefCount; ++i) {
+    git_tag* tag;
+    if (git_tag_lookup(&tag, repo, oid)) return false;
+    ON_SCOPE_EXIT(&) { git_tag_free(tag); };
+    if (git_tag_target_type(tag) == GIT_OBJECT_COMMIT) {
+      return git_oid_equal(git_tag_target_id(tag), target);
+    }
+    oid = git_tag_target_id(tag);
+  }
+
+  return false;
+}
+
+void ListTags(git_repository* repo, std::string& arena, std::vector<size_t>& positions) {
+  arena.reserve(64 << 10);
+  positions.reserve(8 << 10);
+
+  git_reference_iterator* iter;
+  VERIFY(!git_reference_iterator_glob_new(&iter, repo, "refs/tags/*")) << GitError();
+  ON_SCOPE_EXIT(&) { git_reference_iterator_free(iter); };
+
+  while (true) {
+    const char* name;
+    int error = git_reference_next_name(&name, iter);
+    if (error == GIT_ITEROVER) return;
+    VERIFY(!error) << "git_reference_next_name: " << GitError();
+    positions.push_back(arena.size());
+    arena += name;
+    arena += '\0';
+  }
 }
 
 }  // namespace
@@ -239,70 +287,81 @@ const char* RemoteBranchName(git_repository* repo, const git_reference* ref) {
   return branch + remote.size + 1;
 }
 
-bool TagHasTarget(git_repository* repo, git_refdb* refdb, const char* name, const git_oid* target) {
-  static constexpr size_t kMaxDerefCount = 10;
-  git_reference* ref;
-  if (git_refdb_lookup(&ref, refdb, name)) return false;
-  ON_SCOPE_EXIT(&) { git_reference_free(ref); };
-  for (int i = 0; i != kMaxDerefCount && git_reference_type(ref) == GIT_REFERENCE_SYMBOLIC; ++i) {
-    git_reference* dst;
-    if (git_refdb_lookup(&dst, refdb, git_reference_name(ref))) return false;
-    git_reference_free(ref);
-    ref = dst;
-  }
-  if (git_reference_type(ref) == GIT_REFERENCE_SYMBOLIC) return false;
-  const git_oid* oid = git_reference_target_peel(ref) ?: git_reference_target(ref);
-  if (git_oid_equal(oid, target)) return true;
-  for (int i = 0; i != kMaxDerefCount; ++i) {
-    git_tag* tag;
-    if (git_tag_lookup(&tag, repo, oid)) return false;
-    ON_SCOPE_EXIT(&) { git_tag_free(tag); };
-    if (git_tag_target_type(tag) == GIT_OBJECT_COMMIT) {
-      return git_oid_equal(git_tag_target_id(tag), target);
-    }
-    oid = git_tag_target_id(tag);
-  }
-  return false;
-}
-
 std::future<std::string> GetTagName(git_repository* repo, const git_oid* target) {
   auto* promise = new std::promise<std::string>;
   std::future<std::string> res = promise->get_future();
+
   g_thread_pool->Schedule([=] {
     ON_SCOPE_EXIT(&) { delete promise; };
     if (!target) {
       promise->set_value("");
       return;
     }
-    try {
-      git_reference_iterator* iter;
-      VERIFY(!git_reference_iterator_glob_new(&iter, repo, "refs/tags/*")) << GitError();
-      ON_SCOPE_EXIT(&) { git_reference_iterator_free(iter); };
 
+    try {
+      std::string arena;
+      std::vector<size_t> positions;
+      ListTags(repo, arena, positions);
+      
       git_refdb* refdb;
       VERIFY(!git_repository_refdb(&refdb, repo)) << GitError();
       ON_SCOPE_EXIT(&) { git_refdb_free(refdb); };
 
-      while (true) {
-        const char* name;
-        if (int error = git_reference_next_name(&name, iter)) {
-          if (error == GIT_ITEROVER) {
-            promise->set_value("");
-            return;
+      std::string tag;
+      bool error = 0;
+      size_t inflight = 0;
+      std::mutex mutex;
+      std::condition_variable cv;
+
+      for (size_t i = 0; i != g_thread_pool->num_threads(); ++i) {
+        size_t begin = i * positions.size() / g_thread_pool->num_threads();
+        size_t end = (i + 1) * positions.size() / g_thread_pool->num_threads();
+        if (begin == end) continue;
+
+        auto F = [&, begin, end]() {
+          ON_SCOPE_EXIT(&) {
+            std::unique_lock<std::mutex> lock(mutex);
+            CHECK(inflight);
+            if (--inflight == 0) cv.notify_one();
+          };
+
+          try {
+            for (size_t i = begin; i != end; ++i) {
+              const char* name = arena.c_str() + positions[i];
+              if (TagHasTarget(repo, refdb, name, target)) {
+                static constexpr char kTagPrefix[] = "refs/tags/";
+                CHECK(std::strstr(name, kTagPrefix) == name);
+                name += sizeof(kTagPrefix) - 1;
+                std::unique_lock<std::mutex> lock(mutex);
+                if (tag < name) tag = name;
+                return;
+              }
+            }
+          } catch (const Exception&) {
+            std::unique_lock<std::mutex>{mutex}, error = true;
           }
-          continue;
-        }
-        if (TagHasTarget(repo, refdb, name, target)) {
-          static constexpr char kTagPrefix[] = "refs/tags/";
-          CHECK(std::strstr(name, kTagPrefix) == name);
-          promise->set_value(name + (sizeof(kTagPrefix) - 1));
-          return;
+        };
+
+        std::unique_lock<std::mutex>{mutex}, ++inflight;
+        if (i == g_thread_pool->num_threads() - 1) {
+          F();
+        } else {
+          g_thread_pool->Schedule(std::move(F));
         }
       }
+
+      {
+        std::unique_lock<std::mutex> lock(mutex);
+        while (inflight) cv.wait(lock);
+      }
+
+      VERIFY(!error);
+      promise->set_value(std::move(tag));
     } catch (const Exception&) {
       promise->set_exception(std::current_exception());
     }
   });
+
   return res;
 }
 
@@ -363,7 +422,7 @@ IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size)
     const char* attr;
     VERIFY(!git_attr_get(&attr, repo_, 0, "x", "x")) << GitError();
   }
-  if (splits_.empty()) UpdateSplits();
+  UpdateShards();
   Store(error_, false);
   UpdateKnown();
 
@@ -375,8 +434,6 @@ IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size)
            (!scan_dirty || (!unstaged_.Empty() && !untracked_.Empty()));
   };
 
-  LOG(INFO) << "Index size: " << index_size;
-
   if (!Done()) {
     CHECK(Load(inflight_) == 0);
     if (scan_dirty) StartDirtyScan();
@@ -386,13 +443,6 @@ IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size)
       std::unique_lock<std::mutex> lock(mutex_);
       while (Load(inflight_) && !Load(error_) && !Done()) cv_.wait(lock);
     }
-  }
-
-  if (Clock::now() - splits_ts_ >= kSplitUpdatePeriod || index_size != index_size_) {
-    RunAsync([this] {
-      Wait(1);
-      UpdateSplits();
-    });
   }
 
   if (Load(error_)) throw Exception();
@@ -435,10 +485,10 @@ void Repo::StartDirtyScan() {
     }
   };
 
-  for (size_t i = 0; i != splits_.size() - 1; ++i) {
-    RunAsync([this, opt, start = splits_[i], end = splits_[i + 1]]() mutable {
-      opt.range_start = start.c_str();
-      opt.range_end = end.c_str();
+  for (const Shard& shard : shards_) {
+    RunAsync([this, opt, shard]() mutable {
+      opt.range_start = shard.start.c_str();
+      opt.range_end = shard.end.c_str();
       git_diff* diff = nullptr;
       switch (git_diff_index_to_workdir(&diff, repo_, index_, &opt)) {
         case 0:
@@ -471,10 +521,10 @@ void Repo::StartStagedScan(const git_oid* head) {
     return GIT_EUSER;
   };
 
-  for (size_t i = 0; i != splits_.size() - 1; ++i) {
-    RunAsync([this, tree, opt, start = splits_[i], end = splits_[i + 1]]() mutable {
-      opt.range_start = start.c_str();
-      opt.range_end = end.c_str();
+  for (const Shard& shard : shards_) {
+    RunAsync([this, tree, opt, shard]() mutable {
+      opt.range_start = shard.start.c_str();
+      opt.range_end = shard.end.c_str();
       git_diff* diff = nullptr;
       switch (git_diff_tree_to_index(&diff, repo_, tree, index_, &opt)) {
         case 0:
@@ -490,93 +540,54 @@ void Repo::StartStagedScan(const git_oid* head) {
   }
 }
 
-void Repo::UpdateSplits() {
+void Repo::UpdateShards() {
   constexpr size_t kEntriesPerShard = 512;
   static_assert(std::is_unsigned<char>(), "");
 
-  index_size_ = git_index_entrycount(index_);
+  size_t index_size = git_index_entrycount(index_);
   ON_SCOPE_EXIT(&) {
-    splits_ts_ = Clock::now();
-    LOG(INFO) << "Splitting " << index_size_ << " object(s) into " << (splits_.size() - 1)
-              << " shard(s)";
+    LOG(INFO) << "Splitting " << index_size << " object(s) into " << shards_.size() << " shard(s)";
   };
 
-  if (index_size_ <= kEntriesPerShard || g_thread_pool->num_threads() < 2) {
-    splits_ = {""s, ""s};
+  if (index_size <= kEntriesPerShard || g_thread_pool->num_threads() < 2) {
+    shards_ = {{""s, ""s}};
     return;
   }
 
-  std::vector<const char*> entries(index_size_);
+  size_t shards = std::min(index_size / kEntriesPerShard + 1, 2 * g_thread_pool->num_threads());
+  shards_.clear();
+  shards_.reserve(shards);
+  std::string last;
 
-  {
-    std::vector<char*> patches;
-    patches.reserve(8 * index_size_);
-
-    ON_SCOPE_EXIT(&) {
-      for (char* p : patches) *p = '/';
-    };
-
-    for (size_t i = 0; i != index_size_; ++i) {
-      char* path = const_cast<char*>(git_index_get_byindex(index_, i)->path);
-      entries[i] = path;
-      for (; *path; ++path) {
-        if (*path == '/') {
-          *path = 1;
-          patches.push_back(path);
-        } else if (*path == 1) {
-          splits_ = {""s, ""s};
-          return;
-        }
-      }
-    }
-
-    std::qsort(entries.data(), entries.size(), sizeof(*entries.data()),
-               +[](const void* a, const void* b) {
-                 return std::strcmp(*static_cast<const char* const*>(a),
-                                    *static_cast<const char* const*>(b));
-               });
-
-    const char* last = "";
-    const char* max = "";
-    for (size_t i = 0; i < index_size_; ++i) {
-      const char* idx = git_index_get_byindex(index_, i)->path;
-      if (entries[i] == idx && !*max) {
-        last = entries[i];
-      } else {
-        if (std::strcmp(idx, max) > 0) max = idx;
-        if (entries[i] == idx && std::strcmp(entries[i], max) >= 0) {
-          last = entries[i];
-          max = "";
-        } else {
-          entries[i] = last;
-        }
-      }
-    }
-  }
-
-  size_t shards = std::min(index_size_ / kEntriesPerShard + 1, g_thread_pool->num_threads());
-  splits_.clear();
-  splits_.reserve(shards + 1);
-  splits_.push_back("");
   for (size_t i = 0; i != shards - 1; ++i) {
-    std::string split = entries[(i + 1) * index_size_ / shards];
+    std::string split = git_index_get_byindex(index_, (i + 1) * index_size / shards)->path;
     auto pos = split.find_last_of('/');
-    if (pos != std::string::npos) {
-      split = split.substr(0, pos);
-      if (split > splits_.back()) splits_.push_back(split);
-    }
+    if (pos == std::string::npos) continue;
+    split = split.substr(0, pos + 1);
+    Shard shard;
+    shard.end = split;
+    --shard.end.back();
+    if (shard.end <= last) continue;
+    shard.start = std::move(last);
+    last = std::move(split);
+    shards_.push_back(std::move(shard));
   }
-  CHECK(splits_.size() <= shards);
-  CHECK(std::is_sorted(splits_.begin(), splits_.end()));
-  splits_.push_back("");
-}
+  shards_.push_back({std::move(last), ""});
 
-constexpr size_t kMaxWaitInflight = 1;
+  CHECK(!shards_.empty());
+  CHECK(shards_.size() <= shards);
+  CHECK(shards_.front().start.empty());
+  CHECK(shards_.back().end.empty());
+  for (size_t i = 0; i != shards_.size(); ++i) {
+    if (i) CHECK(shards_[i - 1].end < shards_[i].start);
+    if (i != shards_.size() - 1) CHECK(shards_[i].start < shards_[i].end);
+  }
+}
 
 void Repo::DecInflight() {
   std::unique_lock<std::mutex> lock(mutex_);
   CHECK(Load(inflight_) > 0);
-  if (Dec(inflight_) <= kMaxWaitInflight + 1) cv_.notify_one();
+  if (Dec(inflight_) == 1) cv_.notify_one();
 }
 
 void Repo::RunAsync(std::function<void()> f) {
@@ -611,13 +622,9 @@ void Repo::UpdateFile(OptionalFile& file, const char* label, const char* path) {
   }
 }
 
-void Repo::Wait(size_t inflight) {
-  CHECK(inflight <= kMaxWaitInflight);
+void Repo::Wait() {
   std::unique_lock<std::mutex> lock(mutex_);
-  while (inflight_ != inflight) {
-    CHECK(inflight_ > inflight);
-    cv_.wait(lock);
-  }
+  while (inflight_) cv_.wait(lock);
 }
 
 }  // namespace gitstatus
