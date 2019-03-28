@@ -47,7 +47,7 @@ class TagDb {
   TagDb(TagDb&&) = delete;
   ~TagDb();
 
-  const char* TagForCommit(const git_oid& oid);
+  std::string TagForCommit(const git_oid& oid);
 
  private:
   struct Tag {
@@ -127,6 +127,8 @@ class Repo {
   // Head can be null, in which case has_staged will be false.
   IndexStats GetIndexStats(const git_oid* head, size_t dirty_max_index_size);
 
+  // Returns the last tag in lexicographical order whose target is equal to the given, or an
+  // empty string. Target can be null, in which case the tag is empty.
   std::future<std::string> GetTagName(const git_oid* target);
 
  private:
@@ -193,10 +195,6 @@ const char* LocalBranchName(const git_reference* ref);
 
 // Returns the name of the remote tracking branch, or an empty string.
 const char* RemoteBranchName(git_repository* repo, const git_reference* ref);
-
-// Returns the first tag in lexicographic order whose target is equal to the given, or an
-// empty string. Target can be null, in which case the tag is empty.
-std::future<std::string> GetTagName(git_repository* repo, const git_oid* target);
 
 }  // namespace gitstatus
 
