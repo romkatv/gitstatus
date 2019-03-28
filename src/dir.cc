@@ -22,8 +22,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-#include <sys/syscall.h>
 #include <unistd.h>
+
+#ifdef __linux__
+#include <sys/syscall.h>
+#endif
 
 #include "check.h"
 #include "scope_guard.h"
@@ -31,14 +34,6 @@
 namespace gitstatus {
 
 namespace {
-
-struct linux_dirent64 {
-  ino64_t d_ino;
-  off64_t d_off;
-  unsigned short d_reclen;
-  unsigned char d_type;
-  char d_name[];
-};
 
 bool Dots(const char* name) {
   if (name[0] == '.') {
@@ -50,7 +45,17 @@ bool Dots(const char* name) {
 
 }  // namespace
 
+#ifdef __linux__
+
 bool ListDir(const char* dirname, std::string& arena, std::vector<size_t>& entries) {
+  struct linux_dirent64 {
+    ino64_t d_ino;
+    off64_t d_off;
+    unsigned short d_reclen;
+    unsigned char d_type;
+    char d_name[];
+  };
+
   constexpr size_t kBufSize = 16 << 10;
 
   int fd = open(dirname, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW | O_NOATIME);
@@ -68,15 +73,32 @@ bool ListDir(const char* dirname, std::string& arena, std::vector<size_t>& entri
     for (int pos = 0; pos < n;) {
       auto* ent = reinterpret_cast<linux_dirent64*>(buf + pos);
       if (!Dots(ent->d_name)) {
+        arena += ent->d_type;
         entries.push_back(arena.size());
         arena += ent->d_name;
-        // TODO: Handle DT_UNKNOWN.
-        if (ent->d_type == DT_DIR) arena += '/';
-        arena += '\0';
+        arena.append(2, '\0');
       }
       pos += ent->d_reclen;
     }
   }
 }
+
+#else
+
+bool ListDir(const char* dirname, std::string& arena, std::vector<size_t>& entries) {
+  DIR * dir = opendir(dirname);
+  if (!dir) return false;
+  ON_SCOPE_EXIT(&) { closedir(dir); };
+  while (struct dirent* ent = readdir(dir)) {
+    if (Dots(ent->d_name)) continue;
+    arena += ent->d_type;
+    entries.push_back(arena.size());
+    arena += ent->d_name;
+    arena.append(2, '\0');
+  }
+  return true;
+}
+
+#endif
 
 }  // namespace gitstatus
