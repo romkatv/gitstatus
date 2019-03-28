@@ -18,12 +18,17 @@
 #ifndef ROMKATV_GITSTATUS_GIT_H_
 #define ROMKATV_GITSTATUS_GIT_H_
 
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 #include <git2.h>
 
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
+#include <cstring>
 #include <functional>
 #include <future>
 #include <mutex>
@@ -35,6 +40,39 @@
 #include "time.h"
 
 namespace gitstatus {
+
+class TagDb {
+ public:
+  explicit TagDb(git_repository* repo);
+  TagDb(TagDb&&) = delete;
+  ~TagDb();
+
+  const char* TagForCommit(const git_oid& oid);
+
+ private:
+  struct Tag {
+    bool operator<(const Tag& other) const {
+      return std::memcmp(commit.id, other.commit.id, GIT_OID_RAWSZ) < 0;
+    }
+
+    const char* ref = nullptr;
+    git_oid commit = {};
+  };
+
+  bool UpdatePack(const git_oid& commit, const char** ref);
+  const char* ParsePack(const git_oid& commit);
+  void Wait();
+
+  git_repository* const repo_;
+  struct stat pack_stat_ = {};
+  std::string pack_;
+  std::vector<const char*> loose_tags_;
+  std::vector<Tag> peeled_tags_;
+
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  bool sorting_ = false;
+};
 
 class OptionalFile {
  public:
@@ -89,6 +127,8 @@ class Repo {
   // Head can be null, in which case has_staged will be false.
   IndexStats GetIndexStats(const git_oid* head, size_t dirty_max_index_size);
 
+  std::future<std::string> GetTagName(const git_oid* target);
+
  private:
   struct Shard {
     std::string start;
@@ -110,6 +150,7 @@ class Repo {
   git_repository* const repo_;
   git_index* index_ = nullptr;
   std::vector<Shard> shards_;
+  TagDb tag_db_;
 
   std::mutex mutex_;
   OptionalFile staged_;
