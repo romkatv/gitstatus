@@ -36,7 +36,9 @@
 #include <utility>
 #include <vector>
 
+#include "arena.h"
 #include "check.h"
+#include "string_view.h"
 #include "time.h"
 
 namespace gitstatus {
@@ -114,6 +116,27 @@ struct IndexStats {
   bool has_staged = false;
   Tribool has_unstaged = kUnknown;
   Tribool has_untracked = kUnknown;
+};
+
+struct IndexDir {
+  StringView path;
+  struct stat st;
+  ArenaVector<const git_index_entry*> entries;
+
+  std::string arena;
+  std::vector<const char*> unmatched;
+};
+
+class Index {
+ public:
+  Index(const char* root_dir, const git_index* index);
+
+  void GetDirtyCandidates(ArenaVector<const char*>& candidates);
+
+ private:
+  Arena arena_;
+  ArenaVector<IndexDir> dirs_;
+  ArenaVector<size_t> splits_;
 };
 
 class Repo {
