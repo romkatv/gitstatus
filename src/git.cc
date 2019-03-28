@@ -657,7 +657,11 @@ bool TagDb::UpdatePack(const git_oid& commit, const char** ref) {
 
   try {
     while (true) {
-      int fd = open(pack_path.c_str(), O_RDONLY | O_NOFOLLOW | O_NOATIME | O_CLOEXEC);
+      int fd = open(pack_path.c_str(),
+#ifdef __linux__
+                    O_NOATIME |
+#endif
+                        O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
       VERIFY(fd >= 0);
       ON_SCOPE_EXIT(&) { CHECK(!close(fd)) << Errno(); };
       pack_.resize(st.st_size + 1);
