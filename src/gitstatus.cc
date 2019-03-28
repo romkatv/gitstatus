@@ -50,7 +50,7 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   ON_SCOPE_EXIT(=) { git_reference_free(head); };
 
   const git_oid* head_target = git_reference_target(head);
-  std::future<std::string> tag = GetTagName(repo->repo(), head_target);
+  std::future<std::string> tag = repo->GetTagName(head_target);
   ON_SCOPE_EXIT(&) {
     if (tag.valid()) {
       try {

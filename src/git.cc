@@ -33,6 +33,7 @@
 #include <utility>
 
 #include "check.h"
+#include "dir.h"
 #include "scope_guard.h"
 #include "thread_pool.h"
 #include "timer.h"
@@ -58,11 +59,13 @@ constexpr int8_t kUnhex[256] = {
 ThreadPool* g_thread_pool = nullptr;
 
 template <class Container, class T>
-auto BinaryFind(Container& c, const T& val) {
+auto BinaryFindLast(Container& c, const T& val) {
+  auto begin = std::begin(c);
   auto end = std::end(c);
-  auto res = std::lower_bound(std::begin(c), end, val);
-  if (res != end && val < *res) res = end;
-  return res;
+  auto res = std::upper_bound(begin, end, val);
+  if (res == begin) return end;
+  --res;
+  return *res < val ? end : res;
 }
 
 void ParseOid(unsigned char* oid, const char* begin, const char* end) {
@@ -128,25 +131,6 @@ bool TagHasTarget(git_repository* repo, git_refdb* refdb, const char* name, cons
   }
 
   return false;
-}
-
-void ListTags(git_repository* repo, std::string& arena, std::vector<size_t>& positions) {
-  arena.reserve(64 << 10);
-  positions.reserve(8 << 10);
-
-  git_reference_iterator* iter;
-  VERIFY(!git_reference_iterator_glob_new(&iter, repo, "refs/tags/*")) << GitError();
-  ON_SCOPE_EXIT(&) { git_reference_iterator_free(iter); };
-
-  while (true) {
-    const char* name;
-    int error = git_reference_next_name(&name, iter);
-    if (error == GIT_ITEROVER) return;
-    VERIFY(!error) << "git_reference_next_name: " << GitError();
-    positions.push_back(arena.size());
-    arena += name;
-    arena += '\0';
-  }
 }
 
 bool StatEq(const struct stat& x, const struct stat& y) {
@@ -330,84 +314,6 @@ const char* RemoteBranchName(git_repository* repo, const git_reference* ref) {
   VERIFY(std::strstr(branch, remote.ptr) == branch);
   VERIFY(branch[remote.size] == '/');
   return branch + remote.size + 1;
-}
-
-std::future<std::string> GetTagName(git_repository* repo, const git_oid* target) {
-  auto* promise = new std::promise<std::string>;
-  std::future<std::string> res = promise->get_future();
-
-  g_thread_pool->Schedule([=] {
-    ON_SCOPE_EXIT(&) { delete promise; };
-    if (!target) {
-      promise->set_value("");
-      return;
-    }
-
-    try {
-      std::string arena;
-      std::vector<size_t> positions;
-      ListTags(repo, arena, positions);
-      
-      git_refdb* refdb;
-      VERIFY(!git_repository_refdb(&refdb, repo)) << GitError();
-      ON_SCOPE_EXIT(&) { git_refdb_free(refdb); };
-
-      std::string tag;
-      bool error = 0;
-      size_t inflight = 0;
-      std::mutex mutex;
-      std::condition_variable cv;
-
-      const size_t kNumShards = g_thread_pool->num_threads();
-      for (size_t i = 0; i != kNumShards; ++i) {
-        size_t begin = i * positions.size() / g_thread_pool->num_threads();
-        size_t end = (i + 1) * positions.size() / g_thread_pool->num_threads();
-        if (begin == end) continue;
-
-        auto F = [&, begin, end]() {
-          ON_SCOPE_EXIT(&) {
-            std::unique_lock<std::mutex> lock(mutex);
-            CHECK(inflight);
-            if (--inflight == 0) cv.notify_one();
-          };
-
-          try {
-            for (size_t i = begin; i != end; ++i) {
-              const char* name = arena.c_str() + positions[i];
-              if (TagHasTarget(repo, refdb, name, target)) {
-                CHECK(std::strstr(name, kTagPrefix) == name);
-                name += sizeof(kTagPrefix) - 1;
-                std::unique_lock<std::mutex> lock(mutex);
-                if (tag < name) tag = name;
-                return;
-              }
-            }
-          } catch (const Exception&) {
-            std::unique_lock<std::mutex>{mutex}, error = true;
-          }
-        };
-
-        std::unique_lock<std::mutex>{mutex}, ++inflight;
-        if (i == kNumShards - 1) {
-          F();
-        } else {
-          g_thread_pool->Schedule(std::move(F));
-        }
-      }
-
-      {
-        std::unique_lock<std::mutex> lock(mutex);
-        while (inflight) cv.wait(lock);
-      }
-
-      VERIFY(!error);
-      promise->set_value(std::move(tag));
-    } catch (const Exception&) {
-      promise->set_exception(std::current_exception());
-    }
-  });
-
-  return res;
 }
 
 Repo::Repo(git_repository* repo) : repo_(repo), tag_db_(repo) {}
@@ -677,8 +583,6 @@ std::future<std::string> Repo::GetTagName(const git_oid* target) {
   std::future<std::string> res = promise->get_future();
 
   g_thread_pool->Schedule([=] {
-    Timer timer;
-    ON_SCOPE_EXIT(&) { timer.Report("GetTagName"); };
     ON_SCOPE_EXIT(&) { delete promise; };
     if (!target) {
       promise->set_value("");
@@ -698,12 +602,12 @@ TagDb::TagDb(git_repository* repo) : repo_(repo) { CHECK(repo); }
 
 TagDb::~TagDb() { Wait(); }
 
-const char* TagDb::TagForCommit(const git_oid& oid) {
+std::string TagDb::TagForCommit(const git_oid& oid) {
   const char* ref;
   if (UpdatePack(oid, &ref)) {
     if (ref) return StripTag(ref);
   } else {
-    auto it = BinaryFind(peeled_tags_, Tag{nullptr, oid});
+    auto it = BinaryFindLast(peeled_tags_, Tag{nullptr, oid});
     if (it != peeled_tags_.end()) return StripTag(it->ref);
   }
 
@@ -715,6 +619,21 @@ const char* TagDb::TagForCommit(const git_oid& oid) {
     if (TagHasTarget(repo_, refdb, tag, &oid)) return StripTag(tag);
   }
 
+  std::string arena;
+  std::vector<size_t> entries;
+  arena.reserve(1 << 10);
+  entries.reserve(128);
+  if (!ListDir((git_repository_path(repo_) + "refs/tags"s).c_str(), arena, entries)) return "";
+  std::sort(entries.begin(), entries.end(),
+            [&](size_t a, size_t b) { return std::strcmp(&arena[a], &arena[b]) > 0; });
+
+  std::string tag = "refs/tags/";
+  size_t prefix_len = tag.size();
+  for (size_t pos : entries) {
+    tag.resize(prefix_len);
+    tag += &arena[pos];
+    if (TagHasTarget(repo_, refdb, tag.c_str(), &oid)) return StripTag(tag.c_str());
+  }
   return "";
 }
 
@@ -810,9 +729,12 @@ const char* TagDb::ParsePack(const git_oid& commit) {
     }
   }
 
+  std::sort(loose_tags_.begin(), loose_tags_.end(),
+            [](const char* a, const char* b) { return std::strcmp(a, b) > 0; });
+
   sorting_ = true;
   g_thread_pool->Schedule([this] {
-    std::sort(peeled_tags_.begin(), peeled_tags_.end());
+    std::stable_sort(peeled_tags_.begin(), peeled_tags_.end());
     std::unique_lock<std::mutex> lock(mutex_);
     CHECK(sorting_);
     sorting_ = false;
