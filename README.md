@@ -1,4 +1,5 @@
 # gitstatus
+
 **gitstatus** is a fast alternative to `git status`. Its primary use case is to enable fast git
 prompt in interactive shells.
 
@@ -35,10 +36,10 @@ gitstatus is built on top of [patched libgit2](https://github.com/romkatv/libgit
 large performance optimizations, a number of small ones, and a score of bug fixes. The biggest
 performance wins come from the following sources:
 
-  * Using all available cores to scan index and work directory in parallel.
-  * Reducing the number of `stat` calls to the absolute minimum.
-  * Avoiding unnecessary string comparisons, especially with long shared prefixes.
-  * Parsing and evaluating `.gitignore` rules lazily.
+* Using all available cores to scan index and work directory in parallel.
+* Reducing the number of `stat` calls to the absolute minimum.
+* Avoiding unnecessary string comparisons, especially with long shared prefixes.
+* Parsing and evaluating `.gitignore` rules lazily.
 
 Changes to libgit2 are extensive but the testing they underwent isn't. It is _not recommended_ to
 use the patched libgit2 or gitstatus in production.
@@ -51,11 +52,11 @@ repository was checked out to an ext4 filesysem on M.2 SSD.
 
 Three functionally equivalent tools for obtaining git status were benchmarked:
 
-  * gitstatus itself
-  * `git status` with untracked cache enabled
-  * `lg2 status` -- a subset of `git status` functionality implemented on libgit2 as a demo/example;
-    for the purposes of this benchmark the subset is sufficient to generate the same data as the
-    other tools
+* gitstatus itself
+* `git status` with untracked cache enabled
+* `lg2 status` -- a subset of `git status` functionality implemented on libgit2 as a demo/example;
+  for the purposes of this benchmark the subset is sufficient to generate the same data as the
+  other tools
 
 Every tool was benchmark in cold and hot conditions. For `git status` the first run in a repository
 was considered cold, with the following runs considered hot. `lg2 status` was patched to compute
@@ -75,8 +76,8 @@ primary use case for interactive shells.
 
 ## Requirements
 
-*  To compile: C++14 compiler, GNU make, cmake.
-*  To run: GNU libc on Linux, FreeBSD and WSL; nothing on Mac OS.
+* To compile: C++14 compiler, GNU make, cmake.
+* To run: GNU libc on Linux, FreeBSD and WSL; nothing on Mac OS.
 
 ## Compiling
 
