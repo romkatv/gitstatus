@@ -133,8 +133,16 @@ bool TagHasTarget(git_repository* repo, git_refdb* refdb, const char* name, cons
   return false;
 }
 
+const struct timespec& MTim(const struct stat& s) {
+#ifdef __APPLE__
+  return s.st_mtimespec;
+#else
+  return s.st_mtim;
+#endif
+}
+
 bool StatEq(const struct stat& x, const struct stat& y) {
-  return !std::memcmp(&x.st_mtim, &y.st_mtim, sizeof(x.st_mtim)) && x.st_size == y.st_size &&
+  return !std::memcmp(&MTim(x), &MTim(y), sizeof(struct timespec)) && x.st_size == y.st_size &&
          x.st_ino == y.st_ino;
 }
 
