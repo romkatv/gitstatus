@@ -96,7 +96,7 @@ If something breaks due to a missing dependency (e.g., `cmake` not found), insta
 remove `/tmp/gitstatus` and retry.
 
 To build from locally modified sources, read
-[build.zsh](https://github.com/romkatv/gitstatus/tree/build.zsh) and improvise.
+[build.zsh](https://github.com/romkatv/gitstatus/tree/master/build.zsh) and improvise.
 
 ## User documentation
 
