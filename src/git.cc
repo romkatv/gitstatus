@@ -17,11 +17,17 @@
 
 #include "git.h"
 
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 #include <algorithm>
 #include <atomic>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <iterator>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -37,7 +43,41 @@ namespace {
 
 using namespace std::string_literals;
 
+static constexpr char kTagPrefix[] = "refs/tags/";
+
+constexpr int8_t kUnhex[256] = {
+    0, 0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0,  // 0
+    0, 0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0,  // 1
+    0, 0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0,  // 2
+    0, 1,  2,  3,  4,  5,  6,  7, 8, 9, 0, 0, 0, 0, 0, 0,  // 3
+    0, 10, 11, 12, 13, 14, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 4
+    0, 0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0,  // 5
+    0, 10, 11, 12, 13, 14, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0   // 6
+};
+
 ThreadPool* g_thread_pool = nullptr;
+
+template <class Container, class T>
+auto BinaryFind(Container& c, const T& val) {
+  auto end = std::end(c);
+  auto res = std::lower_bound(std::begin(c), end, val);
+  if (res != end && val < *res) res = end;
+  return res;
+}
+
+void ParseOid(unsigned char* oid, const char* begin, const char* end) {
+  VERIFY(end >= begin + GIT_OID_HEXSZ);
+  for (size_t i = 0; i != GIT_OID_HEXSZ; i += 2) {
+    *oid++ = kUnhex[+begin[i]] << 4 | kUnhex[+begin[i + 1]];
+  }
+}
+
+const char* StripTag(const char* ref) {
+  for (size_t i = 0; i != sizeof(kTagPrefix) - 1; ++i) {
+    if (*ref++ != kTagPrefix[i]) return nullptr;
+  }
+  return ref;
+}
 
 template <class T>
 T Load(const std::atomic<T>& x) {
@@ -107,6 +147,11 @@ void ListTags(git_repository* repo, std::string& arena, std::vector<size_t>& pos
     arena += name;
     arena += '\0';
   }
+}
+
+bool StatEq(const struct stat& x, const struct stat& y) {
+  return !std::memcmp(&x.st_mtim, &y.st_mtim, sizeof(x.st_mtim)) && x.st_size == y.st_size &&
+         x.st_ino == y.st_ino;
 }
 
 }  // namespace
@@ -330,7 +375,6 @@ std::future<std::string> GetTagName(git_repository* repo, const git_oid* target)
             for (size_t i = begin; i != end; ++i) {
               const char* name = arena.c_str() + positions[i];
               if (TagHasTarget(repo, refdb, name, target)) {
-                static constexpr char kTagPrefix[] = "refs/tags/";
                 CHECK(std::strstr(name, kTagPrefix) == name);
                 name += sizeof(kTagPrefix) - 1;
                 std::unique_lock<std::mutex> lock(mutex);
@@ -366,7 +410,7 @@ std::future<std::string> GetTagName(git_repository* repo, const git_oid* target)
   return res;
 }
 
-Repo::Repo(git_repository* repo) : repo_(repo) {}
+Repo::Repo(git_repository* repo) : repo_(repo), tag_db_(repo) {}
 
 Repo::~Repo() {
   Wait();
@@ -626,6 +670,161 @@ void Repo::UpdateFile(OptionalFile& file, const char* label, const char* path) {
 void Repo::Wait() {
   std::unique_lock<std::mutex> lock(mutex_);
   while (inflight_) cv_.wait(lock);
+}
+
+std::future<std::string> Repo::GetTagName(const git_oid* target) {
+  auto* promise = new std::promise<std::string>;
+  std::future<std::string> res = promise->get_future();
+
+  g_thread_pool->Schedule([=] {
+    Timer timer;
+    ON_SCOPE_EXIT(&) { timer.Report("GetTagName"); };
+    ON_SCOPE_EXIT(&) { delete promise; };
+    if (!target) {
+      promise->set_value("");
+      return;
+    }
+    try {
+      promise->set_value(tag_db_.TagForCommit(*target));
+    } catch (const Exception&) {
+      promise->set_exception(std::current_exception());
+    }
+  });
+
+  return res;
+}
+
+TagDb::TagDb(git_repository* repo) : repo_(repo) { CHECK(repo); }
+
+TagDb::~TagDb() { Wait(); }
+
+const char* TagDb::TagForCommit(const git_oid& oid) {
+  const char* ref;
+  if (UpdatePack(oid, &ref)) {
+    if (ref) return StripTag(ref);
+  } else {
+    auto it = BinaryFind(peeled_tags_, Tag{nullptr, oid});
+    if (it != peeled_tags_.end()) return StripTag(it->ref);
+  }
+
+  git_refdb* refdb;
+  VERIFY(!git_repository_refdb(&refdb, repo_)) << GitError();
+  ON_SCOPE_EXIT(&) { git_refdb_free(refdb); };
+
+  for (const char* tag : loose_tags_) {
+    if (TagHasTarget(repo_, refdb, tag, &oid)) return StripTag(tag);
+  }
+
+  return "";
+}
+
+bool TagDb::UpdatePack(const git_oid& commit, const char** ref) {
+  Wait();
+
+  auto Reset = [&] {
+    std::memset(&pack_stat_, 0, sizeof(pack_stat_));
+    pack_.clear();
+    loose_tags_.clear();
+    peeled_tags_.clear();
+  };
+
+  std::string pack_path = git_repository_path(repo_) + "packed-refs"s;
+  struct stat st;
+  if (lstat(pack_path.c_str(), &st)) {
+    Reset();
+    return false;
+  }
+  if (StatEq(pack_stat_, st)) return false;
+
+  try {
+    while (true) {
+      int fd = open(pack_path.c_str(), O_RDONLY | O_NOFOLLOW | O_NOATIME | O_CLOEXEC);
+      VERIFY(fd >= 0);
+      ON_SCOPE_EXIT(&) { CHECK(!close(fd)) << Errno(); };
+      pack_.resize(st.st_size + 1);
+      ssize_t n = read(fd, &pack_[0], st.st_size + 1);
+      VERIFY(n >= 0) << Errno();
+      VERIFY(!fstat(fd, &pack_stat_)) << Errno();
+      if (!StatEq(st, pack_stat_)) {
+        st = pack_stat_;
+        continue;
+      }
+      VERIFY(n == st.st_size);
+      pack_.pop_back();
+      break;
+    }
+    *ref = ParsePack(commit);
+    return true;
+  } catch (const Exception&) {
+    Reset();
+    throw;
+  }
+}
+
+const char* TagDb::ParsePack(const git_oid& commit) {
+  char* p = &pack_[0];
+  char* e = p + pack_.size();
+  bool peeled = false;
+  const char* res = nullptr;
+
+  if (*p == '#') {
+    char* eol = std::strchr(p, '\n');
+    if (!eol) return nullptr;
+    *eol = 0;
+    peeled = std::strstr(p, " fully-peeled ");
+    p = eol + 1;
+  }
+
+  if (peeled) {
+    peeled_tags_.reserve(pack_.size() / 128);
+  } else {
+    loose_tags_.reserve(pack_.size() / 128);
+  }
+
+  std::vector<Tag*> idx;
+  idx.reserve(pack_.size() / 128);
+
+  git_oid oid;
+  while (p != e) {
+    ParseOid(oid.id, p, e);
+    p += GIT_OID_HEXSZ;
+    VERIFY(*p++ == ' ');
+    const char* ref = p;
+    VERIFY(p = std::strchr(p, '\n'));
+    p[p[-1] == '\r' ? -1 : 0] = 0;
+    ++p;
+    if (*p == '^') {
+      ParseOid(oid.id, p + 1, e);
+      p += GIT_OID_HEXSZ + 1;
+      if (p != e) {
+        VERIFY((p = std::strchr(p, '\n')));
+        ++p;
+      }
+    }
+    if (!StripTag(ref)) continue;
+    if (peeled) {
+      peeled_tags_.push_back({ref, oid});
+      if (!std::memcmp(oid.id, commit.id, GIT_OID_RAWSZ)) res = ref;
+    } else {
+      loose_tags_.push_back(ref);
+    }
+  }
+
+  sorting_ = true;
+  g_thread_pool->Schedule([this] {
+    std::sort(peeled_tags_.begin(), peeled_tags_.end());
+    std::unique_lock<std::mutex> lock(mutex_);
+    CHECK(sorting_);
+    sorting_ = false;
+    cv_.notify_one();
+  });
+
+  return res;
+}
+
+void TagDb::Wait() {
+  std::unique_lock<std::mutex> lock(mutex_);
+  while (sorting_) cv_.wait(lock);
 }
 
 }  // namespace gitstatus
