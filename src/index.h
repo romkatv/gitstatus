@@ -32,12 +32,13 @@
 namespace gitstatus {
 
 struct IndexDir {
-  explicit IndexDir(Arena* arena) : entries(arena) {}
+  explicit IndexDir(Arena* arena) : files(arena), subdirs(arena) {}
 
   StringView path;
   size_t depth = 0;
   struct stat st = {};
-  ArenaVector<const git_index_entry*> entries;
+  ArenaVector<const git_index_entry*> files;
+  ArenaVector<StringView> subdirs;
 
   std::string arena;
   std::vector<size_t> unmatched;
@@ -47,15 +48,16 @@ class Index {
  public:
   Index(const char* root_dir, git_index* index);
 
-  void GetDirtyCandidates(ArenaVector<const char*>& candidates);
+  void GetDirtyCandidates(ArenaVector<const char*>& candidates, bool untracked_cache);
 
  private:
-  void InitDirs(git_index* index);
-  void InitSplits(size_t index_size);
+  size_t InitDirs(git_index* index);
+  void InitSplits(size_t total_weight);
 
   Arena arena_;
   ArenaVector<IndexDir*> dirs_;
   ArenaVector<size_t> splits_;
+  git_index* git_index_;
   const char* root_dir_;
 };
 

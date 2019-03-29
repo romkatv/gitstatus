@@ -47,7 +47,7 @@ bool Dots(const char* name) {
 
 #ifdef __linux__
 
-bool ListDir(const char* dirname, std::string& arena, std::vector<size_t>& entries) {
+bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries) {
   struct linux_dirent64 {
     ino64_t d_ino;
     off64_t d_off;
@@ -58,16 +58,12 @@ bool ListDir(const char* dirname, std::string& arena, std::vector<size_t>& entri
 
   constexpr size_t kBufSize = 16 << 10;
 
-  int fd = open(dirname, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW | O_NOATIME);
-  if (fd < 0) return false;
-  ON_SCOPE_EXIT(&) { CHECK(!close(fd)); };
-
   alignas(linux_dirent64) char buf[kBufSize];
   arena.clear();
   entries.clear();
 
   while (true) {
-    int n = syscall(SYS_getdents64, fd, buf, kBufSize);
+    int n = syscall(SYS_getdents64, dir_fd, buf, kBufSize);
     if (n < 0) return false;
     if (n == 0) return true;
     for (int pos = 0; pos < n;) {
@@ -85,8 +81,8 @@ bool ListDir(const char* dirname, std::string& arena, std::vector<size_t>& entri
 
 #else
 
-bool ListDir(const char* dirname, std::string& arena, std::vector<size_t>& entries) {
-  DIR * dir = opendir(dirname);
+bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries) {
+  DIR * dir = fdopendir(dir_fd);
   if (!dir) return false;
   ON_SCOPE_EXIT(&) { closedir(dir); };
   while (struct dirent* ent = readdir(dir)) {
@@ -100,5 +96,12 @@ bool ListDir(const char* dirname, std::string& arena, std::vector<size_t>& entri
 }
 
 #endif
+
+bool ListDir(const char* dirname, std::string& arena, std::vector<size_t>& entries) {
+  int dir_fd = open(dirname, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+  if (dir_fd < 0) return false;
+  ON_SCOPE_EXIT(&) { CHECK(!close(dir_fd)); };
+  return ListDir(dir_fd, arena, entries);
+}
 
 }  // namespace gitstatus

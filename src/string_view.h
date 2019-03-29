@@ -18,18 +18,26 @@
 #ifndef ROMKATV_GITSTATUS_STRING_VIEW_H_
 #define ROMKATV_GITSTATUS_STRING_VIEW_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <cstring>
-#include <string>
 #include <ostream>
+#include <string>
 
 namespace gitstatus {
 
+// WARNING: Embedded null characters cause UB.
+// WARNING: Strings longer than INT_MAX cause UB.
 struct StringView {
   StringView() : StringView("") {}
   StringView(const std::string& ptr) : StringView(ptr.c_str(), ptr.size()) {}
   StringView(const char* ptr) : StringView(ptr, ptr ? std::strlen(ptr) : 0) {}
   StringView(const char* ptr, size_t len) : ptr(ptr), len(len) {}
+  StringView(const char* begin, const char* end) : StringView(begin, end - begin) {}
+
+  bool StartsWith(StringView prefix) const {
+    return len >= prefix.len && !std::memcmp(ptr, prefix.ptr, prefix.len);
+  }
 
   const char* ptr;
   size_t len;
@@ -39,6 +47,27 @@ inline std::ostream& operator<<(std::ostream& strm, StringView s) {
   if (s.ptr) strm.write(s.ptr, s.len);
   return strm;
 }
+
+inline int Cmp(StringView x, StringView y) {
+  size_t n = std::min(x.len, y.len);
+  int cmp = std::memcmp(x.ptr, y.ptr, n);
+  if (cmp) return cmp;
+  return static_cast<int>(x.len) - static_cast<int>(y.len);
+}
+
+inline int Cmp(StringView x, const char* y) {
+  for (const char *p = x.ptr, *e = p + x.len; p != e; ++p, ++y) {
+    int cmp = *p - *y;
+    if (cmp) return cmp;
+  }
+  return 0 - *y;
+}
+
+inline int Cmp(const char* x, StringView y) { return -Cmp(y, x); }
+
+inline bool operator<(StringView x, StringView y) { return Cmp(x, y) < 0; }
+inline bool operator<(StringView x, const char* y) { return Cmp(x, y) < 0; }
+inline bool operator<(const char* x, StringView y) { return Cmp(x, y) < 0; }
 
 }  // namespace gitstatus
 

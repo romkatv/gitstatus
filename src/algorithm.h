@@ -18,9 +18,11 @@
 #ifndef ROMKATV_GITSTATUS_ALGORITHM_H_
 #define ROMKATV_GITSTATUS_ALGORITHM_H_
 
-#include <iterator>
 #include <algorithm>
+#include <iterator>
 #include <vector>
+
+#include "string_view.h"
 
 namespace gitstatus {
 
@@ -32,6 +34,22 @@ auto BinaryFindLast(Container& c, const T& val) {
   if (res == begin) return end;
   --res;
   return *res < val ? end : res;
+}
+
+template <class A>
+void Sort(std::vector<const char*, A>& v) {
+  std::qsort(v.data(), v.size(), sizeof(const char*), [](const void* a, const void* b) {
+    auto Str = [](const void* p) { return *static_cast<const char* const*>(p); };
+    return std::strcmp(Str(a), Str(b));
+  });
+}
+
+template <class A>
+void Sort(std::vector<StringView, A>& v) {
+  std::qsort(v.data(), v.size(), sizeof(StringView), [](const void* a, const void* b) {
+    auto Str = [](const void* p) { return *static_cast<const StringView*>(p); };
+    return Cmp(Str(a), Str(b));
+  });
 }
 
 }  // namespace gitstatus
