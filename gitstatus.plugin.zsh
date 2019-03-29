@@ -215,8 +215,8 @@ function gitstatus_start() {
     local -i threads=${GITSTATUS_NUM_THREADS:-0}
     (( threads > 0)) || {
       case $os in
-        FreeBSD) threads=$(sysctl -n hw.ncpu);;
-        *) threads=$(getconf _NPROCESSORS_ONLN);;
+        FreeBSD) threads=$(( 2 * $(sysctl -n hw.ncpu) ));;
+        *) threads=$(( 2 * $(getconf _NPROCESSORS_ONLN) ));;
       esac
     }
 
