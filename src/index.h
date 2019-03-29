@@ -32,9 +32,11 @@
 namespace gitstatus {
 
 struct IndexDir {
-  size_t depth;
+  explicit IndexDir(Arena* arena) : entries(arena) {}
+
   StringView path;
-  struct stat st;
+  size_t depth = 0;
+  struct stat st = {};
   ArenaVector<const git_index_entry*> entries;
 
   std::string arena;
