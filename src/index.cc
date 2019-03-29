@@ -67,6 +67,7 @@ bool IsModified(const git_index_entry* entry, const struct stat& st) {
          entry->file_size != st.st_size;
 }
 
+// TODO: Make me pretty, or at least not fucking ugly.
 std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const* begin,
                                   IndexDir* const* end, bool untracked_cache) {
   std::string scratch;
@@ -90,10 +91,8 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
         dir.st = {};
         dir.arena.clear();
         dir.unmatched.clear();
-        LOG(INFO) << "Whole dir unmached: " << dir.path;
       } else {
         if (basename.len == 5 && !std::memcmp(basename.ptr, ".git/", 5)) return;
-        LOG(INFO) << "Unmatched dir entry: " << dir.path << basename;
       }
       dir.unmatched.push_back(dir.arena.size());
       dir.arena.append(dir.path.ptr, dir.path.len);
@@ -123,16 +122,12 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       dir_fd = openat(root_fd, scratch.c_str(), kNoATime | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     }
     if (dir_fd < 0) {
-      int e = errno;
-      LOG(WARN) << "openat('" << dir.path << "'): " << Errno(e);
       AddUnmached("");
       continue;
     }
 
     struct stat st;
     if (fstat(dir_fd, &st)) {
-      int e = errno;
-      LOG(WARN) << "fstatat('" << dir.path << "'): " << Errno(e);
       AddUnmached("");
       continue;
     }
@@ -141,12 +136,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       for (const git_index_entry* file : dir.files) {
         struct stat st;
         if (fstatat(dir_fd, Basename(file), &st, AT_SYMLINK_NOFOLLOW)) st = {};
-        if (IsModified(file, st)) {
-          LOG(INFO) << "Modified dir entry (fastpath): " << file->path;
-          res.push_back(file->path);  // modified
-        } else {
-          // LOG(INFO) << "Dir entry matches index file: " << (*file)->path;
-        }
+        if (IsModified(file, st)) res.push_back(file->path);  // modified
       }
     } else {
       if (!ListDir(dir_fd, scratch, entries)) {
@@ -167,26 +157,18 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       for (size_t p : entries) {
         StringView entry = &scratch[p];
         bool matched = false;
-        // LOG(INFO) << "Examining dir entry: " << dir.path << entry;
 
         for (; file != file_end; ++file) {
           int cmp = Cmp(Basename((*file)), entry);
           if (cmp < 0) {
-            LOG(INFO) << "Deleted dir entry: " << (*file)->path;
             res.push_back((*file)->path);  // deleted
           } else if (cmp == 0) {
             if (git_index_entry_newer_than_index(*file, index)) {
-              LOG(INFO) << "Racy dir entry: " << (*file)->path;
               res.push_back((*file)->path);  // racy
             } else {
               struct stat st;
               if (fstatat(dir_fd, entry.ptr, &st, AT_SYMLINK_NOFOLLOW)) st = {};
-              if (IsModified(*file, st)) {
-                LOG(INFO) << "Modified dir entry: " << (*file)->path;
-                res.push_back((*file)->path);  // modified
-              } else {
-                // LOG(INFO) << "Dir entry matches index file: " << (*file)->path;
-              }
+              if (IsModified(*file, st)) res.push_back((*file)->path);  // modified
             }
             matched = true;
             ++file;
@@ -202,7 +184,6 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
           int cmp = Cmp(*subdir, entry);
           if (cmp > 0) break;
           if (cmp == 0) {
-            // LOG(INFO) << "Dir entry matches index dir: " << dir.path << entry;
             matched = true;
             ++subdir;
             break;
@@ -239,13 +220,7 @@ size_t Index::InitDirs(git_index* index) {
     CHECK(!stack.empty());
     IndexDir* top = stack.top();
     CHECK(top->depth + 1 == stack.size());
-    // might be expensive
-    // CHECK(std::is_sorted(top->files.begin(), top->files.end(),
-    //                      [](const git_index_entry* x, const git_index_entry* y) {
-    //                        return std::strcmp(x->path, y->path) < 0;
-    //                      }));
     if (!std::is_sorted(top->subdirs.begin(), top->subdirs.end())) Sort(top->subdirs);
-    // LOG(INFO) << "Pop: [" << top->depth << "] '" << top->path << "'";
     total_weight += Weight(*top);
     dirs_.push_back(top);
     stack.pop();
@@ -264,21 +239,16 @@ size_t Index::InitDirs(git_index* index) {
       IndexDir* top = stack.top();
       StringView subdir(entry->path + top->path.len, p);
       top->subdirs.push_back(subdir);
-      // LOG(INFO) << "Add subdir: [" << top->depth << "] '" << top->path << "' += " << subdir;
       IndexDir* dir = arena_.DirectInit<IndexDir>(&arena_);
       dir->path = StringView(entry->path, p - entry->path + 1);
       dir->depth = stack.size();
       CHECK(dir->path.ptr[dir->path.len - 1] == '/');
       stack.push(dir);
-      // LOG(INFO) << "Push: [" << dir->depth << "] '" << dir->path << "'";
     }
 
     CHECK(!stack.empty());
     IndexDir* dir = stack.top();
-    // CHECK(!std::memcmp(entry->path, dir->path.ptr, dir->path.len));  // might be expensive
-    // CHECK(!std::strchr(entry->path + dir->path.len, '/'));
     dir->files.push_back(entry);
-    // LOG(INFO) << "Add file: [" << dir->depth << "] '" << dir->path << "' += " << entry->path;
   }
 
   CHECK(!stack.empty());

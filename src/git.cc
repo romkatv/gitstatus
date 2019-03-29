@@ -388,26 +388,15 @@ IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size)
     ArenaVector<const char*> dirty_candidates(&arena);
 
     if (scan_dirty) {
-      if (new_index) {
-        Timer timer;
-        ON_SCOPE_EXIT(&) { timer.Report("new index"); };
-        index_ = std::make_unique<Index>(git_repository_workdir(repo_), git_index_);
-      }
-      {
-        Timer timer;
-        ON_SCOPE_EXIT(&) { timer.Report("GetDirtyCandidates"); };
-        index_->GetDirtyCandidates(dirty_candidates, Load(untracked_cache_) == kTrue);
-      }
+      if (new_index) index_ = std::make_unique<Index>(git_repository_workdir(repo_), git_index_);
+      index_->GetDirtyCandidates(dirty_candidates, Load(untracked_cache_) == kTrue);
+      LOG(INFO) << "Found " << dirty_candidates.size() << " dirty candidate(s)";
       StartDirtyScan(dirty_candidates);
     }
 
-    {
-      std::unique_lock<std::mutex> lock(mutex_);
-      while (Load(inflight_) && !Load(error_) && !Done()) cv_.wait(lock);
-    }
+    Wait();
+    VERIFY(!Load(error_));
   }
-
-  if (Load(error_)) throw Exception();
 
   return {
       // An empty repo with non-empty index must have staged changes since it cannot have unstaged
@@ -456,11 +445,7 @@ void Repo::StartDirtyScan(const ArenaVector<const char*>& paths) {
     size_t start = i * paths.size() / num_shards;
     size_t end = (i + 1) * paths.size() / num_shards;
     if (start == end) continue;
-    LOG(INFO) << "Dirty scan shard " << (i + 1) << "/" << num_shards;
-    for (size_t j = start; j != end; ++j) LOG(INFO) << "  Dirty candidate: " << paths[j];
     auto F = [&, opt, start, end]() mutable {
-      Timer timer;
-      ON_SCOPE_EXIT(&) { timer.Report("git_diff_index_to_workdir"); };
       opt.range_start = paths[start];
       opt.range_end = paths[end - 1];
       opt.pathspec.strings = const_cast<char**>(paths.data() + start);
