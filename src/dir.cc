@@ -82,9 +82,15 @@ bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries) {
 #else
 
 bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries) {
+  VERIFY((dir_fd = dup(dir_fd)) >= 0);
   DIR* dir = fdopendir(dir_fd);
-  if (!dir) return false;
+  if (!dir) {
+    CHECK(!close(dir_fd));
+    return false;
+  }
   ON_SCOPE_EXIT(&) { closedir(dir); };
+  arena.clear();
+  entries.clear();
   while (struct dirent* ent = readdir(dir)) {
     if (Dots(ent->d_name)) continue;
     arena += ent->d_type;
