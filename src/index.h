@@ -50,6 +50,9 @@ class Index {
   void GetDirtyCandidates(ArenaVector<const char*>& candidates);
 
  private:
+  void InitDirs(git_index* index);
+  void InitSplits(size_t index_size);
+
   Arena arena_;
   ArenaVector<IndexDir*> dirs_;
   ArenaVector<size_t> splits_;

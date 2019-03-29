@@ -22,6 +22,7 @@
 #include <stack>
 
 #include "check.h"
+#include "thread_pool.h"
 
 namespace gitstatus {
 
@@ -68,6 +69,11 @@ void CommonDir(const char* a, const char* b, size_t* dir_len, size_t* dir_depth)
 
 Index::Index(const char* root_dir, git_index* index)
     : dirs_(&arena_), splits_(&arena_), root_dir_(root_dir) {
+  InitDirs(index);
+  InitSplits(git_index_entrycount(index));
+}
+
+void Index::InitDirs(git_index* index) {
   const size_t index_size = git_index_entrycount(index);
   dirs_.reserve(index_size / 8);
   std::stack<IndexDir*> stack;
@@ -111,6 +117,34 @@ Index::Index(const char* root_dir, git_index* index)
   do {
     PopDir();
   } while (!stack.empty());
+  std::reverse(dirs_.begin(), dirs_.end());
+}
+
+void Index::InitSplits(size_t index_size) {
+  constexpr size_t kMinShardWeight = 1;
+  const size_t kNumShards = 2 * GlobalThreadPool()->num_threads();
+  const size_t total_weight = index_size + dirs_.size();
+  const size_t shard_weight = std::max(kMinShardWeight, total_weight / kNumShards);
+
+  splits_.reserve(kNumShards + 1);
+  splits_.push_back(0);
+
+  for (size_t i = 0, w = 0; i != dirs_.size(); ++i) {
+    w += dirs_[i]->entries.size() + 1;
+    if (w >= shard_weight) {
+      w = 0;
+      splits_.push_back(i + 1);
+    }
+  }
+
+  if (splits_.back() != dirs_.size()) splits_.push_back(dirs_.size());
+  CHECK(splits_.size() <= kNumShards + 1);
+  CHECK(std::is_sorted(splits_.begin(), splits_.end()));
+  CHECK(std::adjacent_find(splits_.begin(), splits_.end()) == splits_.end());
+
+  for (size_t i = 0; i != splits_.size(); ++i) {
+    LOG(INFO) << "Index directory split #" << i << " = " << splits_[i];
+  }
 }
 
 }  // namespace gitstatus
