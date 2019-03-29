@@ -52,6 +52,7 @@ class Arena {
 
   template <class T>
   __attribute__((always_inline)) T* Allocate(size_t n) {
+    static_assert(!std::is_reference<T>(), "");
     return static_cast<T*>(Allocate(n * sizeof(T), alignof(T)));
   }
 
@@ -70,6 +71,25 @@ class Arena {
   __attribute__((always_inline)) StringView StrDup(const char* s) {
     size_t len = std::strlen(s);
     return StringView(MemDup(s, len), len);
+  }
+
+  template <class T>
+  std::remove_const_t<std::remove_reference_t<T>>* Dup(T&& val) {
+    return DirectInit<std::remove_const_t<std::remove_reference_t<T>>>(std::forward<T>(val));
+  }
+
+  template <class T, class... Args>
+  T* DirectInit(Args&&... args) {
+    T* res = Allocate<T>();
+    ::new (const_cast<void*>(static_cast<const void*>(res))) T(std::forward<Args>(args)...);
+    return res;
+  }
+
+  template <class T, class... Args>
+  T* BraceInit(Args&&... args) {
+    T* res = Allocate<T>();
+    ::new (const_cast<void*>(static_cast<const void*>(res))) T{std::forward<Args>(args)...};
+    return res;
   }
 
  private:
