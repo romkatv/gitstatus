@@ -43,7 +43,7 @@ struct IndexDir {
 
 class Index {
  public:
-  Index(const char* root_dir, const git_index* index);
+  Index(const char* root_dir, git_index* index);
 
   void GetDirtyCandidates(ArenaVector<const char*>& candidates);
 
@@ -51,6 +51,7 @@ class Index {
   Arena arena_;
   ArenaVector<IndexDir*> dirs_;
   ArenaVector<size_t> splits_;
+  const char* root_dir_;
 };
 
 }  // namespace gitstatus

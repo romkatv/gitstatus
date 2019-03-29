@@ -65,6 +65,10 @@ class ThreadPool {
   std::vector<std::thread> threads_;
 };
 
+void InitGlobalThreadPool(size_t num_threads);
+
+ThreadPool* GlobalThreadPool();
+
 }  // namespace gitstatus
 
 #endif  // ROMKATV_GITSTATUS_THREAD_POOL_H_

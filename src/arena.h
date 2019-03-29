@@ -125,7 +125,7 @@ class ArenaAllocator {
   };
   using is_always_equal = std::false_type;
 
-  explicit ArenaAllocator(Arena* arena) : arena_(*arena) {}
+  ArenaAllocator(Arena* arena) : arena_(*arena) {}
 
   pointer address(reference x) const { return &x; }
   const_pointer address(const_reference x) const { return &x; }

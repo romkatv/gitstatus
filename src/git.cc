@@ -57,8 +57,6 @@ constexpr int8_t kUnhex[256] = {
     0, 10, 11, 12, 13, 14, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0   // 6
 };
 
-ThreadPool* g_thread_pool = nullptr;
-
 void ParseOid(unsigned char* oid, const char* begin, const char* end) {
   VERIFY(end >= begin + GIT_OID_HEXSZ);
   for (size_t i = 0; i != GIT_OID_HEXSZ; i += 2) {
@@ -138,11 +136,6 @@ bool StatEq(const struct stat& x, const struct stat& y) {
 }
 
 }  // namespace
-
-void InitThreadPool(size_t num_threads) {
-  LOG(INFO) << "Spawning " << num_threads << " thread(s)";
-  g_thread_pool = new ThreadPool(num_threads);
-}
 
 const char* GitError() {
   // There is no git_error_last() on OSX, so we use a deprecated alternative.
@@ -499,12 +492,13 @@ void Repo::UpdateShards() {
     LOG(INFO) << "Splitting " << index_size << " object(s) into " << shards_.size() << " shard(s)";
   };
 
-  if (index_size <= kEntriesPerShard || g_thread_pool->num_threads() < 2) {
+  if (index_size <= kEntriesPerShard || GlobalThreadPool()->num_threads() < 2) {
     shards_ = {{""s, ""s}};
     return;
   }
 
-  size_t shards = std::min(index_size / kEntriesPerShard + 1, 2 * g_thread_pool->num_threads());
+  size_t shards =
+      std::min(index_size / kEntriesPerShard + 1, 2 * GlobalThreadPool()->num_threads());
   shards_.clear();
   shards_.reserve(shards);
   std::string last;
@@ -543,7 +537,7 @@ void Repo::DecInflight() {
 void Repo::RunAsync(std::function<void()> f) {
   Inc(inflight_);
   try {
-    g_thread_pool->Schedule([this, f = std::move(f)] {
+    GlobalThreadPool()->Schedule([this, f = std::move(f)] {
       try {
         ON_SCOPE_EXIT(&) { DecInflight(); };
         f();
@@ -581,7 +575,7 @@ std::future<std::string> Repo::GetTagName(const git_oid* target) {
   auto* promise = new std::promise<std::string>;
   std::future<std::string> res = promise->get_future();
 
-  g_thread_pool->Schedule([=] {
+  GlobalThreadPool()->Schedule([=] {
     ON_SCOPE_EXIT(&) { delete promise; };
     if (!target) {
       promise->set_value("");
@@ -736,7 +730,7 @@ const char* TagDb::ParsePack(const git_oid& commit) {
             [](const char* a, const char* b) { return std::strcmp(a, b) > 0; });
 
   sorting_ = true;
-  g_thread_pool->Schedule([this] {
+  GlobalThreadPool()->Schedule([this] {
     std::stable_sort(peeled_tags_.begin(), peeled_tags_.end());
     std::unique_lock<std::mutex> lock(mutex_);
     CHECK(sorting_);
