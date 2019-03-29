@@ -35,6 +35,7 @@
 #include "algorithm.h"
 #include "arena.h"
 #include "check.h"
+#include "check_dir_mtime.h"
 #include "dir.h"
 #include "port.h"
 #include "scope_guard.h"
@@ -298,10 +299,21 @@ const char* RemoteBranchName(git_repository* repo, const git_reference* ref) {
   return branch + remote.size + 1;
 }
 
-Repo::Repo(git_repository* repo) : repo_(repo), tag_db_(repo) {}
+Repo::Repo(git_repository* repo) : repo_(repo), tag_db_(repo) {
+  GlobalThreadPool()->Schedule([this] {
+    bool check = CheckDirMtime(git_repository_path(repo_));
+    std::unique_lock<std::mutex> lock(mutex_);
+    untracked_cache_ = check ? kTrue : kFalse;
+    cv_.notify_one();
+  });
+}
 
 Repo::~Repo() {
   Wait();
+  {
+    std::unique_lock<std::mutex> lock(mutex_);
+    while (untracked_cache_ == kUnknown) cv_.wait(lock);
+  }
   if (git_index_) git_index_free(git_index_);
   git_repository_free(repo_);
 }
@@ -384,7 +396,7 @@ IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size)
       {
         Timer timer;
         ON_SCOPE_EXIT(&) { timer.Report("GetDirtyCandidates"); };
-        index_->GetDirtyCandidates(dirty_candidates, true);
+        index_->GetDirtyCandidates(dirty_candidates, Load(untracked_cache_) == kTrue);
       }
       StartDirtyScan(dirty_candidates);
     }

@@ -165,6 +165,7 @@ class Repo {
   std::condition_variable cv_;
   std::atomic<size_t> inflight_{0};
   std::atomic<bool> error_{false};
+  std::atomic<Tribool> untracked_cache_{kUnknown};
 };
 
 void InitThreadPool(size_t num_threads);
