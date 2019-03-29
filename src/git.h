@@ -31,12 +31,14 @@
 #include <cstring>
 #include <functional>
 #include <future>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "check.h"
+#include "index.h"
 #include "time.h"
 
 namespace gitstatus {
@@ -150,9 +152,11 @@ class Repo {
   void UpdateFile(OptionalFile& file, const char* label, const char* path);
 
   git_repository* const repo_;
-  git_index* index_ = nullptr;
+  git_index* git_index_ = nullptr;
   std::vector<Shard> shards_;
   TagDb tag_db_;
+
+  std::unique_ptr<Index> index_;
 
   std::mutex mutex_;
   OptionalFile staged_;

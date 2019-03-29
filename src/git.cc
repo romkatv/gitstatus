@@ -312,7 +312,7 @@ Repo::Repo(git_repository* repo) : repo_(repo), tag_db_(repo) {}
 
 Repo::~Repo() {
   Wait();
-  if (index_) git_index_free(index_);
+  if (git_index_) git_index_free(git_index_);
   git_repository_free(repo_);
 }
 
@@ -355,21 +355,23 @@ void Repo::UpdateKnown() {
 
 IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size) {
   Wait();
-  if (index_) {
-    VERIFY(!git_index_read(index_, 0)) << GitError();
+  int new_index = 1;
+  if (git_index_) {
+    VERIFY(!git_index_read_ex(git_index_, 0, &new_index)) << GitError();
   } else {
-    VERIFY(!git_repository_index(&index_, repo_)) << GitError();
+    VERIFY(!git_repository_index(&git_index_, repo_)) << GitError();
     // Query an attribute (doesn't matter which) to initialize repo's attribute
     // cache. It's a workaround for synchronization bugs (data races) in libgit2
     // that result from lazy cache initialization with no synchrnonization whatsoever.
     const char* attr;
     VERIFY(!git_attr_get(&attr, repo_, 0, "x", "x")) << GitError();
   }
+  // if (new_index) index_ = std::make_unique<Index>(git_repository_path(repo_), git_index_);
   UpdateShards();
   Store(error_, false);
   UpdateKnown();
 
-  const size_t index_size = git_index_entrycount(index_);
+  const size_t index_size = git_index_entrycount(git_index_);
   const bool scan_dirty = index_size <= dirty_max_index_size;
 
   auto Done = [&] {
@@ -433,7 +435,7 @@ void Repo::StartDirtyScan() {
       opt.range_start = shard.start.c_str();
       opt.range_end = shard.end.c_str();
       git_diff* diff = nullptr;
-      switch (git_diff_index_to_workdir(&diff, repo_, index_, &opt)) {
+      switch (git_diff_index_to_workdir(&diff, repo_, git_index_, &opt)) {
         case 0:
           git_diff_free(diff);
           break;
@@ -469,7 +471,7 @@ void Repo::StartStagedScan(const git_oid* head) {
       opt.range_start = shard.start.c_str();
       opt.range_end = shard.end.c_str();
       git_diff* diff = nullptr;
-      switch (git_diff_tree_to_index(&diff, repo_, tree, index_, &opt)) {
+      switch (git_diff_tree_to_index(&diff, repo_, tree, git_index_, &opt)) {
         case 0:
           git_diff_free(diff);
           break;
@@ -487,7 +489,7 @@ void Repo::UpdateShards() {
   constexpr size_t kEntriesPerShard = 512;
   static_assert(std::is_unsigned<char>(), "");
 
-  size_t index_size = git_index_entrycount(index_);
+  size_t index_size = git_index_entrycount(git_index_);
   ON_SCOPE_EXIT(&) {
     LOG(INFO) << "Splitting " << index_size << " object(s) into " << shards_.size() << " shard(s)";
   };
@@ -504,7 +506,7 @@ void Repo::UpdateShards() {
   std::string last;
 
   for (size_t i = 0; i != shards - 1; ++i) {
-    std::string split = git_index_get_byindex(index_, (i + 1) * index_size / shards)->path;
+    std::string split = git_index_get_byindex(git_index_, (i + 1) * index_size / shards)->path;
     auto pos = split.find_last_of('/');
     if (pos == std::string::npos) continue;
     split = split.substr(0, pos + 1);

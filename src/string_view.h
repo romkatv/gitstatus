@@ -21,17 +21,24 @@
 #include <cstddef>
 #include <cstring>
 #include <string>
+#include <ostream>
 
 namespace gitstatus {
 
 struct StringView {
-  StringView(const char* ptr, size_t len) : ptr(ptr), len(len) {}
-  StringView(const char* ptr) : StringView(ptr, ptr ? std::strlen(ptr) : 0) {}
+  StringView() : StringView("") {}
   StringView(const std::string& ptr) : StringView(ptr.c_str(), ptr.size()) {}
+  StringView(const char* ptr) : StringView(ptr, ptr ? std::strlen(ptr) : 0) {}
+  StringView(const char* ptr, size_t len) : ptr(ptr), len(len) {}
 
   const char* ptr;
   size_t len;
 };
+
+inline std::ostream& operator<<(std::ostream& strm, StringView s) {
+  if (s.ptr) strm.write(s.ptr, s.len);
+  return strm;
+}
 
 }  // namespace gitstatus
 
