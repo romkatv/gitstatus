@@ -21,8 +21,6 @@
 
 namespace gitstatus {
 
-namespace {}  // namespace
-
 Arena::Arena() { AddBlock(kBlockSize); }
 
 Arena::~Arena() {
