@@ -82,7 +82,7 @@ bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries) {
 #else
 
 bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries) {
-  DIR * dir = fdopendir(dir_fd);
+  DIR* dir = fdopendir(dir_fd);
   if (!dir) return false;
   ON_SCOPE_EXIT(&) { closedir(dir); };
   while (struct dirent* ent = readdir(dir)) {
