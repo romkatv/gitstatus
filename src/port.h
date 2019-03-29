@@ -15,19 +15,19 @@
 // You should have received a copy of the GNU General Public License
 // along with GitStatus. If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef ROMKATV_GITSTATUS_DIR_H_
-#define ROMKATV_GITSTATUS_DIR_H_
+#ifndef ROMKATV_GITSTATUS_PORT_H_
+#define ROMKATV_GITSTATUS_PORT_H_
 
-#include <cstddef>
-#include <string>
-#include <vector>
+#include <fcntl.h>
 
 namespace gitstatus {
 
-bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries);
-
-bool ListDir(const char* dirname, std::string& arena, std::vector<size_t>& entries);
+#ifdef __linux__
+  enum { kNoATime = O_NOATIME };
+#else
+  enum { kNoATime = 0 };
+#endif
 
 }  // namespace gitstatus
 
-#endif  // ROMKATV_GITSTATUS_DIR_H_
+#endif  // ROMKATV_GITSTATUS_PORT_H_

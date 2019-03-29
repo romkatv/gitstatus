@@ -127,6 +127,8 @@ class ArenaAllocator {
 
   ArenaAllocator(Arena* arena) : arena_(*arena) {}
 
+  Arena& arena() const { return arena_; }
+
   pointer address(reference x) const { return &x; }
   const_pointer address(const_reference x) const { return &x; }
   pointer allocate(size_type n, const void* hint = nullptr) { return arena_.Allocate<T>(n); }

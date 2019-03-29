@@ -143,7 +143,7 @@ class Repo {
   void UpdateShards();
 
   void StartStagedScan(const git_oid* head);
-  void StartDirtyScan();
+  void StartDirtyScan(const ArenaVector<const char*>& paths);
 
   void DecInflight();
   void RunAsync(std::function<void()> f);

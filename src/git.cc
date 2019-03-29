@@ -33,9 +33,12 @@
 #include <utility>
 
 #include "algorithm.h"
+#include "arena.h"
 #include "check.h"
 #include "dir.h"
+#include "port.h"
 #include "scope_guard.h"
+#include "stat.h"
 #include "thread_pool.h"
 #include "timer.h"
 
@@ -120,19 +123,6 @@ bool TagHasTarget(git_repository* repo, git_refdb* refdb, const char* name, cons
   }
 
   return false;
-}
-
-const struct timespec& MTim(const struct stat& s) {
-#ifdef __APPLE__
-  return s.st_mtimespec;
-#else
-  return s.st_mtim;
-#endif
-}
-
-bool StatEq(const struct stat& x, const struct stat& y) {
-  return !std::memcmp(&MTim(x), &MTim(y), sizeof(struct timespec)) && x.st_size == y.st_size &&
-         x.st_ino == y.st_ino;
 }
 
 }  // namespace
@@ -366,7 +356,6 @@ IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size)
     const char* attr;
     VERIFY(!git_attr_get(&attr, repo_, 0, "x", "x")) << GitError();
   }
-  // if (new_index) index_ = std::make_unique<Index>(git_repository_path(repo_), git_index_);
   UpdateShards();
   Store(error_, false);
   UpdateKnown();
@@ -381,8 +370,24 @@ IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size)
 
   if (!Done()) {
     CHECK(Load(inflight_) == 0);
-    if (scan_dirty) StartDirtyScan();
     if (head) StartStagedScan(head);
+
+    Arena arena;
+    ArenaVector<const char*> dirty_candidates(&arena);
+
+    if (scan_dirty) {
+      if (new_index) {
+        Timer timer;
+        ON_SCOPE_EXIT(&) { timer.Report("new index"); };
+        index_ = std::make_unique<Index>(git_repository_workdir(repo_), git_index_);
+      }
+      {
+        Timer timer;
+        ON_SCOPE_EXIT(&) { timer.Report("GetDirtyCandidates"); };
+        index_->GetDirtyCandidates(dirty_candidates, true);
+      }
+      StartDirtyScan(dirty_candidates);
+    }
 
     {
       std::unique_lock<std::mutex> lock(mutex_);
@@ -401,12 +406,13 @@ IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size)
   };
 }
 
-void Repo::StartDirtyScan() {
+void Repo::StartDirtyScan(const ArenaVector<const char*>& paths) {
   if (!unstaged_.Empty() && !untracked_.Empty()) return;
+  if (paths.empty()) return;
 
   git_diff_options opt = GIT_DIFF_OPTIONS_INIT;
   opt.payload = this;
-  opt.flags = GIT_DIFF_SKIP_BINARY_CHECK;
+  opt.flags = GIT_DIFF_SKIP_BINARY_CHECK | GIT_DIFF_DISABLE_PATHSPEC_MATCH;
   if (untracked_.Empty()) {
     // We could remove GIT_DIFF_RECURSE_UNTRACKED_DIRS and manually check in OnDirty whether
     // the allegedly untracked file is an empty directory. Unfortunately, it'll break
@@ -430,10 +436,23 @@ void Repo::StartDirtyScan() {
     }
   };
 
-  for (const Shard& shard : shards_) {
-    RunAsync([this, opt, shard]() mutable {
-      opt.range_start = shard.start.c_str();
-      opt.range_end = shard.end.c_str();
+  constexpr size_t kEntriesPerShard = 512;
+  const size_t num_shards =
+      std::min(paths.size() / kEntriesPerShard + 1, 2 * GlobalThreadPool()->num_threads());
+
+  for (size_t i = 0; i != num_shards; ++i) {
+    size_t start = i * paths.size() / num_shards;
+    size_t end = (i + 1) * paths.size() / num_shards;
+    if (start == end) continue;
+    LOG(INFO) << "Dirty scan shard " << (i + 1) << "/" << num_shards;
+    for (size_t j = start; j != end; ++j) LOG(INFO) << "  Dirty candidate: " << paths[j];
+    auto F = [&, opt, start, end]() mutable {
+      Timer timer;
+      ON_SCOPE_EXIT(&) { timer.Report("git_diff_index_to_workdir"); };
+      opt.range_start = paths[start];
+      opt.range_end = paths[end - 1];
+      opt.pathspec.strings = const_cast<char**>(paths.data() + start);
+      opt.pathspec.count = end - start;
       git_diff* diff = nullptr;
       switch (git_diff_index_to_workdir(&diff, repo_, git_index_, &opt)) {
         case 0:
@@ -445,7 +464,12 @@ void Repo::StartDirtyScan() {
           LOG(ERROR) << "git_diff_index_to_workdir: " << GitError();
           throw Exception();
       }
-    });
+    };
+    if (i == num_shards - 1) {
+      F();
+    } else {
+      RunAsync(std::move(F));
+    }
   }
 }
 
@@ -652,11 +676,7 @@ bool TagDb::UpdatePack(const git_oid& commit, const char** ref) {
 
   try {
     while (true) {
-      int fd = open(pack_path.c_str(),
-#ifdef __linux__
-                    O_NOATIME |
-#endif
-                        O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+      int fd = open(pack_path.c_str(), kNoATime | O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
       VERIFY(fd >= 0);
       ON_SCOPE_EXIT(&) { CHECK(!close(fd)) << Errno(); };
       pack_.resize(st.st_size + 1);
