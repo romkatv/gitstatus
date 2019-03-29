@@ -32,6 +32,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "algorithm.h"
 #include "check.h"
 #include "dir.h"
 #include "scope_guard.h"
@@ -57,16 +58,6 @@ constexpr int8_t kUnhex[256] = {
 };
 
 ThreadPool* g_thread_pool = nullptr;
-
-template <class Container, class T>
-auto BinaryFindLast(Container& c, const T& val) {
-  auto begin = std::begin(c);
-  auto end = std::end(c);
-  auto res = std::upper_bound(begin, end, val);
-  if (res == begin) return end;
-  --res;
-  return *res < val ? end : res;
-}
 
 void ParseOid(unsigned char* oid, const char* begin, const char* end) {
   VERIFY(end >= begin + GIT_OID_HEXSZ);
