@@ -30,6 +30,7 @@
 #include "request.h"
 #include "response.h"
 #include "scope_guard.h"
+#include "thread_pool.h"
 #include "timer.h"
 
 namespace gitstatus {
@@ -120,11 +121,11 @@ int GitStatus(int argc, char** argv) {
   RequestReader reader(fileno(stdin), opts.lock_fd, opts.sigwinch_pid);
   RepoCache cache;
 
+  InitGlobalThreadPool(opts.num_threads);
   git_libgit2_opts(GIT_OPT_ENABLE_STRICT_HASH_VERIFICATION, 0);
   git_libgit2_opts(GIT_OPT_DISABLE_INDEX_CHECKSUM_VERIFICATION, 1);
   git_libgit2_opts(GIT_OPT_DISABLE_INDEX_FILEPATH_VALIDATION, 1);
   git_libgit2_init();
-  InitThreadPool(opts.num_threads);
 
   while (true) {
     try {

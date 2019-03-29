@@ -17,9 +17,21 @@
 
 #include "index.h"
 
+#include <stack>
+
 #include "check.h"
 
 namespace gitstatus {
 
+Index::Index(const char* root_dir, git_index* index)
+    : dirs_(&arena_), splits_(&arena_), root_dir_(root_dir) {
+  const size_t index_size = git_index_entrycount(index);
+  dirs_.reserve(index_size / 8);
+  std::stack<IndexDir*> stack;
+  for (size_t i = 0; i != index_size; ++i) {
+    const git_index_entry* entry = git_index_get_byindex(index, i);
+    (void)entry;
+  }
+}
 
 }  // namespace gitstatus

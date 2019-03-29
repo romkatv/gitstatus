@@ -3,6 +3,9 @@
 #include <cassert>
 #include <utility>
 
+#include "check.h"
+#include "logging.h"
+
 namespace gitstatus {
 
 ThreadPool::ThreadPool(size_t num_threads) : num_inflight_(num_threads) {
@@ -70,5 +73,15 @@ void ThreadPool::Wait() {
   std::unique_lock<std::mutex> lock(mutex_);
   idle_cv_.wait(lock, [&] { return work_.empty() && num_inflight_ == 0; });
 }
+
+static ThreadPool* g_thread_pool = nullptr;
+
+void InitGlobalThreadPool(size_t num_threads) {
+  CHECK(!g_thread_pool);
+  LOG(INFO) << "Spawning " << num_threads << " thread(s)";
+  g_thread_pool = new ThreadPool(num_threads);
+}
+
+ThreadPool* GlobalThreadPool() { return g_thread_pool; }
 
 }  // namespace gitstatus
