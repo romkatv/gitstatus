@@ -183,15 +183,15 @@ const char* LocalBranchName(const git_reference* ref) {
   throw Exception();
 }
 
-const char* RemoteBranchName(git_repository* repo, const git_reference* ref) {
+Remote GetRemote(git_repository* repo, const git_reference* ref) {
   const char* branch = nullptr;
-  if (git_branch_name(&branch, ref)) return "";
+  if (!ref || git_branch_name(&branch, ref)) return {};
   git_buf remote = {};
-  if (git_branch_remote_name(&remote, repo, git_reference_name(ref))) return "";
+  if (git_branch_remote_name(&remote, repo, git_reference_name(ref))) return {};
   ON_SCOPE_EXIT(&) { git_buf_free(&remote); };
   VERIFY(std::strstr(branch, remote.ptr) == branch);
   VERIFY(branch[remote.size] == '/');
-  return branch + remote.size + 1;
+  return {remote.ptr, branch + remote.size + 1};
 }
 
 }  // namespace gitstatus
