@@ -23,9 +23,9 @@
 namespace gitstatus {
 
 #ifdef __linux__
-  enum { kNoATime = O_NOATIME };
+enum { kNoATime = O_NOATIME };
 #else
-  enum { kNoATime = 0 };
+enum { kNoATime = 0 };
 #endif
 
 }  // namespace gitstatus
