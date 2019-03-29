@@ -21,7 +21,6 @@
 #include <string>
 
 #include <git2.h>
-#include <gperftools/profiler.h>
 
 #include "check.h"
 #include "git.h"
@@ -127,17 +126,6 @@ int GitStatus(int argc, char** argv) {
   git_libgit2_opts(GIT_OPT_DISABLE_INDEX_CHECKSUM_VERIFICATION, 1);
   git_libgit2_opts(GIT_OPT_DISABLE_INDEX_FILEPATH_VALIDATION, 1);
   git_libgit2_init();
-
-  // Request req;
-  // req.dir = "/home/romka/chromium";
-  // ProcessRequest(opts, cache, req);
-  // ProfilerStart("/tmp/prof.out");
-  // for (int i = 0; i != 30; ++i) {
-  //   cache = {};
-  //   ProcessRequest(opts, cache, req);
-  // }
-  // ProfilerStop();
-  // return 0;
 
   while (true) {
     try {
