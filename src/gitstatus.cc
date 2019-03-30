@@ -26,6 +26,7 @@
 #include "git.h"
 #include "logging.h"
 #include "options.h"
+#include "repo.h"
 #include "repo_cache.h"
 #include "request.h"
 #include "response.h"
