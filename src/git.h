@@ -61,14 +61,14 @@ class TagDb {
     git_oid commit = {};
   };
 
-  bool UpdatePack(const git_oid& commit, const char** ref);
-  const char* ParsePack(const git_oid& commit);
+  bool UpdatePack(const git_oid& commit, std::vector<const char*>& match);
+  std::vector<const char*> ParsePack(const git_oid& commit);
   void Wait();
 
   git_repository* const repo_;
   struct stat pack_stat_ = {};
   std::string pack_;
-  std::vector<const char*> loose_tags_;
+  std::vector<const char*> unpeeled_tags_;
   std::vector<Tag> peeled_tags_;
 
   std::mutex mutex_;

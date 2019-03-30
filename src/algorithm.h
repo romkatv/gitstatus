@@ -19,22 +19,11 @@
 #define ROMKATV_GITSTATUS_ALGORITHM_H_
 
 #include <algorithm>
-#include <iterator>
 #include <vector>
 
 #include "string_view.h"
 
 namespace gitstatus {
-
-template <class Container, class T>
-auto BinaryFindLast(Container& c, const T& val) {
-  auto begin = std::begin(c);
-  auto end = std::end(c);
-  auto res = std::upper_bound(begin, end, val);
-  if (res == begin) return end;
-  --res;
-  return *res < val ? end : res;
-}
 
 template <class A>
 void Sort(std::vector<const char*, A>& v) {
