@@ -147,7 +147,8 @@ void Repo::StartDirtyScan(const ArenaVector<const char*>& paths) {
 
   git_diff_options opt = GIT_DIFF_OPTIONS_INIT;
   opt.payload = this;
-  opt.flags = GIT_DIFF_SKIP_BINARY_CHECK | GIT_DIFF_DISABLE_PATHSPEC_MATCH | GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_RECURSE_UNTRACKED_DIRS;
+  opt.flags = GIT_DIFF_SKIP_BINARY_CHECK | GIT_DIFF_DISABLE_PATHSPEC_MATCH |
+              GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_RECURSE_UNTRACKED_DIRS;
   opt.ignore_submodules = GIT_SUBMODULE_IGNORE_DIRTY;
   opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
                       const char* matched_pathspec, void* payload) -> int {
@@ -166,20 +167,18 @@ void Repo::StartDirtyScan(const ArenaVector<const char*>& paths) {
     }
   };
 
-  constexpr size_t kEntriesPerShard = 512;
-  const size_t num_shards =
-      std::min(paths.size() / kEntriesPerShard + 1, 2 * GlobalThreadPool()->num_threads());
-
-  // TODO: better sharding.
-  for (size_t i = 0; i != num_shards; ++i) {
-    size_t start = i * paths.size() / num_shards;
-    size_t end = (i + 1) * paths.size() / num_shards;
-    if (start == end) continue;
-    auto F = [&, opt, start, end]() mutable {
-      opt.range_start = paths[start];
-      opt.range_end = paths[end - 1];
-      opt.pathspec.strings = const_cast<char**>(paths.data() + start);
-      opt.pathspec.count = end - start;
+  auto shard = shards_.begin();
+  for (auto p = paths.begin(); p != paths.end();) {
+    opt.range_start = *p;
+    opt.range_end = *p;
+    opt.pathspec.strings = const_cast<char**>(&*p);
+    opt.pathspec.count = 1;
+    while (*p < shard->start || (!shard->end.empty() && *p > shard->end)) ++shard;
+    while (++p != paths.end() && (shard->end.empty() || *p <= shard->end)) {
+      opt.range_end = *p;
+      ++opt.pathspec.count;
+    }
+    RunAsync([&, opt]() mutable {
       git_diff* diff = nullptr;
       switch (git_diff_index_to_workdir(&diff, repo_, git_index_, &opt)) {
         case 0:
@@ -191,12 +190,7 @@ void Repo::StartDirtyScan(const ArenaVector<const char*>& paths) {
           LOG(ERROR) << "git_diff_index_to_workdir: " << GitError();
           throw Exception();
       }
-    };
-    if (i == num_shards - 1) {
-      F();
-    } else {
-      RunAsync(std::move(F));
-    }
+    });
   }
 }
 
