@@ -619,47 +619,66 @@ TagDb::TagDb(git_repository* repo) : repo_(repo) { CHECK(repo); }
 TagDb::~TagDb() { Wait(); }
 
 std::string TagDb::TagForCommit(const git_oid& oid) {
-  const char* ref;
-  if (UpdatePack(oid, &ref)) {
-    if (ref) return StripTag(ref);
-  } else {
-    auto it = BinaryFindLast(peeled_tags_, Tag{nullptr, oid});
-    if (it != peeled_tags_.end()) return StripTag(it->ref);
-  }
-
   git_refdb* refdb;
   VERIFY(!git_repository_refdb(&refdb, repo_)) << GitError();
   ON_SCOPE_EXIT(&) { git_refdb_free(refdb); };
 
-  for (const char* tag : loose_tags_) {
-    if (TagHasTarget(repo_, refdb, tag, &oid)) return StripTag(tag);
-  }
+  auto StrLt = [](const char* a, const char* b) { return std::strcmp(a, b) < 0; };
 
+  std::string res;
   std::string arena;
   std::vector<size_t> entries;
+  std::vector<const char*> loose_tags;
   arena.reserve(1 << 10);
   entries.reserve(128);
-  if (!ListDir((git_repository_path(repo_) + "refs/tags"s).c_str(), arena, entries)) return "";
-  std::sort(entries.begin(), entries.end(),
-            [&](size_t a, size_t b) { return std::strcmp(&arena[a], &arena[b]) > 0; });
 
-  std::string tag = "refs/tags/";
-  size_t prefix_len = tag.size();
-  for (size_t pos : entries) {
-    tag.resize(prefix_len);
-    tag += &arena[pos];
-    if (TagHasTarget(repo_, refdb, tag.c_str(), &oid)) return StripTag(tag.c_str());
+  if (ListDir((git_repository_path(repo_) + "refs/tags"s).c_str(), arena, entries)) {
+    loose_tags.resize(entries.size());
+    for (size_t i = 0; i != entries.size(); ++i) loose_tags[i] = &arena[entries[i]];
+    Sort(loose_tags);
+    std::string ref = "refs/tags/";
+    size_t prefix_len = ref.size();
+    for (const char* tag : loose_tags) {
+      ref.resize(prefix_len);
+      ref += tag;
+      if (TagHasTarget(repo_, refdb, ref.c_str(), &oid)) {
+        if (res < tag) res = tag;
+      }
+    }
+  } else {
+    arena.clear();
+    entries.clear();
   }
-  return "";
+
+  std::vector<const char*> matches;
+  if (UpdatePack(oid, matches)) {
+    for (auto it = matches.rbegin(); it != matches.rend(); ++it) {
+      if (!std::binary_search(loose_tags.begin(), loose_tags.end(), *it, StrLt)) {
+        if (res < *it) res = *it;
+        return res;
+      }
+    }
+  } else {
+    auto r = std::equal_range(peeled_tags_.begin(), peeled_tags_.end(), Tag{nullptr, oid});
+    for (auto it = r.first; it != r.second; ++it) {
+      const char* tag = StripTag(it->ref);
+      if (!std::binary_search(loose_tags.begin(), loose_tags.end(), tag, StrLt)) {
+        if (res < tag) res = tag;
+      }
+    }
+  }
+
+  return res;
 }
 
-bool TagDb::UpdatePack(const git_oid& commit, const char** ref) {
+bool TagDb::UpdatePack(const git_oid& commit, std::vector<const char*>& match) {
   Wait();
+  match.clear();
 
   auto Reset = [&] {
     std::memset(&pack_stat_, 0, sizeof(pack_stat_));
     pack_.clear();
-    loose_tags_.clear();
+    unpeeled_tags_.clear();
     peeled_tags_.clear();
   };
 
@@ -673,6 +692,7 @@ bool TagDb::UpdatePack(const git_oid& commit, const char** ref) {
 
   try {
     while (true) {
+      LOG(INFO) << "Parsing " << pack_path;
       int fd = open(pack_path.c_str(), kNoATime | O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
       VERIFY(fd >= 0);
       ON_SCOPE_EXIT(&) { CHECK(!close(fd)) << Errno(); };
@@ -688,7 +708,7 @@ bool TagDb::UpdatePack(const git_oid& commit, const char** ref) {
       pack_.pop_back();
       break;
     }
-    *ref = ParsePack(commit);
+    match = ParsePack(commit);
     return true;
   } catch (const Exception&) {
     Reset();
@@ -696,15 +716,15 @@ bool TagDb::UpdatePack(const git_oid& commit, const char** ref) {
   }
 }
 
-const char* TagDb::ParsePack(const git_oid& commit) {
+std::vector<const char*> TagDb::ParsePack(const git_oid& commit) {
   char* p = &pack_[0];
   char* e = p + pack_.size();
   bool peeled = false;
-  const char* res = nullptr;
+  std::vector<const char*> res;
 
   if (*p == '#') {
     char* eol = std::strchr(p, '\n');
-    if (!eol) return nullptr;
+    if (!eol) return res;
     *eol = 0;
     peeled = std::strstr(p, " fully-peeled ");
     p = eol + 1;
@@ -713,7 +733,7 @@ const char* TagDb::ParsePack(const git_oid& commit) {
   if (peeled) {
     peeled_tags_.reserve(pack_.size() / 128);
   } else {
-    loose_tags_.reserve(pack_.size() / 128);
+    unpeeled_tags_.reserve(pack_.size() / 128);
   }
 
   std::vector<Tag*> idx;
@@ -736,21 +756,21 @@ const char* TagDb::ParsePack(const git_oid& commit) {
         ++p;
       }
     }
-    if (!StripTag(ref)) continue;
+    const char* tag = StripTag(ref);
+    if (!tag) continue;
     if (peeled) {
       peeled_tags_.push_back({ref, oid});
-      if (!std::memcmp(oid.id, commit.id, GIT_OID_RAWSZ)) res = ref;
+      if (!std::memcmp(oid.id, commit.id, GIT_OID_RAWSZ)) res.push_back(tag);
     } else {
-      loose_tags_.push_back(ref);
+      unpeeled_tags_.push_back(ref);
     }
   }
 
-  std::sort(loose_tags_.begin(), loose_tags_.end(),
-            [](const char* a, const char* b) { return std::strcmp(a, b) > 0; });
+  Sort(unpeeled_tags_);
 
   sorting_ = true;
   GlobalThreadPool()->Schedule([this] {
-    std::stable_sort(peeled_tags_.begin(), peeled_tags_.end());
+    std::sort(peeled_tags_.begin(), peeled_tags_.end());
     std::unique_lock<std::mutex> lock(mutex_);
     CHECK(sorting_);
     sorting_ = false;
