@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <condition_variable>
+#include <cstdint>
 #include <cstring>
 #include <mutex>
 #include <stack>
@@ -62,8 +63,9 @@ mode_t Mode(mode_t mode) {
 }
 
 bool IsModified(const git_index_entry* entry, const struct stat& st) {
-  return entry->mtime.seconds != MTim(st).tv_sec || entry->mtime.nanoseconds != MTim(st).tv_nsec ||
-         entry->ino != st.st_ino || entry->mode != Mode(st.st_mode) || entry->gid != st.st_gid ||
+  return entry->mtime.seconds != MTim(st).tv_sec ||
+         int64_t{entry->mtime.nanoseconds} != MTim(st).tv_nsec || entry->ino != st.st_ino ||
+         entry->mode != Mode(st.st_mode) || entry->gid != st.st_gid ||
          entry->file_size != st.st_size;
 }
 
