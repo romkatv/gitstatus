@@ -40,41 +40,9 @@
 #include "check.h"
 #include "index.h"
 #include "time.h"
+#include "tag_db.h"
 
 namespace gitstatus {
-
-class TagDb {
- public:
-  explicit TagDb(git_repository* repo);
-  TagDb(TagDb&&) = delete;
-  ~TagDb();
-
-  std::string TagForCommit(const git_oid& oid);
-
- private:
-  struct Tag {
-    bool operator<(const Tag& other) const {
-      return std::memcmp(commit.id, other.commit.id, GIT_OID_RAWSZ) < 0;
-    }
-
-    const char* ref = nullptr;
-    git_oid commit = {};
-  };
-
-  bool UpdatePack(const git_oid& commit, std::vector<const char*>& match);
-  std::vector<const char*> ParsePack(const git_oid& commit);
-  void Wait();
-
-  git_repository* const repo_;
-  struct stat pack_stat_ = {};
-  std::string pack_;
-  std::vector<const char*> unpeeled_tags_;
-  std::vector<Tag> peeled_tags_;
-
-  std::mutex mutex_;
-  std::condition_variable cv_;
-  bool sorting_ = false;
-};
 
 class OptionalFile {
  public:
