@@ -167,14 +167,15 @@ void Repo::StartDirtyScan(const ArenaVector<const char*>& paths) {
     }
   };
 
+  const Str str(git_index_is_case_sensitive(git_index_));
   auto shard = shards_.begin();
   for (auto p = paths.begin(); p != paths.end();) {
     opt.range_start = *p;
     opt.range_end = *p;
     opt.pathspec.strings = const_cast<char**>(&*p);
     opt.pathspec.count = 1;
-    while (*p < shard->start || (!shard->end.empty() && *p > shard->end)) ++shard;
-    while (++p != paths.end() && (shard->end.empty() || *p <= shard->end)) {
+    while (str.Lt(*p, shard->start) || (!shard->end.empty() && str.Lt(shard->end, *p))) ++shard;
+    while (++p != paths.end() && (shard->end.empty() || !str.Lt(shard->end, *p))) {
       opt.range_end = *p;
       ++opt.pathspec.count;
     }
@@ -234,6 +235,7 @@ void Repo::StartStagedScan(const git_oid* head) {
 void Repo::UpdateShards() {
   constexpr size_t kEntriesPerShard = 512;
 
+  const Str str(git_index_is_case_sensitive(git_index_));
   size_t index_size = git_index_entrycount(git_index_);
   ON_SCOPE_EXIT(&) {
     LOG(INFO) << "Splitting " << index_size << " object(s) into " << shards_.size() << " shard(s)";
@@ -258,7 +260,7 @@ void Repo::UpdateShards() {
     Shard shard;
     shard.end = split;
     --shard.end.back();
-    if (shard.end <= last) continue;
+    if (!str.Lt(last, shard.end)) continue;
     shard.start = std::move(last);
     last = std::move(split);
     shards_.push_back(std::move(shard));
@@ -270,8 +272,8 @@ void Repo::UpdateShards() {
   CHECK(shards_.front().start.empty());
   CHECK(shards_.back().end.empty());
   for (size_t i = 0; i != shards_.size(); ++i) {
-    if (i) CHECK(shards_[i - 1].end < shards_[i].start);
-    if (i != shards_.size() - 1) CHECK(shards_[i].start < shards_[i].end);
+    if (i) CHECK(str.Lt(shards_[i - 1].end, shards_[i].start));
+    if (i != shards_.size() - 1) CHECK(str.Lt(shards_[i].start, shards_[i].end));
   }
 }
 

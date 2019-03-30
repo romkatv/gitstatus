@@ -18,27 +18,44 @@
 #ifndef ROMKATV_GITSTATUS_ALGORITHM_H_
 #define ROMKATV_GITSTATUS_ALGORITHM_H_
 
+#include <string.h>
+
 #include <algorithm>
 #include <vector>
 
+#include "str.h"
 #include "string_view.h"
 
 namespace gitstatus {
 
 template <class A>
-void Sort(std::vector<const char*, A>& v) {
-  std::qsort(v.data(), v.size(), sizeof(const char*), [](const void* a, const void* b) {
-    auto Str = [](const void* p) { return *static_cast<const char* const*>(p); };
-    return std::strcmp(Str(a), Str(b));
-  });
+void Sort(std::vector<const char*, A>& v, bool case_sensitive = true) {
+  if (case_sensitive) {
+    std::qsort(v.data(), v.size(), sizeof(const char*), [](const void* a, const void* b) {
+      auto Str = [](const void* p) { return *static_cast<const char* const*>(p); };
+      return strcmp(Str(a), Str(b));
+    });
+  } else {
+    std::qsort(v.data(), v.size(), sizeof(const char*), [](const void* a, const void* b) {
+      auto Str = [](const void* p) { return *static_cast<const char* const*>(p); };
+      return strcasecmp(Str(a), Str(b));
+    });
+  }
 }
 
 template <class A>
-void Sort(std::vector<StringView, A>& v) {
-  std::qsort(v.data(), v.size(), sizeof(StringView), [](const void* a, const void* b) {
-    auto Str = [](const void* p) { return *static_cast<const StringView*>(p); };
-    return Cmp(Str(a), Str(b));
-  });
+void Sort(std::vector<StringView, A>& v, bool case_sensitive = true) {
+  if (case_sensitive) {
+    std::qsort(v.data(), v.size(), sizeof(StringView), [](const void* a, const void* b) {
+      auto Str = [](const void* p) { return *static_cast<const StringView*>(p); };
+      return Cmp(Str(a), Str(b));
+    });
+  } else {
+    std::qsort(v.data(), v.size(), sizeof(StringView), [](const void* a, const void* b) {
+      auto Str = [](const void* p) { return *static_cast<const StringView*>(p); };
+      return StrCmp(false)(Str(a), Str(b));
+    });
+  }
 }
 
 }  // namespace gitstatus

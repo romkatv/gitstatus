@@ -35,16 +35,17 @@
 #include "port.h"
 #include "scope_guard.h"
 #include "stat.h"
+#include "str.h"
 #include "thread_pool.h"
 
 namespace gitstatus {
 
 namespace {
 
-void CommonDir(const char* a, const char* b, size_t* dir_len, size_t* dir_depth) {
+void CommonDir(const Str& str, const char* a, const char* b, size_t* dir_len, size_t* dir_depth) {
   *dir_len = 0;
   *dir_depth = 0;
-  for (size_t i = 1; *a == *b && *a; ++i, ++a, ++b) {
+  for (size_t i = 1; str.Eq(*a, *b) && *a; ++i, ++a, ++b) {
     if (*a == '/') {
       *dir_len = i;
       ++*dir_depth;
@@ -72,6 +73,7 @@ bool IsModified(const git_index_entry* entry, const struct stat& st) {
 // TODO: Make me pretty, or at least not fucking ugly.
 std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const* begin,
                                   IndexDir* const* end, bool untracked_cache) {
+  const Str str(git_index_is_case_sensitive(index));
   std::string scratch;
   scratch.reserve(4 << 10);
   std::vector<size_t> entries;
@@ -94,7 +96,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
         dir.arena.clear();
         dir.unmatched.clear();
       } else {
-        if (basename.len == 5 && !std::memcmp(basename.ptr, ".git/", 5)) return;
+        if (str.Eq(basename, StringView(".git/"))) return;
       }
       dir.unmatched.push_back(dir.arena.size());
       dir.arena.append(dir.path.ptr, dir.path.len);
@@ -107,7 +109,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
     };
 
     if (dir_fd >= 0 && begin[-1]->depth + 1 == dir.depth) {
-      CHECK(dir.path.StartsWith(begin[-1]->path));
+      CHECK(str.StartsWith(dir.path, begin[-1]->path));
       scratch.assign(dir.path.ptr + begin[-1]->path.len, dir.path.ptr + dir.path.len - 1);
       int fd = openat(dir_fd, scratch.c_str(), kNoATime | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
       CHECK(!close(dir_fd));
@@ -150,7 +152,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       dir.unmatched.clear();
 
       std::sort(entries.begin(), entries.end(),
-                [&](size_t a, size_t b) { return std::strcmp(&scratch[a], &scratch[b]) < 0; });
+                [&](size_t a, size_t b) { return str.Lt(&scratch[a], &scratch[b]); });
       const git_index_entry* const* file = dir.files.data();
       const git_index_entry* const* file_end = file + dir.files.size();
       const StringView* subdir = dir.subdirs.data();
@@ -161,7 +163,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
         bool matched = false;
 
         for (; file != file_end; ++file) {
-          int cmp = Cmp(Basename((*file)), entry);
+          int cmp = str.Cmp(Basename((*file)), entry);
           if (cmp < 0) {
             res.push_back((*file)->path);  // deleted
           } else if (cmp == 0) {
@@ -183,7 +185,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
         if (matched) continue;
 
         for (; subdir != subdir_end; ++subdir) {
-          int cmp = Cmp(*subdir, entry);
+          int cmp = str.Cmp(*subdir, entry);
           if (cmp > 0) break;
           if (cmp == 0) {
             matched = true;
@@ -212,6 +214,7 @@ Index::Index(const char* root_dir, git_index* index)
 }
 
 size_t Index::InitDirs(git_index* index) {
+  const Str str(git_index_is_case_sensitive(index));
   const size_t index_size = git_index_entrycount(index);
   dirs_.reserve(index_size / 8);
   std::stack<IndexDir*> stack;
@@ -222,7 +225,9 @@ size_t Index::InitDirs(git_index* index) {
     CHECK(!stack.empty());
     IndexDir* top = stack.top();
     CHECK(top->depth + 1 == stack.size());
-    if (!std::is_sorted(top->subdirs.begin(), top->subdirs.end())) Sort(top->subdirs);
+    if (!std::is_sorted(top->subdirs.begin(), top->subdirs.end(), str.Lt)) {
+      Sort(top->subdirs, str.case_sensitive);
+    }
     total_weight += Weight(*top);
     dirs_.push_back(top);
     stack.pop();
@@ -232,7 +237,7 @@ size_t Index::InitDirs(git_index* index) {
     const git_index_entry* entry = git_index_get_byindex(index, i);
     IndexDir* prev = stack.top();
     size_t common_len, common_depth;
-    CommonDir(prev->path.ptr, entry->path, &common_len, &common_depth);
+    CommonDir(str, prev->path.ptr, entry->path, &common_len, &common_depth);
     CHECK(common_depth <= prev->depth);
 
     for (size_t i = common_depth; i != prev->depth; ++i) PopDir();
@@ -331,7 +336,7 @@ void Index::GetDirtyCandidates(ArenaVector<const char*>& candidates, bool untrac
   }
 
   VERIFY(!error);
-  Sort(candidates);
+  Sort(candidates, git_index_is_case_sensitive(git_index_));
 }
 
 }  // namespace gitstatus
