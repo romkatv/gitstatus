@@ -39,8 +39,8 @@
 
 #include "check.h"
 #include "index.h"
-#include "time.h"
 #include "tag_db.h"
+#include "time.h"
 
 namespace gitstatus {
 
