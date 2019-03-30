@@ -44,40 +44,6 @@
 
 namespace gitstatus {
 
-class OptionalFile {
- public:
-  bool Empty() const { return !has_.load(std::memory_order_relaxed); }
-
-  const std::string& Path() const { return path_; }
-
-  std::string Clear() {
-    std::string res;
-    std::swap(path_, res);
-    has_.store(false, std::memory_order_relaxed);
-    return res;
-  }
-
-  bool TrySet(const char* s) {
-    CHECK(s && *s);
-    if (!Empty()) return false;
-    path_ = s;
-    has_.store(true, std::memory_order_relaxed);
-    return true;
-  }
-
-  bool TrySet(std::string&& s) {
-    CHECK(!s.empty());
-    if (!Empty()) return false;
-    path_ = std::move(s);
-    has_.store(true, std::memory_order_relaxed);
-    return true;
-  }
-
- private:
-  std::string path_;
-  std::atomic<bool> has_{false};
-};
-
 enum Tribool : int { kFalse = 0, kTrue = 1, kUnknown = -1 };
 
 struct IndexStats {
@@ -107,7 +73,6 @@ class Repo {
     std::string end;
   };
 
-  void UpdateKnown();
   void UpdateShards();
 
   void StartStagedScan(const git_oid* head);
@@ -117,8 +82,6 @@ class Repo {
   void RunAsync(std::function<void()> f);
   void Wait();
 
-  void UpdateFile(OptionalFile& file, const char* label, const char* path);
-
   git_repository* const repo_;
   git_index* git_index_ = nullptr;
   std::vector<Shard> shards_;
@@ -127,12 +90,12 @@ class Repo {
   std::unique_ptr<Index> index_;
 
   std::mutex mutex_;
-  OptionalFile staged_;
-  OptionalFile unstaged_;
-  OptionalFile untracked_;
   std::condition_variable cv_;
   std::atomic<size_t> inflight_{0};
   std::atomic<bool> error_{false};
+  std::atomic<bool> staged_{false};
+  std::atomic<bool> unstaged_{false};
+  std::atomic<bool> untracked_{false};
   std::atomic<Tribool> untracked_cache_{kUnknown};
 };
 

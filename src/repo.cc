@@ -70,6 +70,11 @@ T Dec(std::atomic<T>& x) {
   return x.fetch_sub(1, std::memory_order_relaxed);
 }
 
+template <class T>
+T Exchange(std::atomic<T>& x, T v) {
+  return x.exchange(v, std::memory_order_relaxed);
+}
+
 }  // namespace
 
 Repo::Repo(git_repository* repo) : repo_(repo), tag_db_(repo) {
@@ -91,43 +96,6 @@ Repo::~Repo() {
   git_repository_free(repo_);
 }
 
-void Repo::UpdateKnown() {
-  struct File {
-    unsigned flags = 0;
-    std::string path;
-  };
-
-  auto Fetch = [&](OptionalFile& path) {
-    File res;
-    if (!path.Empty()) {
-      res.path = path.Clear();
-      if (git_status_file(&res.flags, repo_, res.path.c_str())) res.flags = 0;
-    }
-    return res;
-  };
-
-  File files[] = {Fetch(staged_), Fetch(unstaged_), Fetch(untracked_)};
-
-  auto Snatch = [&](unsigned mask, OptionalFile& file, const char* label) {
-    for (File& f : files) {
-      if (f.flags & mask) {
-        f.flags = 0;
-        LOG(INFO) << "Fast path for " << label << " file: " << f.path;
-        CHECK(file.TrySet(std::move(f.path)));
-        return;
-      }
-    }
-  };
-
-  Snatch(GIT_STATUS_INDEX_NEW | GIT_STATUS_INDEX_MODIFIED | GIT_STATUS_INDEX_DELETED |
-             GIT_STATUS_INDEX_RENAMED | GIT_STATUS_INDEX_TYPECHANGE,
-         staged_, "staged");
-  Snatch(GIT_STATUS_WT_MODIFIED | GIT_STATUS_WT_DELETED | GIT_STATUS_WT_TYPECHANGE |
-             GIT_STATUS_WT_RENAMED | GIT_STATUS_CONFLICTED,
-         unstaged_, "unstaged");
-  Snatch(GIT_STATUS_WT_NEW, untracked_, "untracked");
-}
-
 IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size) {
   Wait();
   int new_index = 1;
@@ -141,72 +109,60 @@ IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size)
     const char* attr;
     VERIFY(!git_attr_get(&attr, repo_, 0, "x", "x")) << GitError();
   }
+
   UpdateShards();
   Store(error_, false);
-  UpdateKnown();
+  Store(staged_, false);
+  Store(unstaged_, false);
+  Store(untracked_, false);
 
+  if (head) StartStagedScan(head);
+
+  Arena arena;
+  ArenaVector<const char*> dirty_candidates(&arena);
   const size_t index_size = git_index_entrycount(git_index_);
   const bool scan_dirty = index_size <= dirty_max_index_size;
 
-  auto Done = [&] {
-    return (!head || !staged_.Empty()) &&
-           (!scan_dirty || (!unstaged_.Empty() && !untracked_.Empty()));
-  };
-
-  if (!Done()) {
-    CHECK(Load(inflight_) == 0);
-    if (head) StartStagedScan(head);
-
-    Arena arena;
-    ArenaVector<const char*> dirty_candidates(&arena);
-
-    if (scan_dirty) {
-      if (new_index) index_ = std::make_unique<Index>(git_repository_workdir(repo_), git_index_);
-      index_->GetDirtyCandidates(dirty_candidates, Load(untracked_cache_) == kTrue);
-      LOG(INFO) << "Found " << dirty_candidates.size() << " dirty candidate(s)";
-      StartDirtyScan(dirty_candidates);
-    }
-
-    Wait();
-    VERIFY(!Load(error_));
+  if (scan_dirty) {
+    if (new_index) index_ = std::make_unique<Index>(git_repository_workdir(repo_), git_index_);
+    index_->GetDirtyCandidates(dirty_candidates, Load(untracked_cache_) == kTrue);
+    LOG(INFO) << "Found " << dirty_candidates.size() << " dirty candidate(s)";
+    StartDirtyScan(dirty_candidates);
   }
+
+  Wait();
+  VERIFY(!Load(error_));
 
   return {
       // An empty repo with non-empty index must have staged changes since it cannot have unstaged
       // changes.
-      .has_staged = !staged_.Empty() || (!head && index_size),
-      .has_unstaged = !unstaged_.Empty() ? kTrue : scan_dirty ? kFalse : kUnknown,
-      .has_untracked = !untracked_.Empty() ? kTrue : scan_dirty ? kFalse : kUnknown,
+      .has_staged = Load(staged_) || (!head && index_size),
+      .has_unstaged = Load(unstaged_) ? kTrue : scan_dirty ? kFalse : kUnknown,
+      .has_untracked = Load(untracked_) ? kTrue : scan_dirty ? kFalse : kUnknown,
   };
 }
 
 void Repo::StartDirtyScan(const ArenaVector<const char*>& paths) {
-  if (!unstaged_.Empty() && !untracked_.Empty()) return;
   if (paths.empty()) return;
 
   git_diff_options opt = GIT_DIFF_OPTIONS_INIT;
   opt.payload = this;
-  opt.flags = GIT_DIFF_SKIP_BINARY_CHECK | GIT_DIFF_DISABLE_PATHSPEC_MATCH;
-  if (untracked_.Empty()) {
-    // We could remove GIT_DIFF_RECURSE_UNTRACKED_DIRS and manually check in OnDirty whether
-    // the allegedly untracked file is an empty directory. Unfortunately, it'll break
-    // UpdateDirty() because we cannot use git_status_file on a directory. Seems like there is no
-    // way to quickly get any untracked file from a directory that definitely has untracked files.
-    // git_diff_index_to_workdir actually computes this before telling us that a directory is
-    // untracked, but it doesn't give us the file path.
-    opt.flags |= GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_RECURSE_UNTRACKED_DIRS;
-  }
+  opt.flags = GIT_DIFF_SKIP_BINARY_CHECK | GIT_DIFF_DISABLE_PATHSPEC_MATCH | GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_RECURSE_UNTRACKED_DIRS;
   opt.ignore_submodules = GIT_SUBMODULE_IGNORE_DIRTY;
   opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
                       const char* matched_pathspec, void* payload) -> int {
     Repo* repo = static_cast<Repo*>(payload);
     if (Load(repo->error_)) return GIT_EUSER;
     if (delta->status == GIT_DELTA_UNTRACKED) {
-      repo->UpdateFile(repo->untracked_, "untracked", delta->new_file.path);
-      return repo->unstaged_.Empty() ? 1 : GIT_EUSER;
+      if (!Exchange(repo->untracked_, true)) {
+        LOG(INFO) << "Found untracked file: " << delta->new_file.path;
+      }
+      return Load(repo->unstaged_) ? 1 : GIT_EUSER;
     } else {
-      repo->UpdateFile(repo->unstaged_, "unstaged", delta->new_file.path);
-      return repo->untracked_.Empty() ? 1 : GIT_EUSER;
+      if (!Exchange(repo->unstaged_, true)) {
+        LOG(INFO) << "Found unstaged file: " << delta->new_file.path;
+      }
+      return Load(repo->untracked_) ? 1 : GIT_EUSER;
     }
   };
 
@@ -214,6 +170,7 @@ void Repo::StartDirtyScan(const ArenaVector<const char*>& paths) {
   const size_t num_shards =
       std::min(paths.size() / kEntriesPerShard + 1, 2 * GlobalThreadPool()->num_threads());
 
+  // TODO: better sharding.
   for (size_t i = 0; i != num_shards; ++i) {
     size_t start = i * paths.size() / num_shards;
     size_t end = (i + 1) * paths.size() / num_shards;
@@ -244,7 +201,6 @@ void Repo::StartDirtyScan(const ArenaVector<const char*>& paths) {
 }
 
 void Repo::StartStagedScan(const git_oid* head) {
-  if (!staged_.Empty()) return;
   git_commit* commit = nullptr;
   VERIFY(!git_commit_lookup(&commit, repo_, head)) << GitError();
   ON_SCOPE_EXIT(=) { git_commit_free(commit); };
@@ -256,7 +212,9 @@ void Repo::StartStagedScan(const git_oid* head) {
   opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
                       const char* matched_pathspec, void* payload) -> int {
     Repo* repo = static_cast<Repo*>(payload);
-    repo->UpdateFile(repo->staged_, "staged", delta->new_file.path);
+    if (!Exchange(repo->staged_, true)) {
+      LOG(INFO) << "Found staged file: " << delta->new_file.path;
+    }
     return GIT_EUSER;
   };
 
@@ -281,7 +239,6 @@ void Repo::StartStagedScan(const git_oid* head) {
 
 void Repo::UpdateShards() {
   constexpr size_t kEntriesPerShard = 512;
-  static_assert(std::is_unsigned<char>(), "");
 
   size_t index_size = git_index_entrycount(git_index_);
   ON_SCOPE_EXIT(&) {
@@ -350,15 +307,6 @@ void Repo::RunAsync(std::function<void()> f) {
   } catch (...) {
     DecInflight();
     throw;
-  }
-}
-
-void Repo::UpdateFile(OptionalFile& file, const char* label, const char* path) {
-  if (!file.Empty()) return;
-  std::unique_lock<std::mutex> lock(mutex_);
-  if (file.TrySet(path)) {
-    LOG(INFO) << "Found new " << label << " file: " << path;
-    cv_.notify_one();
   }
 }
 
