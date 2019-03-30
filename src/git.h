@@ -53,8 +53,17 @@ git_reference* Upstream(git_reference* local);
 // Returns the name of the local branch, or an empty string.
 const char* LocalBranchName(const git_reference* ref);
 
-// Returns the name of the remote tracking branch, or an empty string.
-const char* RemoteBranchName(git_repository* repo, const git_reference* ref);
+struct Remote {
+  // Name of the tracking remote. For example, "origin".
+  // Empty if there is no tracking remote.
+  std::string name;
+
+  // Name of the tracking remote branch. For example, "master".
+  // Empty if there is no tracking remote.
+  std::string branch;
+};
+
+Remote GetRemote(git_repository* repo, const git_reference* ref);
 
 }  // namespace gitstatus
 
