@@ -42,9 +42,16 @@ struct StrCmp {
   }
 
   int operator()(StringView x, const char* y) const {
-    for (const char *p = x.ptr, *e = p + x.len; p != e; ++p, ++y) {
-      int cmp = tolower(*p) - tolower(*y);
-      if (cmp) return cmp;
+    if (case_sensitive) {
+      for (const char *p = x.ptr, *e = p + x.len; p != e; ++p, ++y) {
+        int cmp = *p - *y;
+        if (cmp) return cmp;
+      }
+    } else {
+      for (const char *p = x.ptr, *e = p + x.len; p != e; ++p, ++y) {
+        int cmp = tolower(*p) - tolower(*y);
+        if (cmp) return cmp;
+      }
     }
     return 0 - *y;
   }
