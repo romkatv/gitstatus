@@ -3,7 +3,7 @@
 **gitstatus** is a fast alternative to `git status`. Its primary use case is to enable fast git
 prompt in interactive shells.
 
-![Pure Power ZSH Theme](https://raw.githubusercontent.com/romkatv/gitstatus/master/purepower.png)
+![Pure Power ZSH Theme](https://raw.githubusercontent.com/romkatv/gitstatus/master/docs/purepower.png)
 
 gitstatus is bundled with several ZSH themes including
 [Powerlevel10k](https://github.com/romkatv/powerlevel10k).
