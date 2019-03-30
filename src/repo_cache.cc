@@ -18,6 +18,7 @@
 #include "repo_cache.h"
 
 #include "check.h"
+#include "git.h"
 #include "scope_guard.h"
 
 namespace gitstatus {

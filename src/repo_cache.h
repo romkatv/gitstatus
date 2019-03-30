@@ -24,7 +24,7 @@
 
 #include <git2.h>
 
-#include "git.h"
+#include "repo.h"
 
 namespace gitstatus {
 
