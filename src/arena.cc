@@ -27,16 +27,8 @@ namespace gitstatus {
 namespace {
 
 size_t NextPow2(size_t n) {
-  CHECK(n);
-  n--;
-  n |= n >> 1;
-  n |= n >> 2;
-  n |= n >> 4;
-  n |= n >> 8;
-  n |= n >> 16;
-  n |= n >> 32;
-  n++;
-  return n;
+  CHECK(n > 1);
+  return (~size_t{0} >> __builtin_clzll(n - 1)) + 1;
 }
 
 size_t Clamp(size_t min, size_t val, size_t max) { return std::min(max, std::max(min, val)); }
@@ -51,7 +43,7 @@ size_t NextBlockSize(size_t prev_size, size_t req_size, size_t req_alignment) {
     req_size = std::max(req_size, req_alignment);
   }
   if (req_size > kLargeAllocThreshold) return req_size;
-  return std::max(req_size, Clamp(kMinBlockSize, NextPow2(prev_size + 1), kMaxBlockSize));
+  return std::max(req_size, NextPow2(Clamp(kMinBlockSize, prev_size + 1, kMaxBlockSize)));
 }
 
 }  // namespace
