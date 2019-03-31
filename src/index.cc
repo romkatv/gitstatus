@@ -25,6 +25,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <mutex>
 #include <stack>
 
@@ -79,8 +80,16 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
   entries.reserve(128);
   std::vector<const char*> res;
 
-  int dir_fd = -1;
-  ON_SCOPE_EXIT(&) { CHECK(dir_fd < 0 || !close(dir_fd)) << Errno(); };
+  int dir_fd[2] = {-1, -1};
+  auto CloseAll = [&] {
+    for (int& fd : dir_fd) {
+      if (fd >= 0) {
+        CHECK(!close(fd)) << Errno();
+        fd = -1;
+      }
+    }
+  };
+  ON_SCOPE_EXIT(&) { CloseAll(); };
 
   for (; begin != end; ++begin) {
     IndexDir& dir = **begin;
@@ -105,12 +114,13 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       for (size_t p : dir.unmatched) res.push_back(&dir.arena[p]);
     };
 
-    if (dir_fd >= 0 && begin[-1]->depth + 1 == dir.depth) {
-      CHECK(str.StartsWith(dir.path, begin[-1]->path));
-      scratch.assign(dir.path.ptr + begin[-1]->path.len, dir.path.ptr + dir.path.len - 1);
-      int fd = openat(dir_fd, scratch.c_str(), kNoATime | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-      CHECK(!close(dir_fd)) << Errno();
-      dir_fd = fd;
+    ssize_t parent;
+    if (*dir_fd >= 0 && (parent = begin[-1]->depth + 1 - dir.depth) < 2 && dir_fd[parent] >= 0) {
+      CHECK(parent >= 0);
+      std::swap(dir_fd[1], dir_fd[parent]);
+      if (*dir_fd >= 0) CHECK(!close(*dir_fd)) << Errno();;
+      scratch.assign(dir.basename.ptr, dir.basename.len);
+      *dir_fd = openat(dir_fd[1], scratch.c_str(), kNoATime | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     } else {
       if (dir.path.len) {
         CHECK(dir.path.ptr[0] != '/');
@@ -119,23 +129,24 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       } else {
         scratch = ".";
       }
-      if (dir_fd >= 0) CHECK(!close(dir_fd)) << Errno();
-      dir_fd = openat(root_fd, scratch.c_str(), kNoATime | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+      CloseAll();
+      *dir_fd = openat(root_fd, scratch.c_str(), kNoATime | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     }
-    if (dir_fd < 0) {
+    if (*dir_fd < 0) {
+      CloseAll();
       AddUnmached("");
       continue;
     }
 
     if (untracked_cache != Tribool::kUnknown) {
       struct stat st;
-      if (fstat(dir_fd, &st)) {
+      if (fstat(*dir_fd, &st)) {
         AddUnmached("");
         continue;
       }
       if (untracked_cache == Tribool::kTrue && StatEq(st, dir.st)) {
         for (const git_index_entry* file : dir.files) {
-          if (fstatat(dir_fd, Basename(file), &st, AT_SYMLINK_NOFOLLOW)) st = {};
+          if (fstatat(*dir_fd, Basename(file), &st, AT_SYMLINK_NOFOLLOW)) st = {};
           if (IsModified(file, st)) res.push_back(file->path);  // modified
         }
         continue;
@@ -143,7 +154,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       dir.st = st;
     }
 
-    if (!ListDir(dir_fd, scratch, entries)) {
+    if (!ListDir(*dir_fd, scratch, entries)) {
       AddUnmached("");
       continue;
     }
@@ -170,7 +181,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
             res.push_back((*file)->path);  // racy
           } else {
             struct stat st;
-            if (fstatat(dir_fd, entry.ptr, &st, AT_SYMLINK_NOFOLLOW)) st = {};
+            if (fstatat(*dir_fd, entry.ptr, &st, AT_SYMLINK_NOFOLLOW)) st = {};
             if (IsModified(*file, st)) res.push_back((*file)->path);  // modified
           }
           matched = true;
@@ -246,6 +257,7 @@ size_t Index::InitDirs(git_index* index) {
       top->subdirs.push_back(subdir);
       IndexDir* dir = arena_.DirectInit<IndexDir>(&arena_);
       dir->path = StringView(entry->path, p - entry->path + 1);
+      dir->basename = subdir;
       dir->depth = stack.size();
       CHECK(dir->path.ptr[dir->path.len - 1] == '/');
       stack.push(dir);
