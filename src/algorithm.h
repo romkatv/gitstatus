@@ -18,12 +18,13 @@
 #ifndef ROMKATV_GITSTATUS_ALGORITHM_H_
 #define ROMKATV_GITSTATUS_ALGORITHM_H_
 
-#include <string.h>
+#include <string.h>  // because there is no std::strcasecmp in C++
 
 #include <algorithm>
+#include <cstring>
 #include <vector>
 
-#include "str.h"
+#include "string_cmp.h"
 #include "string_view.h"
 
 namespace gitstatus {
@@ -33,7 +34,7 @@ void Sort(std::vector<const char*, A>& v, bool case_sensitive = true) {
   if (case_sensitive) {
     std::qsort(v.data(), v.size(), sizeof(const char*), [](const void* a, const void* b) {
       auto Str = [](const void* p) { return *static_cast<const char* const*>(p); };
-      return strcmp(Str(a), Str(b));
+      return std::strcmp(Str(a), Str(b));
     });
   } else {
     std::qsort(v.data(), v.size(), sizeof(const char*), [](const void* a, const void* b) {
@@ -48,7 +49,7 @@ void Sort(std::vector<StringView, A>& v, bool case_sensitive = true) {
   if (case_sensitive) {
     std::qsort(v.data(), v.size(), sizeof(StringView), [](const void* a, const void* b) {
       auto Str = [](const void* p) { return *static_cast<const StringView*>(p); };
-      return Cmp(Str(a), Str(b));
+      return StrCmp(true)(Str(a), Str(b));
     });
   } else {
     std::qsort(v.data(), v.size(), sizeof(StringView), [](const void* a, const void* b) {

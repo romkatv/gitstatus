@@ -85,10 +85,10 @@ bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries) {
   VERIFY((dir_fd = dup(dir_fd)) >= 0);
   DIR* dir = fdopendir(dir_fd);
   if (!dir) {
-    CHECK(!close(dir_fd));
+    CHECK(!close(dir_fd)) << Errno();
     return false;
   }
-  ON_SCOPE_EXIT(&) { closedir(dir); };
+  ON_SCOPE_EXIT(&) { CHECK(!closedir(dir)) << Errno(); };
   arena.clear();
   entries.clear();
   while (struct dirent* ent = readdir(dir)) {
@@ -106,7 +106,7 @@ bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries) {
 bool ListDir(const char* dirname, std::string& arena, std::vector<size_t>& entries) {
   int dir_fd = open(dirname, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
   if (dir_fd < 0) return false;
-  ON_SCOPE_EXIT(&) { CHECK(!close(dir_fd)); };
+  ON_SCOPE_EXIT(&) { CHECK(!close(dir_fd)) << Errno(); };
   return ListDir(dir_fd, arena, entries);
 }
 

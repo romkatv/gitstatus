@@ -44,12 +44,10 @@
 
 namespace gitstatus {
 
-enum Tribool : int { kFalse = 0, kTrue = 1, kUnknown = -1 };
-
 struct IndexStats {
   bool has_staged = false;
-  Tribool has_unstaged = kUnknown;
-  Tribool has_untracked = kUnknown;
+  Tribool has_unstaged = Tribool::kUnknown;
+  Tribool has_untracked = Tribool::kUnknown;
 };
 
 class Repo {
@@ -76,7 +74,7 @@ class Repo {
   void UpdateShards();
 
   void StartStagedScan(const git_oid* head);
-  void StartDirtyScan(const ArenaVector<const char*>& paths);
+  void StartDirtyScan(const std::vector<const char*>& paths);
 
   void DecInflight();
   void RunAsync(std::function<void()> f);
@@ -94,9 +92,9 @@ class Repo {
   std::atomic<size_t> inflight_{0};
   std::atomic<bool> error_{false};
   std::atomic<bool> staged_{false};
-  std::atomic<bool> unstaged_{false};
-  std::atomic<bool> untracked_{false};
-  std::atomic<Tribool> untracked_cache_{kUnknown};
+  std::atomic<Tribool> unstaged_{Tribool::kUnknown};
+  std::atomic<Tribool> untracked_{Tribool::kUnknown};
+  std::atomic<Tribool> untracked_cache_{Tribool::kUnknown};
 };
 
 }  // namespace gitstatus

@@ -107,7 +107,7 @@ size_t NumStashes(git_repository* repo) {
   return res;
 }
 
-const char* RemoteUrl(git_repository* repo, const git_reference* ref) {
+std::string RemoteUrl(git_repository* repo, const git_reference* ref) {
   git_buf remote_name = {};
   if (git_branch_remote_name(&remote_name, repo, git_reference_name(ref))) return "";
   ON_SCOPE_EXIT(&) { git_buf_free(&remote_name); };
@@ -115,7 +115,7 @@ const char* RemoteUrl(git_repository* repo, const git_reference* ref) {
   git_remote* remote = nullptr;
   switch (git_remote_lookup(&remote, repo, remote_name.ptr)) {
     case 0:
-      return git_remote_url(remote) ?: "";
+      break;
     case GIT_ENOTFOUND:
     case GIT_EINVALIDSPEC:
       return "";
@@ -123,6 +123,10 @@ const char* RemoteUrl(git_repository* repo, const git_reference* ref) {
       LOG(ERROR) << "git_remote_lookup: " << GitError();
       throw Exception();
   }
+
+  std::string res = git_remote_url(remote) ?: "";
+  git_remote_free(remote);
+  return res;
 }
 
 git_reference* Head(git_repository* repo) {
@@ -185,7 +189,7 @@ const char* LocalBranchName(const git_reference* ref) {
 
 Remote GetRemote(git_repository* repo, const git_reference* ref) {
   const char* branch = nullptr;
-  if (!ref || git_branch_name(&branch, ref)) return {};
+  if (git_branch_name(&branch, ref)) return {};
   git_buf remote = {};
   if (git_branch_remote_name(&remote, repo, git_reference_name(ref))) return {};
   ON_SCOPE_EXIT(&) { git_buf_free(&remote); };

@@ -35,14 +35,14 @@
 #include "port.h"
 #include "scope_guard.h"
 #include "stat.h"
-#include "str.h"
+#include "string_cmp.h"
 #include "thread_pool.h"
 
 namespace gitstatus {
 
 namespace {
 
-void CommonDir(const Str& str, const char* a, const char* b, size_t* dir_len, size_t* dir_depth) {
+void CommonDir(Str str, const char* a, const char* b, size_t* dir_len, size_t* dir_depth) {
   *dir_len = 0;
   *dir_depth = 0;
   for (size_t i = 1; str.Eq(*a, *b) && *a; ++i, ++a, ++b) {
@@ -70,9 +70,8 @@ bool IsModified(const git_index_entry* entry, const struct stat& st) {
          int64_t{entry->file_size} != st.st_size;
 }
 
-// TODO: Make me pretty, or at least not fucking ugly.
 std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const* begin,
-                                  IndexDir* const* end, bool untracked_cache) {
+                                  IndexDir* const* end, Tribool untracked_cache) {
   const Str str(git_index_is_case_sensitive(index));
   std::string scratch;
   scratch.reserve(4 << 10);
@@ -81,9 +80,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
   std::vector<const char*> res;
 
   int dir_fd = -1;
-  ON_SCOPE_EXIT(&) {
-    if (dir_fd >= 0) CHECK(!close(dir_fd));
-  };
+  ON_SCOPE_EXIT(&) { CHECK(dir_fd < 0 || !close(dir_fd)) << Errno(); };
 
   for (; begin != end; ++begin) {
     IndexDir& dir = **begin;
@@ -112,7 +109,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       CHECK(str.StartsWith(dir.path, begin[-1]->path));
       scratch.assign(dir.path.ptr + begin[-1]->path.len, dir.path.ptr + dir.path.len - 1);
       int fd = openat(dir_fd, scratch.c_str(), kNoATime | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-      CHECK(!close(dir_fd));
+      CHECK(!close(dir_fd)) << Errno();
       dir_fd = fd;
     } else {
       if (dir.path.len) {
@@ -122,7 +119,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       } else {
         scratch = ".";
       }
-      if (dir_fd >= 0) CHECK(!close(dir_fd));
+      if (dir_fd >= 0) CHECK(!close(dir_fd)) << Errno();
       dir_fd = openat(root_fd, scratch.c_str(), kNoATime | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     }
     if (dir_fd < 0) {
@@ -130,74 +127,75 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       continue;
     }
 
-    struct stat st;
-    if (fstat(dir_fd, &st)) {
-      AddUnmached("");
-      continue;
-    }
-
-    if (untracked_cache && StatEq(st, dir.st)) {
-      for (const git_index_entry* file : dir.files) {
-        struct stat st;
-        if (fstatat(dir_fd, Basename(file), &st, AT_SYMLINK_NOFOLLOW)) st = {};
-        if (IsModified(file, st)) res.push_back(file->path);  // modified
-      }
-    } else {
-      if (!ListDir(dir_fd, scratch, entries)) {
+    if (untracked_cache != Tribool::kUnknown) {
+      struct stat st;
+      if (fstat(dir_fd, &st)) {
         AddUnmached("");
         continue;
       }
+      if (untracked_cache == Tribool::kTrue && StatEq(st, dir.st)) {
+        for (const git_index_entry* file : dir.files) {
+          if (fstatat(dir_fd, Basename(file), &st, AT_SYMLINK_NOFOLLOW)) st = {};
+          if (IsModified(file, st)) res.push_back(file->path);  // modified
+        }
+        continue;
+      }
       dir.st = st;
-      dir.arena.clear();
-      dir.unmatched.clear();
+    }
 
-      std::sort(entries.begin(), entries.end(),
-                [&](size_t a, size_t b) { return str.Lt(&scratch[a], &scratch[b]); });
-      const git_index_entry* const* file = dir.files.data();
-      const git_index_entry* const* file_end = file + dir.files.size();
-      const StringView* subdir = dir.subdirs.data();
-      const StringView* subdir_end = subdir + dir.subdirs.size();
+    if (!ListDir(dir_fd, scratch, entries)) {
+      AddUnmached("");
+      continue;
+    }
+    dir.arena.clear();
+    dir.unmatched.clear();
 
-      for (size_t p : entries) {
-        StringView entry = &scratch[p];
-        bool matched = false;
+    std::sort(entries.begin(), entries.end(),
+              [&](size_t a, size_t b) { return str.Lt(&scratch[a], &scratch[b]); });
+    const git_index_entry* const* file = dir.files.data();
+    const git_index_entry* const* file_end = file + dir.files.size();
+    const StringView* subdir = dir.subdirs.data();
+    const StringView* subdir_end = subdir + dir.subdirs.size();
 
-        for (; file != file_end; ++file) {
-          int cmp = str.Cmp(Basename((*file)), entry);
-          if (cmp < 0) {
-            res.push_back((*file)->path);  // deleted
-          } else if (cmp == 0) {
-            if (git_index_entry_newer_than_index(*file, index)) {
-              res.push_back((*file)->path);  // racy
-            } else {
-              struct stat st;
-              if (fstatat(dir_fd, entry.ptr, &st, AT_SYMLINK_NOFOLLOW)) st = {};
-              if (IsModified(*file, st)) res.push_back((*file)->path);  // modified
-            }
-            matched = true;
-            ++file;
-            break;
+    for (size_t p : entries) {
+      StringView entry(&scratch[p]);
+      bool matched = false;
+
+      for (; file != file_end; ++file) {
+        int cmp = str.Cmp(Basename((*file)), entry);
+        if (cmp < 0) {
+          res.push_back((*file)->path);  // deleted
+        } else if (cmp == 0) {
+          if (git_index_entry_newer_than_index(*file, index)) {
+            res.push_back((*file)->path);  // racy
           } else {
-            break;
+            struct stat st;
+            if (fstatat(dir_fd, entry.ptr, &st, AT_SYMLINK_NOFOLLOW)) st = {};
+            if (IsModified(*file, st)) res.push_back((*file)->path);  // modified
           }
+          matched = true;
+          ++file;
+          break;
+        } else {
+          break;
         }
+      }
 
-        if (matched) continue;
+      if (matched) continue;
 
-        for (; subdir != subdir_end; ++subdir) {
-          int cmp = str.Cmp(*subdir, entry);
-          if (cmp > 0) break;
-          if (cmp == 0) {
-            matched = true;
-            ++subdir;
-            break;
-          }
+      for (; subdir != subdir_end; ++subdir) {
+        int cmp = str.Cmp(*subdir, entry);
+        if (cmp > 0) break;
+        if (cmp == 0) {
+          matched = true;
+          ++subdir;
+          break;
         }
+      }
 
-        if (!matched) {
-          if (entry.ptr[-1] == DT_DIR) scratch[p + entry.len++] = '/';
-          AddUnmached(entry);  // new
-        }
+      if (!matched) {
+        if (entry.ptr[-1] == DT_DIR) scratch[p + entry.len++] = '/';
+        AddUnmached(entry);  // new
       }
     }
   }
@@ -289,45 +287,41 @@ void Index::InitSplits(size_t total_weight) {
   CHECK(std::adjacent_find(splits_.begin(), splits_.end()) == splits_.end());
 }
 
-void Index::GetDirtyCandidates(ArenaVector<const char*>& candidates, bool untracked_cache) {
+std::vector<const char*> Index::GetDirtyCandidates(Tribool untracked_cache) {
   int root_fd = open(root_dir_, kNoATime | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
   VERIFY(root_fd >= 0);
-  ON_SCOPE_EXIT(&) { CHECK(!close(root_fd)); };
+  ON_SCOPE_EXIT(&) { CHECK(!close(root_fd)) << Errno(); };
+
+  CHECK(!splits_.empty());
 
   std::mutex mutex;
   std::condition_variable cv;
   size_t inflight = splits_.size() - 1;
   bool error = false;
-  candidates.clear();
+  std::vector<const char*> res;
 
   for (size_t i = 0; i != splits_.size() - 1; ++i) {
     size_t from = splits_[i];
     size_t to = splits_[i + 1];
 
-    auto F = [&, from, to]() {
+    GlobalThreadPool()->Schedule([&, from, to]() {
       ON_SCOPE_EXIT(&) {
         std::unique_lock<std::mutex> lock(mutex);
         CHECK(inflight);
         if (--inflight == 0) cv.notify_one();
       };
       try {
-        std::vector<const char*> c =
+        std::vector<const char*> candidates =
             ScanDirs(git_index_, root_fd, dirs_.data() + from, dirs_.data() + to, untracked_cache);
-        if (!c.empty()) {
+        if (!candidates.empty()) {
           std::unique_lock<std::mutex> lock(mutex);
-          candidates.insert(candidates.end(), c.begin(), c.end());
+          res.insert(res.end(), candidates.begin(), candidates.end());
         }
       } catch (const Exception&) {
         std::unique_lock<std::mutex> lock(mutex);
         error = true;
       }
-    };
-
-    if (i == splits_.size() - 2) {
-      F();
-    } else {
-      GlobalThreadPool()->Schedule(std::move(F));
-    }
+    });
   }
 
   {
@@ -336,7 +330,8 @@ void Index::GetDirtyCandidates(ArenaVector<const char*>& candidates, bool untrac
   }
 
   VERIFY(!error);
-  Sort(candidates, git_index_is_case_sensitive(git_index_));
+  Sort(res, git_index_is_case_sensitive(git_index_));
+  return res;
 }
 
 }  // namespace gitstatus

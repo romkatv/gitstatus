@@ -81,7 +81,8 @@ Repo::Repo(git_repository* repo) : repo_(repo), tag_db_(repo) {
   GlobalThreadPool()->Schedule([this] {
     bool check = CheckDirMtime(git_repository_path(repo_));
     std::unique_lock<std::mutex> lock(mutex_);
-    untracked_cache_ = check ? kTrue : kFalse;
+    CHECK(Load(untracked_cache_) == Tribool::kUnknown);
+    Store(untracked_cache_, check ? Tribool::kTrue : Tribool::kFalse);
     cv_.notify_one();
   });
 }
@@ -90,7 +91,7 @@ Repo::~Repo() {
   Wait();
   {
     std::unique_lock<std::mutex> lock(mutex_);
-    while (untracked_cache_ == kUnknown) cv_.wait(lock);
+    while (untracked_cache_ == Tribool::kUnknown) cv_.wait(lock);
   }
   if (git_index_) git_index_free(git_index_);
   git_repository_free(repo_);
@@ -98,14 +99,17 @@ Repo::~Repo() {
 
 IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size) {
   Wait();
-  int new_index = 1;
+
   if (git_index_) {
+    int new_index;
     VERIFY(!git_index_read_ex(git_index_, 0, &new_index)) << GitError();
+    if (new_index) index_.reset();
   } else {
     VERIFY(!git_repository_index(&git_index_, repo_)) << GitError();
     // Query an attribute (doesn't matter which) to initialize repo's attribute
     // cache. It's a workaround for synchronization bugs (data races) in libgit2
-    // that result from lazy cache initialization with no synchrnonization whatsoever.
+    // that result from lazy cache initialization without synchrnonization.
+    // Thankfully, subsequent cache reads and writes are properly synchronized.
     const char* attr;
     VERIFY(!git_attr_get(&attr, repo_, 0, "x", "x")) << GitError();
   }
@@ -113,36 +117,42 @@ IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size)
   UpdateShards();
   Store(error_, false);
   Store(staged_, false);
-  Store(unstaged_, false);
-  Store(untracked_, false);
+  Store(unstaged_, Tribool::kUnknown);
+  Store(untracked_, Tribool::kUnknown);
 
-  if (head) StartStagedScan(head);
-
-  Arena arena;
-  ArenaVector<const char*> dirty_candidates(&arena);
+  std::vector<const char*> dirty_candidates;
   const size_t index_size = git_index_entrycount(git_index_);
-  const bool scan_dirty = index_size <= dirty_max_index_size;
 
-  if (scan_dirty) {
-    if (new_index) index_ = std::make_unique<Index>(git_repository_workdir(repo_), git_index_);
-    index_->GetDirtyCandidates(dirty_candidates, Load(untracked_cache_) == kTrue);
-    LOG(INFO) << "Found " << dirty_candidates.size() << " dirty candidate(s)";
+  if (head) {
+    StartStagedScan(head);
+  } else if (index_size > 0) {
+    // An empty repo with non-empty index must have staged changes.
+    Store(staged_, true);
+  }
+
+  if (index_size <= dirty_max_index_size) {
+    Store(unstaged_, Tribool::kFalse);
+    Store(untracked_, Tribool::kFalse);
+    if (!index_) index_ = std::make_unique<Index>(git_repository_workdir(repo_), git_index_);
+    dirty_candidates = index_->GetDirtyCandidates(Load(untracked_cache_));
+    if (dirty_candidates.empty()) {
+      LOG(INFO) << "Clean repo: no dirty candidates";
+    } else {
+      LOG(INFO) << "Found " << dirty_candidates.size() << " dirty candidate(s) spanning from "
+                << dirty_candidates.front() << " to " << dirty_candidates.back();
+    }
     StartDirtyScan(dirty_candidates);
   }
 
   Wait();
   VERIFY(!Load(error_));
 
-  return {
-      // An empty repo with non-empty index must have staged changes since it cannot have unstaged
-      // changes.
-      .has_staged = Load(staged_) || (!head && index_size),
-      .has_unstaged = Load(unstaged_) ? kTrue : scan_dirty ? kFalse : kUnknown,
-      .has_untracked = Load(untracked_) ? kTrue : scan_dirty ? kFalse : kUnknown,
-  };
+  return {.has_staged = Load(staged_),
+          .has_unstaged = Load(unstaged_),
+          .has_untracked = Load(untracked_)};
 }
 
-void Repo::StartDirtyScan(const ArenaVector<const char*>& paths) {
+void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
   if (paths.empty()) return;
 
   git_diff_options opt = GIT_DIFF_OPTIONS_INIT;
@@ -155,15 +165,15 @@ void Repo::StartDirtyScan(const ArenaVector<const char*>& paths) {
     Repo* repo = static_cast<Repo*>(payload);
     if (Load(repo->error_)) return GIT_EUSER;
     if (delta->status == GIT_DELTA_UNTRACKED) {
-      if (!Exchange(repo->untracked_, true)) {
+      if (Exchange(repo->untracked_, Tribool::kTrue) != Tribool::kTrue) {
         LOG(INFO) << "Found untracked file: " << delta->new_file.path;
       }
-      return Load(repo->unstaged_) ? 1 : GIT_EUSER;
+      return Load(repo->unstaged_) == Tribool::kTrue ? GIT_EUSER : 1;
     } else {
-      if (!Exchange(repo->unstaged_, true)) {
+      if (Exchange(repo->unstaged_, Tribool::kTrue) != Tribool::kTrue) {
         LOG(INFO) << "Found unstaged file: " << delta->new_file.path;
       }
-      return Load(repo->untracked_) ? 1 : GIT_EUSER;
+      return Load(repo->untracked_) == Tribool::kTrue ? GIT_EUSER : 1;
     }
   };
 
@@ -179,7 +189,7 @@ void Repo::StartDirtyScan(const ArenaVector<const char*>& paths) {
       opt.range_end = *p;
       ++opt.pathspec.count;
     }
-    RunAsync([&, opt]() mutable {
+    RunAsync([this, opt]() {
       git_diff* diff = nullptr;
       switch (git_diff_index_to_workdir(&diff, repo_, git_index_, &opt)) {
         case 0:

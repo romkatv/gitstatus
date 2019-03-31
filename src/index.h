@@ -31,6 +31,8 @@
 
 namespace gitstatus {
 
+enum class Tribool : int { kFalse = 0, kTrue = 1, kUnknown = -1 };
+
 struct IndexDir {
   explicit IndexDir(Arena* arena) : files(arena), subdirs(arena) {}
 
@@ -48,7 +50,7 @@ class Index {
  public:
   Index(const char* root_dir, git_index* index);
 
-  void GetDirtyCandidates(ArenaVector<const char*>& candidates, bool untracked_cache);
+  std::vector<const char*> GetDirtyCandidates(Tribool untracked_cache);
 
  private:
   size_t InitDirs(git_index* index);

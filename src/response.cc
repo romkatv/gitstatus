@@ -48,7 +48,7 @@ ResponseWriter::~ResponseWriter() {
   if (!done_) {
     strm_.str("");
     SafePrint(strm_, request_id_);
-    Print(0);
+    Print("0");
     Dump("without git status");
   }
 }

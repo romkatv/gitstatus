@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <cassert>
 #include <limits>
 #include <new>
 #include <type_traits>
@@ -30,84 +31,103 @@
 
 namespace gitstatus {
 
-inline __attribute__((always_inline)) size_t Align(size_t n, size_t m) {
-  return (n + m - 1) & ~(m - 1);
-}
-
+// Thread-compatible. Very fast and very flexible w.r.t. allocation size and alignment.
+//
+// Default constructor doesn't allocate any memory. The first call to Allocate() will allocate
+// a small block. Subsequent blocks will be twice as big as the last until they saturate.
+// The saturation threshold and the first block size are defined in NextBlockSize(). These constants
+// can easily be made configurable per arena.
 class Arena {
  public:
+  // Doesn't allocate any memory.
   Arena();
-  Arena(Arena&&) = delete;
+  Arena(Arena&&);
   ~Arena();
 
-  __attribute__((always_inline)) void* Allocate(size_t size, size_t alignment) {
-    uintptr_t p = Align(top->tip, alignment);
+  Arena& operator=(Arena&& other);
+
+  // Requires: alignment is a power of 2.
+  //
+  // Result is never null and always aligned. If size is zero, the result may be equal to the last.
+  // Alignment above alignof(std::max_align_t) is supported. There is no requirement for alignment
+  // to be less than size or to divide it.
+  inline void* Allocate(size_t size, size_t alignment) {
+    assert(alignment && !(alignment & (alignment - 1)));
+    uintptr_t p = Align(top_->tip, alignment);
     uintptr_t e = p + size;
-    if (e <= top->end) {
-      top->tip = e;
+    if (e <= top_->end) {
+      top_->tip = e;
       return reinterpret_cast<void*>(p);
     }
     return AllocateSlow(size, alignment);
   }
 
   template <class T>
-  __attribute__((always_inline)) T* Allocate(size_t n) {
+  inline T* Allocate(size_t n) {
     static_assert(!std::is_reference<T>(), "");
     return static_cast<T*>(Allocate(n * sizeof(T), alignof(T)));
   }
 
   template <class T>
-  __attribute__((always_inline)) T* Allocate() {
+  inline T* Allocate() {
     return Allocate<T>(1);
   }
 
-  __attribute__((always_inline)) char* MemDup(const char* p, size_t len) {
-    char* res = Allocate<char>(len + 1);
+  inline char* MemDup(const char* p, size_t len) {
+    char* res = Allocate<char>(len);
     std::memcpy(res, p, len);
-    res[len] = 0;
     return res;
   }
 
-  __attribute__((always_inline)) StringView StrDup(const char* s) {
+  // Copies the null-terminated string (including the trailing null character) to the arena and
+  // returns a StringView pointing to it.
+  inline StringView StrDup(const char* s) {
     size_t len = std::strlen(s);
-    return StringView(MemDup(s, len), len);
+    return StringView(MemDup(s, len + 1), len);
   }
 
+  inline StringView StrDup(StringView s) { return StringView(MemDup(s.ptr, s.len), s.len); }
+
+  // Copies/moves `val` to the arena and returns a pointer to it.
   template <class T>
-  std::remove_const_t<std::remove_reference_t<T>>* Dup(T&& val) {
+  inline std::remove_const_t<std::remove_reference_t<T>>* Dup(T&& val) {
     return DirectInit<std::remove_const_t<std::remove_reference_t<T>>>(std::forward<T>(val));
   }
 
+  // The same as `new T{args...}` but on the arena.
   template <class T, class... Args>
-  T* DirectInit(Args&&... args) {
+  inline T* DirectInit(Args&&... args) {
     T* res = Allocate<T>();
     ::new (const_cast<void*>(static_cast<const void*>(res))) T(std::forward<Args>(args)...);
     return res;
   }
 
+  // The same as `new T(args...)` but on the arena.
   template <class T, class... Args>
-  T* BraceInit(Args&&... args) {
+  inline T* BraceInit(Args&&... args) {
     T* res = Allocate<T>();
     ::new (const_cast<void*>(static_cast<const void*>(res))) T{std::forward<Args>(args)...};
     return res;
   }
 
  private:
-  enum { kBlockSize = 4 << 10 };
-
   struct Block {
     uintptr_t start;
     uintptr_t tip;
     uintptr_t end;
   };
 
+  inline static size_t Align(size_t n, size_t m) { return (n + m - 1) & ~(m - 1); };
+
   void AddBlock(size_t size);
+
   __attribute__((noinline)) void* AllocateSlow(size_t size, size_t alignment);
 
-  Block* top = nullptr;
   std::vector<Block> blocks_;
+  Block* top_;
 };
 
+// Copies of ArenaAllocator use the same thread-compatible Arena without synchronization.
 template <class T>
 class ArenaAllocator {
  public:
@@ -117,7 +137,7 @@ class ArenaAllocator {
   using reference = T&;
   using const_reference = const T&;
   using size_type = size_t;
-  using difference_type = std::ptrdiff_t;
+  using difference_type = ptrdiff_t;
   using propagate_on_container_move_assignment = std::true_type;
   template <class U>
   struct rebind {
