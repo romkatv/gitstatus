@@ -40,8 +40,8 @@ struct IndexDir {
   StringView basename;
   size_t depth = 0;
   struct stat st = {};
-  ArenaVector<const git_index_entry*> files;
-  ArenaVector<StringView> subdirs;
+  WithArena<std::vector<const git_index_entry*>> files;
+  WithArena<std::vector<StringView>> subdirs;
 
   std::string arena;
   std::vector<size_t> unmatched;
@@ -58,8 +58,8 @@ class Index {
   void InitSplits(size_t total_weight);
 
   Arena arena_;
-  ArenaVector<IndexDir*> dirs_;
-  ArenaVector<size_t> splits_;
+  WithArena<std::vector<IndexDir*>> dirs_;
+  WithArena<std::vector<size_t>> splits_;
   git_index* git_index_;
   const char* root_dir_;
 };
