@@ -37,6 +37,7 @@ struct IndexDir {
   explicit IndexDir(Arena* arena) : files(arena), subdirs(arena) {}
 
   StringView path;
+  StringView basename;
   size_t depth = 0;
   struct stat st = {};
   ArenaVector<const git_index_entry*> files;
