@@ -18,10 +18,10 @@
 #ifndef ROMKATV_GITSTATUS_ARENA_H_
 #define ROMKATV_GITSTATUS_ARENA_H_
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <cassert>
 #include <limits>
 #include <new>
 #include <type_traits>
@@ -172,8 +172,16 @@ class ArenaAllocator {
   Arena& arena_;
 };
 
-template <class T>
-using ArenaVector = std::vector<T, ArenaAllocator<T>>;
+template <class C>
+struct LazyWithArena;
+
+template <template <class, class> class C, class T1, class A>
+struct LazyWithArena<C<T1, A>> {
+  using type = C<T1, ArenaAllocator<typename C<T1, A>::value_type>>;
+};
+
+template <class C>
+using WithArena = typename LazyWithArena<C>::type;
 
 }  // namespace gitstatus
 
