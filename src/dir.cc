@@ -29,6 +29,7 @@
 #endif
 
 #include "check.h"
+#include "port.h"
 #include "scope_guard.h"
 
 namespace gitstatus {
@@ -104,7 +105,7 @@ bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries) {
 #endif
 
 bool ListDir(const char* dirname, std::string& arena, std::vector<size_t>& entries) {
-  int dir_fd = open(dirname, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+  int dir_fd = open(dirname, O_RDONLY | O_DIRECTORY | O_CLOEXEC | kNoATime);
   if (dir_fd < 0) return false;
   ON_SCOPE_EXIT(&) { CHECK(!close(dir_fd)) << Errno(); };
   return ListDir(dir_fd, arena, entries);
