@@ -80,14 +80,17 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
   entries.reserve(128);
   std::vector<const char*> res;
 
-  int dir_fd[2] = {-1, -1};
-  auto CloseAll = [&] {
-    for (int& fd : dir_fd) {
-      if (fd >= 0) {
-        CHECK(!close(fd)) << Errno();
-        fd = -1;
-      }
+  constexpr ssize_t kDirStackSize = 3;
+  int dir_fd[kDirStackSize];
+  std::fill(std::begin(dir_fd), std::end(dir_fd), -1);
+  auto Close = [](int& fd) {
+    if (fd >= 0) {
+      CHECK(!close(fd)) << Errno();
+      fd = -1;
     }
+  };
+  auto CloseAll = [&] {
+    for (int& fd : dir_fd) Close(fd);
   };
   ON_SCOPE_EXIT(&) { CloseAll(); };
 
@@ -114,13 +117,15 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       for (size_t p : dir.unmatched) res.push_back(&dir.arena[p]);
     };
 
-    ssize_t parent;
-    if (*dir_fd >= 0 && (parent = begin[-1]->depth + 1 - dir.depth) < 2 && dir_fd[parent] >= 0) {
-      CHECK(parent >= 0);
-      std::swap(dir_fd[1], dir_fd[parent]);
-      if (*dir_fd >= 0) CHECK(!close(*dir_fd)) << Errno();;
+    ssize_t d;
+    if (*dir_fd >= 0 && (d = begin[-1]->depth + 1 - dir.depth) < kDirStackSize && dir_fd[d] >= 0) {
+      CHECK(d >= 0);
       scratch.assign(dir.basename.ptr, dir.basename.len);
-      *dir_fd = openat(dir_fd[1], scratch.c_str(), kNoATime | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+      int fd = openat(dir_fd[d], scratch.c_str(), kNoATime | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+      for (ssize_t i = 0; i != d; ++i) Close(dir_fd[i]);
+      std::rotate(dir_fd, dir_fd + (d ? d : kDirStackSize) - 1, dir_fd + kDirStackSize);
+      Close(*dir_fd);
+      *dir_fd = fd;
     } else {
       if (dir.path.len) {
         CHECK(dir.path.ptr[0] != '/');
