@@ -35,6 +35,7 @@ class ResponseWriter {
 
   void Print(ssize_t val);
   void Print(StringView val);
+  void Print(const char* val) { Print(StringView(val)); }
 
   void Dump(const char* log);
 

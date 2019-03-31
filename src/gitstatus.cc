@@ -47,11 +47,17 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   Repo* repo = cache.Open(req.dir);
   if (!repo) return;
 
+  // Symbolic reference if and only if the repo is empty.
   git_reference* head = Head(repo->repo());
   if (!head) return;
   ON_SCOPE_EXIT(=) { git_reference_free(head); };
 
+  // Null if and only if the repo is empty.
   const git_oid* head_target = git_reference_target(head);
+
+  // Looking up tags may take some time. Do it in the background while we check for stuff.
+  // Note that GetTagName() doesn't access index, so it'll overlap with index reading and
+  // parsing.
   std::future<std::string> tag = repo->GetTagName(head_target);
   ON_SCOPE_EXIT(&) {
     if (tag.valid()) {
@@ -62,8 +68,8 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
     }
   };
 
-  // Repository working directory.
-  StringView workdir = git_repository_workdir(repo->repo()) ?: "";
+  // Repository working directory. Absolute; no trailing slash. E.g., "/home/romka/gitstatus".
+  StringView workdir(git_repository_workdir(repo->repo()));
   if (workdir.len == 0) return;
   if (workdir.len > 1 && workdir.ptr[workdir.len - 1] == '/') --workdir.len;
   resp.Print(workdir);
@@ -74,49 +80,60 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   // Local branch name (e.g., "master") or empty string if not on a branch.
   resp.Print(LocalBranchName(head));
 
+  // TODO: I'm not sure but it might be possible to specify different tracking remotes for `push`
+  // and `pull`. Figure out if this is true and whether handling of tracking remote in gitstatus is
+  // broken in this case.
+
+  // Tip of the tracking remote or null.
   git_reference* upstream = Upstream(head);
   ON_SCOPE_EXIT(=) {
     if (upstream) git_reference_free(upstream);
   };
 
-  // Remote name, e.g. "upstream" or "origin".
-  Remote remote = GetRemote(repo->repo(), upstream);
+  const Remote remote = upstream ? GetRemote(repo->repo(), upstream) : Remote();
 
-  // Upstream branch name.
+  // Tracking remote branch name (e.g., "master") or empty string if there is no tracking remote.
   resp.Print(remote.branch);
 
-  // Remote Name; e.g. "upstream" or "origin"
+  // Tracking remote name (e.g., "origin") or empty string if there is no tracking remote.
   resp.Print(remote.name);
 
-  // Remote url.
+  // Tracking remote URL or empty string if there is no tracking remote.
   resp.Print(upstream ? RemoteUrl(repo->repo(), upstream) : "");
 
-  // Repository state, A.K.A. action.
+  // Repository state, A.K.A. action. For example, "merge".
   resp.Print(RepoState(repo->repo()));
 
+  // Look for staged, unstaged and untracked. This is where most of the time is spent.
   const IndexStats stats = repo->GetIndexStats(head_target, opts.dirty_max_index_size);
 
-  // 1 if there are staged changes, 0 otherwise.
+  // 1 if there are staged changes, 0 otherwise. In the output of `git status` these are listed
+  // under "changes to be committed".
   resp.Print(stats.has_staged);
-  // 1 if there are unstaged changes, 0 if there aren't, -1 if we don't know.
-  resp.Print(stats.has_unstaged);
-  // 1 if there are untracked changes, 0 if there aren't, -1 if we don't know.
-  resp.Print(stats.has_untracked);
+  // 1 if there are unstaged changes, 0 if there aren't, -1 if we don't know. In the output of
+  // `git status` these are listed under "changes not staged for commit".
+  resp.Print(static_cast<int>(stats.has_unstaged));
+  // 1 if there are untracked files, 0 if there aren't, -1 if we don't know. In the output of
+  // `git status` these are listed under "untracked files".
+  resp.Print(static_cast<int>(stats.has_untracked));
 
   if (upstream) {
-    // Number of commits we are ahead of upstream.
+    // Number of commits we are ahead of upstream. Non-negative integer. If positive, it means
+    // running `git push` will push this many commits.
     resp.Print(CountRange(repo->repo(), git_reference_shorthand(upstream) + "..HEAD"s));
-    // Number of commits we are behind upstream.
+    // Number of commits we are behind upstream. Non-negative integer. If positive, it means
+    // running `git merge FETCH_HEAD` will merge this many commits.
     resp.Print(CountRange(repo->repo(), "HEAD.."s + git_reference_shorthand(upstream)));
   } else {
-    resp.Print(0);
-    resp.Print(0);
+    resp.Print("0");
+    resp.Print("0");
   }
 
-  // Number of stashes.
+  // Number of stashes. Non-negative integer.
   resp.Print(NumStashes(repo->repo()));
 
-  // Tag or empty string.
+  // Tag that points to HEAD (e.g., "v4.2") or empty string if there aren't any. The same as
+  // `git describe --tags --exact-match`.
   resp.Print(tag.get());
 
   resp.Dump("with git status");

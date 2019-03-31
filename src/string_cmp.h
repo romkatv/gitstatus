@@ -15,42 +15,48 @@
 // You should have received a copy of the GNU General Public License
 // along with GitStatus. If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef ROMKATV_GITSTATUS_STR_H_
-#define ROMKATV_GITSTATUS_STR_H_
+#ifndef ROMKATV_GITSTATUS_STRING_CMP_H_
+#define ROMKATV_GITSTATUS_STRING_CMP_H_
 
-#include <ctype.h>
-#include <string.h>
+#include <string.h>  // because there is no std::strcasecmp in C++
+
+#include <algorithm>
+#include <cctype>
+#include <cstddef>
+#include <cstring>
 
 #include "string_view.h"
 
 namespace gitstatus {
 
+// WARNING: These routines assume no embedded null characters in StringView. Violations cause UB.
+
 struct StrCmp {
   explicit StrCmp(bool case_sensitive) : case_sensitive(case_sensitive) {}
 
-  int operator()(char x, char y) const { return case_sensitive ? x - y : tolower(x) - tolower(y); }
+  int operator()(char x, char y) const {
+    return case_sensitive ? x - y : std::tolower(x) - std::tolower(y);
+  }
 
   int operator()(const char* x, const char* y) const {
-    return case_sensitive ? strcmp(x, y) : strcasecmp(x, y);
+    return case_sensitive ? std::strcmp(x, y) : strcasecmp(x, y);
   }
 
   int operator()(StringView x, StringView y) const {
     size_t n = std::min(x.len, y.len);
     int cmp = case_sensitive ? std::memcmp(x.ptr, y.ptr, n) : strncasecmp(x.ptr, y.ptr, n);
     if (cmp) return cmp;
-    return static_cast<int>(x.len) - static_cast<int>(y.len);
+    return static_cast<ssize_t>(x.len) - static_cast<ssize_t>(y.len);
   }
 
   int operator()(StringView x, const char* y) const {
     if (case_sensitive) {
       for (const char *p = x.ptr, *e = p + x.len; p != e; ++p, ++y) {
-        int cmp = *p - *y;
-        if (cmp) return cmp;
+        if (int cmp = *p - *y) return cmp;
       }
     } else {
       for (const char *p = x.ptr, *e = p + x.len; p != e; ++p, ++y) {
-        int cmp = tolower(*p) - tolower(*y);
-        if (cmp) return cmp;
+        if (int cmp = std::tolower(*p) - std::tolower(*y)) return cmp;
       }
     }
     return 0 - *y;
@@ -112,4 +118,4 @@ struct Str {
 
 }  // namespace gitstatus
 
-#endif  // ROMKATV_GITSTATUS_STR_H_
+#endif  // ROMKATV_GITSTATUS_STRING_CMP_H_

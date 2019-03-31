@@ -26,14 +26,34 @@
 
 namespace gitstatus {
 
-// WARNING: Embedded null characters cause UB.
-// WARNING: Strings longer than INT_MAX cause UB.
+// WARNING: StringView must not have embedded null characters. Violations cause UB.
 struct StringView {
   StringView() : StringView("") {}
-  StringView(const std::string& ptr) : StringView(ptr.c_str(), ptr.size()) {}
-  StringView(const char* ptr) : StringView(ptr, ptr ? std::strlen(ptr) : 0) {}
+
+  // Requires: !memchr(s.data(), 0, s.size()).
+  //
+  // WARNING: The existence of this requirement and the fact that this constructor is implicit
+  // means it's dangerous to have std::string instances with embedded null characters anywhere
+  // in the program. If you have an std::string `s` with embedded nulls, an innocent-looking
+  // `F(s)` might perform an implicit conversion to StringView and land you squarely in the
+  // Undefined Behavior land.
+  StringView(const std::string& s) : StringView(s.c_str(), s.size()) {}
+
+  // Requires: !memchr(ptr, 0, len).
   StringView(const char* ptr, size_t len) : ptr(ptr), len(len) {}
+
+  // Requires: end >= begin && !memchr(begin, 0, end - begin).
   StringView(const char* begin, const char* end) : StringView(begin, end - begin) {}
+
+  // Requires: strchr(s, 0) == s + N.
+  template <size_t N>
+  StringView(const char (&s)[N]) : StringView(s, N - 1) {
+    static_assert(N, "");
+  }
+
+  // Explicit because it's the only constructor that isn't O(1).
+  // Are you sure you don't already known the strings's length?
+  explicit StringView(const char* ptr) : StringView(ptr, ptr ? std::strlen(ptr) : 0) {}
 
   bool StartsWith(StringView prefix) const {
     return len >= prefix.len && !std::memcmp(ptr, prefix.ptr, prefix.len);
@@ -47,27 +67,6 @@ inline std::ostream& operator<<(std::ostream& strm, StringView s) {
   if (s.ptr) strm.write(s.ptr, s.len);
   return strm;
 }
-
-inline int Cmp(StringView x, StringView y) {
-  size_t n = std::min(x.len, y.len);
-  int cmp = std::memcmp(x.ptr, y.ptr, n);
-  if (cmp) return cmp;
-  return static_cast<int>(x.len) - static_cast<int>(y.len);
-}
-
-inline int Cmp(StringView x, const char* y) {
-  for (const char *p = x.ptr, *e = p + x.len; p != e; ++p, ++y) {
-    int cmp = *p - *y;
-    if (cmp) return cmp;
-  }
-  return 0 - *y;
-}
-
-inline int Cmp(const char* x, StringView y) { return -Cmp(y, x); }
-
-inline bool operator<(StringView x, StringView y) { return Cmp(x, y) < 0; }
-inline bool operator<(StringView x, const char* y) { return Cmp(x, y) < 0; }
-inline bool operator<(const char* x, StringView y) { return Cmp(x, y) < 0; }
 
 }  // namespace gitstatus
 

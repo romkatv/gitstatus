@@ -20,6 +20,10 @@
 
 namespace gitstatus {
 
+// Similar to `git update-index --test-untracked-cache` but performs all tests
+// in parallel, so the total testing time is one second regardless of the number
+// of tests. It also performs fewer tests because gitstatus imposes fewer
+// requirements on the filesystem in order to take advantage of untracked cache.
 bool CheckDirMtime(const char* root_dir);
 
 }  // namespace gitstatus
