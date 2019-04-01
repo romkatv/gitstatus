@@ -48,7 +48,7 @@ bool Dots(const char* name) {
 
 #ifdef __linux__
 
-bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries) {
+bool ListDir(int dir_fd, std::string& arena, std::vector<const char*>& entries) {
   struct linux_dirent64 {
     ino64_t d_ino;
     off64_t d_off;
@@ -63,6 +63,12 @@ bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries) {
   arena.clear();
   entries.clear();
 
+  ON_SCOPE_EXIT(&) {
+    for (const char*& p : entries) {
+      p = &arena[reinterpret_cast<size_t>(p)];
+    }
+  };
+
   while (true) {
     int n = syscall(SYS_getdents64, dir_fd, buf, kBufSize);
     if (n < 0) return false;
@@ -71,7 +77,7 @@ bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries) {
       auto* ent = reinterpret_cast<linux_dirent64*>(buf + pos);
       if (!Dots(ent->d_name)) {
         arena += ent->d_type;
-        entries.push_back(arena.size());
+        entries.push_back(reinterpret_cast<const char*>(arena.size()));
         arena += ent->d_name;
         arena.append(2, '\0');
       }
@@ -82,7 +88,7 @@ bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries) {
 
 #else
 
-bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries) {
+bool ListDir(int dir_fd, std::string& arena, std::vector<const char*>& entries) {
   VERIFY((dir_fd = dup(dir_fd)) >= 0);
   DIR* dir = fdopendir(dir_fd);
   if (!dir) {
@@ -92,10 +98,15 @@ bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries) {
   ON_SCOPE_EXIT(&) { CHECK(!closedir(dir)) << Errno(); };
   arena.clear();
   entries.clear();
+  ON_SCOPE_EXIT(&) {
+    for (const char*& p : entries) {
+      p = &arena[reinterpret_cast<size_t>(p)];
+    }
+  };
   while (struct dirent* ent = readdir(dir)) {
     if (Dots(ent->d_name)) continue;
     arena += ent->d_type;
-    entries.push_back(arena.size());
+    entries.push_back(reinterpret_cast<const char*>(arena.size()));
     arena += ent->d_name;
     arena.append(2, '\0');
   }
@@ -104,7 +115,7 @@ bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries) {
 
 #endif
 
-bool ListDir(const char* dirname, std::string& arena, std::vector<size_t>& entries) {
+bool ListDir(const char* dirname, std::string& arena, std::vector<const char*>& entries) {
   int dir_fd = open(dirname, O_RDONLY | O_DIRECTORY | O_CLOEXEC | kNoATime);
   if (dir_fd < 0) return false;
   ON_SCOPE_EXIT(&) { CHECK(!close(dir_fd)) << Errno(); };

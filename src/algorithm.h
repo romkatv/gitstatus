@@ -59,6 +59,16 @@ void Sort(std::vector<StringView, A>& v, bool case_sensitive = true) {
   }
 }
 
+// Requires: Iter is a BidirectionalIterator.
+//
+// Returns iterator pointing to the last value in [begin, end) that compares equal to the value, or
+// begin if none compare equal.
+template <class Iter, class T>
+Iter FindLast(Iter begin, Iter end, const T& val) {
+  while (begin != end && !(*--end == val)) {}
+  return end;
+}
+
 }  // namespace gitstatus
 
 #endif  // ROMKATV_GITSTATUS_ALGORITHM_H_
