@@ -116,14 +116,11 @@ std::string TagDb::TagForCommit(const git_oid& oid) {
 
   std::string res;
   std::string arena;
-  std::vector<size_t> entries;
   std::vector<const char*> loose_tags;
   arena.reserve(1 << 10);
-  entries.reserve(128);
+  loose_tags.reserve(128);
 
-  if (ListDir((git_repository_path(repo_) + "refs/tags"s).c_str(), arena, entries)) {
-    loose_tags.resize(entries.size());
-    for (size_t i = 0; i != entries.size(); ++i) loose_tags[i] = &arena[entries[i]];
+  if (ListDir((git_repository_path(repo_) + "refs/tags"s).c_str(), arena, loose_tags)) {
     Sort(loose_tags);
     std::string ref = "refs/tags/";
     size_t prefix_len = ref.size();
@@ -136,7 +133,7 @@ std::string TagDb::TagForCommit(const git_oid& oid) {
     }
   } else {
     arena.clear();
-    entries.clear();
+    loose_tags.clear();
   }
 
   std::vector<const char*> matches;

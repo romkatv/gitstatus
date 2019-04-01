@@ -24,14 +24,14 @@
 
 namespace gitstatus {
 
-// For every x in entries &arena[x] is a null-terminated file name. At -1 offset is its d_type.
+// Every element in entries is a null-terminated file name. At -1 offset is its d_type.
 // After the trailing '\0' there is another '\0' to allow the callers to add trailing '/' if they
-// need to.
+// need to. All entries point into the arena.
 //
 // Returns false on failure. Does not throw. Does not close dir_fd.
-bool ListDir(int dir_fd, std::string& arena, std::vector<size_t>& entries);
+bool ListDir(int dir_fd, std::string& arena, std::vector<const char*>& entries);
 
-bool ListDir(const char* dirname, std::string& arena, std::vector<size_t>& entries);
+bool ListDir(const char* dirname, std::string& arena, std::vector<const char*>& entries);
 
 }  // namespace gitstatus
 
