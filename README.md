@@ -191,9 +191,9 @@ last modification time hasn't changed.
 To summarize, here's what gitstatusd was doing when the CPU profile was captured:
 
 1. `__libc_openat64`: Open every directory for which there are files in the index.
-2. `__GI___fxstat`: Check last modification time of the directory. Since it's the same, this
-   directory has the same list of untracked files as before, which is empty (the repository is
-   clean).
+2. `__GI___fxstat`: Check last modification time of the directory. Since it's the same as on the
+   last scan, this directory has the same list of untracked files as before, which is empty (the
+   repository is clean).
 3. `__GI___fxstatat`: Check last modification time for every file in the index that belongs to this
    directory.
 4. `__libc_close`: Close the file descriptor to the directory.
