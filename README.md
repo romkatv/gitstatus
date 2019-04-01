@@ -203,8 +203,8 @@ Here's how the very first scan of a repository looks like in gitstatusd:
 ![gitstatusd CPU profile (cold)](https://raw.githubusercontent.com/romkatv/gitstatus/master/docs/cpu-profile-gitstatusd-cold.png)
 
 This is a superset of the previous -- hot -- profile, with an extra `syscall` and string sorting for
-directory listing. gitstatusd uses `getdents64` Linux system call directly bypassing the glibc wrapper
-that libgit2 uses. This is 5% faster.
+directory listing. gitstatusd uses `getdents64` Linux system call directly, bypassing the glibc
+wrapper that libgit2 uses. This is 5% faster.
 
 ### Multithreading
 
