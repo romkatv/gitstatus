@@ -66,8 +66,8 @@ In this benchmark all tools were computing the equivalent of `git status`. Lower
 | Tool          |      Cold  |         Hot |
 |---------------|-----------:|------------:|
 | **gitstatus** | **291 ms** | **30.9 ms** |
-| `git status`  |     876 ms |      295 ms |
-| `lg2 status`  |    1730 ms |     1310 ms |
+| git           |     876 ms |      295 ms |
+| lg2           |    1730 ms |     1310 ms |
 
 gitstatusd is substantially faster than the alternatives, especially on hot runs. Note that hot runs
 are of primary importance to the main use case of gitstatus in interactive shells.
@@ -86,8 +86,8 @@ to find tags that resolve to the same commit as `HEAD`. Lower numbers are better
 | Tool          |       Cold  |           Hot |
 |---------------|------------:|--------------:|
 | **gitstatus** | **4.04 ms** | **0.0345 ms** |
-| `git status`  |     18.0 ms |       14.5 ms |
-| `lg2 status`  |      185 ms |       45.2 ms |
+| git           |     18.0 ms |       14.5 ms |
+| lg2           |      185 ms |       45.2 ms |
 
 gitstatusd is once again faster than the alternatives, more so on hot runs.
 
