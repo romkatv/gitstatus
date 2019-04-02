@@ -107,12 +107,25 @@ familiarity with the former but not the with latter. libgit2 has clean, well-doc
 elegant implementation, which makes it so much easier to work with and to analyze performance
 bottlenecks.
 
+### Summary for the impatient
+
+Under the benchmark conditions described above, the equivalent of libgit2's
+`git_diff_index_to_workdir` (the most expensive part of `status` command) is 46.3 times faster in
+gitstatusd. The speedup comes from the following sources.
+
+* gitstatusd uses more efficient data structures and algorithms and employs performance-conscious
+coding style throughout the codebase. This reduces CPU time in userspace by 32x compared to libgit2.
+* gitstatusd uses less expensive system calls and makes fewer of them. This reduces CPU time spent
+in kernel by 1.9x.
+* gitstatusd can utilize multiple cores to scan index and workdir in parallel with almost perfect
+scaling. This reduces total run time by 12.4x while having virtually no effect on total CPU time.
+
 ### Problem statement
 
 The most resource-intensive part of the `status` command is finding the difference between _index_
 and _workdir_ (`git_diff_index_to_workdir` in libgit2). Index is a list of all files in the git
 repository with their last modification times. This is an obvious simplification but it suffices for
-this exposition. On disk index is stored sorted by file path. Here's an example on a git index:
+this exposition. On disk, index is stored sorted by file path. Here's an example of git index:
 
 | File        | Last modification time |
 |-------------|-----------------------:|
