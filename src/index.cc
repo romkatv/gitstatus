@@ -71,6 +71,10 @@ bool IsModified(const git_index_entry* entry, const struct stat& st) {
          int64_t{entry->file_size} != st.st_size;
 }
 
+int OpenDir(int parent_fd, const char* name) {
+  return openat(parent_fd, name, kNoATime | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+}
+
 void OpenTail(int* fds, size_t nfds, int root_fd, StringView dirname) {
   CHECK(fds && nfds && root_fd >= 0);
   std::fill(fds, fds + nfds, -1);
@@ -96,7 +100,7 @@ void OpenTail(int* fds, size_t nfds, int root_fd, StringView dirname) {
 
   for (size_t i = subdirs.size(); i != 1; --i) {
     const char* path = subdirs[i - 1];
-    if ((root_fd = openat(root_fd, path, kNoATime | O_RDONLY | O_DIRECTORY | O_CLOEXEC)) < 0) {
+    if ((root_fd = OpenDir(root_fd, path)) < 0) {
       for (; i != subdirs.size(); ++i) {
         CHECK(!close(fds[i - 1])) << Errno();
         fds[i - 1] = -1;
@@ -141,8 +145,8 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
         dir.st = {};
         dir.arena.clear();
         dir.unmatched.clear();
-      } else {
-        if (str.Eq(basename, StringView(".git/"))) return;
+      } else if (str.Eq(basename, StringView(".git/"))) {
+        return;
       }
       dir.unmatched.push_back(dir.arena.size());
       dir.arena.append(dir.path.ptr, dir.path.len);
@@ -158,21 +162,21 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
     if ((it == begin || (d = it[-1]->depth + 1 - dir.depth) < kDirStackSize) && dir_fd[d] >= 0) {
       CHECK(d >= 0);
       scratch.assign(dir.basename.ptr, dir.basename.len);
-      int fd = openat(dir_fd[d], scratch.c_str(), kNoATime | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+      int fd = OpenDir(dir_fd[d], scratch.c_str());
       for (ssize_t i = 0; i != d; ++i) Close(dir_fd[i]);
       std::rotate(dir_fd, dir_fd + (d ? d : kDirStackSize) - 1, dir_fd + kDirStackSize);
       Close(*dir_fd);
       *dir_fd = fd;
     } else {
+      CloseAll();
       if (dir.path.len) {
         CHECK(dir.path.ptr[0] != '/');
         CHECK(dir.path.ptr[dir.path.len - 1] == '/');
         scratch.assign(dir.path.ptr, dir.path.len - 1);
+        *dir_fd = OpenDir(root_fd, scratch.c_str());
       } else {
-        scratch = ".";
+        VERIFY((*dir_fd = dup(root_fd)) >= 0) << Errno();
       }
-      CloseAll();
-      *dir_fd = openat(root_fd, scratch.c_str(), kNoATime | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     }
     if (*dir_fd < 0) {
       CloseAll();
