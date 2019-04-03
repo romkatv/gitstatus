@@ -215,7 +215,7 @@ Here's how the very first scan of a repository looks like in gitstatusd:
 
 ![gitstatusd CPU profile (cold)](https://raw.githubusercontent.com/romkatv/gitstatus/master/docs/cpu-profile-gitstatusd-cold.png)
 
-(Some glibc functions are mislabel on this profile. `explicit_zero` and `__nss_passwd_lookup` are
+(Some glibc functions are mislabel on this profile. `explicit_bzero` and `__nss_passwd_lookup` are
 in reality `strcmp` and `memcmp`.)
 
 This is a superset of the previous -- hot -- profile, with an extra `syscall` and string sorting for
