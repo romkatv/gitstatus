@@ -19,19 +19,24 @@
 #define ROMKATV_GITSTATUS_DIR_H_
 
 #include <cstddef>
-#include <string>
 #include <vector>
+
+#include "arena.h"
 
 namespace gitstatus {
 
-// Every element in entries is a null-terminated file name. At -1 offset is its d_type.
-// After the trailing '\0' there is another '\0' to allow the callers to add trailing '/' if they
-// need to. All entries point into the arena.
+// On error, returns -1. Does not throw.
 //
-// Returns false on failure. Does not throw. Does not close dir_fd.
-bool ListDir(int dir_fd, std::string& arena, std::vector<const char*>& entries);
-
-bool ListDir(const char* dirname, std::string& arena, std::vector<const char*>& entries);
+// On success, returns the number of elements written to `entries`. Every element is a
+// null-terminated file name. At -1 offset is its d_type. All elements point into the arena.
+// They are sorted either by strcmp or strcasecmp depending on case_sensitive.
+//
+// Does not close dir_fd.
+//
+// The reason this API is so fucked up is performance on Linux. Elsewhere it's 20% slower. For best
+// results, do not clear entries between ListDir() calls to avoid uselessly zeroing memory. And
+// reuse the arena of course.
+ssize_t ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool case_sensitive);
 
 }  // namespace gitstatus
 

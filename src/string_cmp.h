@@ -31,90 +31,121 @@ namespace gitstatus {
 
 // WARNING: These routines assume no embedded null characters in StringView. Violations cause UB.
 
-struct StrCmp {
-  explicit StrCmp(bool case_sensitive) : case_sensitive(case_sensitive) {}
+template <int kCaseSensitive = -1>
+struct StrCmp;
 
-  int operator()(char x, char y) const {
-    return case_sensitive ? x - y : std::tolower(x) - std::tolower(y);
-  }
-
-  int operator()(const char* x, const char* y) const {
-    return case_sensitive ? std::strcmp(x, y) : strcasecmp(x, y);
-  }
-
+template <>
+struct StrCmp<0> {
   int operator()(StringView x, StringView y) const {
     size_t n = std::min(x.len, y.len);
-    int cmp = case_sensitive ? std::memcmp(x.ptr, y.ptr, n) : strncasecmp(x.ptr, y.ptr, n);
+    int cmp = strncasecmp(x.ptr, y.ptr, n);
     if (cmp) return cmp;
     return static_cast<ssize_t>(x.len) - static_cast<ssize_t>(y.len);
   }
 
   int operator()(StringView x, const char* y) const {
-    if (case_sensitive) {
-      for (const char *p = x.ptr, *e = p + x.len; p != e; ++p, ++y) {
-        if (int cmp = *p - *y) return cmp;
-      }
-    } else {
-      for (const char *p = x.ptr, *e = p + x.len; p != e; ++p, ++y) {
-        if (int cmp = std::tolower(*p) - std::tolower(*y)) return cmp;
-      }
+    for (const char *p = x.ptr, *e = p + x.len; p != e; ++p, ++y) {
+      if (int cmp = std::tolower(*p) - std::tolower(*y)) return cmp;
     }
     return 0 - *y;
   }
 
+  int operator()(char x, char y) const { return std::tolower(x) - std::tolower(y); }
+  int operator()(const char* x, const char* y) const { return strcasecmp(x, y); }
   int operator()(const char* x, StringView y) const { return -operator()(y, x); }
-
-  bool case_sensitive;
 };
 
-struct StrLt : private StrCmp {
-  explicit StrLt(bool case_sensitive) : StrCmp(case_sensitive) {}
-
-  bool operator()(char x, char y) const { return StrCmp::operator()(x, y) < 0; }
-  bool operator()(const char* x, const char* y) const { return StrCmp::operator()(x, y) < 0; }
-  bool operator()(StringView x, const char* y) const { return StrCmp::operator()(x, y) < 0; }
-  bool operator()(const char* x, StringView y) const { return StrCmp::operator()(x, y) < 0; }
-  bool operator()(StringView x, StringView y) const { return StrCmp::operator()(x, y) < 0; }
-};
-
-struct StrEq : private StrCmp {
-  explicit StrEq(bool case_sensitive) : StrCmp(case_sensitive) {}
-
-  bool operator()(char x, char y) const { return StrCmp::operator()(x, y) == 0; }
-  bool operator()(const char* x, const char* y) const { return StrCmp::operator()(x, y) == 0; }
-  bool operator()(StringView x, const char* y) const { return StrCmp::operator()(x, y) == 0; }
-  bool operator()(const char* x, StringView y) const { return StrCmp::operator()(x, y) == 0; }
-  bool operator()(StringView x, StringView y) const {
-    return x.len == y.len && StrCmp::operator()(x, y) == 0;
+template <>
+struct StrCmp<1> {
+  int operator()(StringView x, StringView y) const {
+    size_t n = std::min(x.len, y.len);
+    int cmp = std::memcmp(x.ptr, y.ptr, n);
+    if (cmp) return cmp;
+    return static_cast<ssize_t>(x.len) - static_cast<ssize_t>(y.len);
   }
+
+  int operator()(StringView x, const char* y) const {
+    for (const char *p = x.ptr, *e = p + x.len; p != e; ++p, ++y) {
+      if (int cmp = *p - *y) return cmp;
+    }
+    return 0 - *y;
+  }
+
+  int operator()(char x, char y) const { return x - y; }
+  int operator()(const char* x, const char* y) const { return std::strcmp(x, y); }
+  int operator()(const char* x, StringView y) const { return -operator()(y, x); }
 };
 
-struct StrStartsWith {
-  explicit StrStartsWith(bool case_sensitive) : case_sensitive(case_sensitive) {}
+template <>
+struct StrCmp<-1> {
+  explicit StrCmp(bool case_sensitive) : case_sensitive(case_sensitive) {}
 
-  bool operator()(StringView s, StringView prefix) const {
-    if (s.len < prefix.len) return false;
-    return case_sensitive ? std::memcmp(s.ptr, prefix.ptr, prefix.len) == 0
-                          : strncasecmp(s.ptr, prefix.ptr, prefix.len) == 0;
+  template <class X, class Y>
+  int operator()(const X& x, const Y& y) const {
+    return case_sensitive ? StrCmp<1>()(x, y) : StrCmp<0>()(x, y);
   }
 
   bool case_sensitive;
 };
 
+template <int kCaseSensitive = -1>
+struct StrLt : private StrCmp<kCaseSensitive> {
+  using StrCmp<kCaseSensitive>::StrCmp;
+
+  template <class X, class Y>
+  bool operator()(const X& x, const Y& y) const {
+    return StrCmp<kCaseSensitive>::operator()(x, y) < 0;
+  }
+};
+
+template <int kCaseSensitive = -1>
+struct StrEq : private StrCmp<kCaseSensitive> {
+  using StrCmp<kCaseSensitive>::StrCmp;
+
+  template <class X, class Y>
+  bool operator()(const X& x, const Y& y) const {
+    return StrCmp<kCaseSensitive>::operator()(x, y) == 0;
+  }
+
+  bool operator()(const StringView& x, const StringView& y) const {
+    return x.len == y.len && StrCmp<kCaseSensitive>::operator()(x, y) == 0;
+  }
+};
+
+template <int kCaseSensitive = -1>
 struct Str {
+  static_assert(kCaseSensitive == 0 || kCaseSensitive == 1, "");
+
+  static const bool case_sensitive = kCaseSensitive;
+
+  StrCmp<kCaseSensitive> Cmp;
+  StrLt<kCaseSensitive> Lt;
+  StrEq<kCaseSensitive> Eq;
+};
+
+template <int kCaseSensitive>
+const bool Str<kCaseSensitive>::case_sensitive;
+
+template <>
+struct Str<-1> {
   explicit Str(bool case_sensitive)
       : case_sensitive(case_sensitive),
         Cmp(case_sensitive),
         Lt(case_sensitive),
-        Eq(case_sensitive),
-        StartsWith(case_sensitive) {}
+        Eq(case_sensitive) {}
 
   bool case_sensitive;
-  StrCmp Cmp;
-  StrLt Lt;
-  StrEq Eq;
-  StrStartsWith StartsWith;
+
+  StrCmp<-1> Cmp;
+  StrLt<-1> Lt;
+  StrEq<-1> Eq;
 };
+
+
+template <class Iter>
+void StrSort(Iter begin, Iter end, bool case_sensitive) {
+  case_sensitive ? std::sort(begin, end, StrLt<true>()) : std::sort(begin, end, StrLt<false>());
+}
 
 }  // namespace gitstatus
 

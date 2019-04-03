@@ -43,8 +43,8 @@ struct IndexDir {
   WithArena<std::vector<const git_index_entry*>> files;
   WithArena<std::vector<StringView>> subdirs;
 
-  std::string arena;
-  std::vector<size_t> unmatched;
+  Arena arena;
+  std::vector<const char*> unmatched;
 };
 
 class Index {
