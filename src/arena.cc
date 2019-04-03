@@ -26,67 +26,86 @@ namespace gitstatus {
 
 namespace {
 
-size_t NextPow2(size_t n) {
-  CHECK(n > 1);
-  return (~size_t{0} >> __builtin_clzll(n - 1)) + 1;
-}
+size_t NextPow2(size_t n) { return n < 2 ? 1 : (~size_t{0} >> __builtin_clzll(n - 1)) + 1; }
 
 size_t Clamp(size_t min, size_t val, size_t max) { return std::min(max, std::max(min, val)); }
 
-size_t NextBlockSize(size_t prev_size, size_t req_size, size_t req_alignment) {
-  constexpr size_t kMinBlockSize = 64;
-  constexpr size_t kMaxBlockSize = 4 << 10;
-  constexpr size_t kLargeAllocThreshold = 1 << 10;
-  if (req_alignment > alignof(std::max_align_t)) {
-    req_size += req_alignment - 1;
-  } else {
-    req_size = std::max(req_size, req_alignment);
-  }
-  if (req_size > kLargeAllocThreshold) return req_size;
-  return std::max(req_size, NextPow2(Clamp(kMinBlockSize, prev_size + 1, kMaxBlockSize)));
-}
+static const uintptr_t kSingularity = reinterpret_cast<uintptr_t>(&kSingularity);
 
 }  // namespace
 
-Arena::Arena() {
-  static uintptr_t x = reinterpret_cast<uintptr_t>(&x);
-  static Block empty_block = {x, x, x};
-  top_ = &empty_block;
+// Triple singularity. We are all fucked.
+Arena::Block Arena::g_empty_block = {kSingularity, kSingularity, kSingularity};
+
+Arena::Arena(Arena::Options opt) : opt_(std::move(opt)), top_(&g_empty_block) {
+  CHECK(opt_.min_block_size <= opt_.max_block_size);
 }
 
-Arena::Arena(Arena&& other) : Arena() {
-  if (!other.blocks_.empty()) {
-    blocks_.swap(other.blocks_);
-    other.top_ = top_;
-    top_ = &blocks_.back();
-  }
-}
+Arena::Arena(Arena&& other) : Arena() { *this = std::move(other); }
 
 Arena::~Arena() {
-  for (const Block& b : blocks_) delete[] reinterpret_cast<char*>(b.start);
+  for (const Block& b : blocks_) ::operator delete(reinterpret_cast<void*>(b.start), b.size());
 }
 
 Arena& Arena::operator=(Arena&& other) {
   if (this != &other) {
-    blocks_.swap(other.blocks_);
-    std::swap(top_, other.top_);
-    // In case std::vector ever implements small object optimization.
-    if (!blocks_.empty()) top_ = &blocks_.back();
-    if (!other.blocks_.empty()) other.top_ = &other.blocks_.back();
+    // In case std::vector ever gets small object optimization.
+    size_t idx = other.reusable_ ? other.top_ - other.blocks_.data() : 0;
+    opt_ = other.opt_;
+    blocks_ = std::move(other.blocks_);
+    reusable_ = other.reusable_;
+    top_ = reusable_ ? blocks_.data() + idx : &g_empty_block;
+    other.blocks_.clear();
+    other.reusable_ = 0;
+    other.top_ = &g_empty_block;
   }
   return *this;
 }
 
-void Arena::AddBlock(size_t size) {
-  auto p = reinterpret_cast<uintptr_t>(new char[size]);
+void Arena::Reuse(size_t num_blocks) {
+  reusable_ = std::min(reusable_, num_blocks);
+  for (size_t i = reusable_; i != blocks_.size(); ++i) {
+    const Block& b = blocks_[i];
+    ::operator delete(reinterpret_cast<void*>(b.start), b.size());
+  }
+  blocks_.resize(reusable_);
+  top_ = reusable_ ? blocks_.data() : &g_empty_block;
+}
+
+void Arena::AddBlock(size_t size, size_t alignment) {
+  if (alignment > alignof(std::max_align_t)) {
+    size += alignment - 1;
+  } else {
+    size = std::max(size, alignment);
+  }
+  if (size <= top_->size() && top_ < blocks_.data() + reusable_ - 1) {
+    assert(blocks_.front().size() == top_->size());
+    ++top_;
+    top_->tip = top_->start;
+    return;
+  }
+  if (size <= opt_.max_alloc_threshold) {
+    size =
+        std::max(size, Clamp(opt_.min_block_size, NextPow2(top_->size() + 1), opt_.max_block_size));
+  }
+
+  auto p = reinterpret_cast<uintptr_t>(::operator new(size));
   blocks_.push_back(Block{p, p, p + size});
-  top_ = &blocks_.back();
+  if (reusable_) {
+    if (size < blocks_.front().size()) {
+      top_ = &blocks_.back();
+      return;
+    }
+    if (size > blocks_.front().size()) reusable_ = 0;
+  }
+  std::swap(blocks_.back(), blocks_[reusable_]);
+  top_ = &blocks_[reusable_++];
 }
 
 void* Arena::AllocateSlow(size_t size, size_t alignment) {
-  CHECK(alignment && !(alignment & (alignment - 1)));
-  AddBlock(NextBlockSize(top_->end - top_->start, size, alignment));
-  CHECK(Align(top_->tip, alignment) + size <= top_->end);
+  assert(alignment && !(alignment & (alignment - 1)));
+  AddBlock(size, alignment);
+  assert(Align(top_->tip, alignment) + size <= top_->end);
   return Allocate(size, alignment);
 }
 

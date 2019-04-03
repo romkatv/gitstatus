@@ -28,13 +28,13 @@
 #include <iterator>
 #include <utility>
 
-#include "algorithm.h"
 #include "check.h"
 #include "dir.h"
 #include "git.h"
 #include "port.h"
 #include "scope_guard.h"
 #include "stat.h"
+#include "string_cmp.h"
 #include "thread_pool.h"
 #include "timer.h"
 
@@ -101,6 +101,20 @@ bool TagHasTarget(git_repository* repo, git_refdb* refdb, const char* name, cons
   return false;
 }
 
+bool GetLooseTags(git_repository* repo, Arena& arena, std::vector<char*>& tags) {
+  std::string dirname = git_repository_path(repo) + "refs/tags"s;
+  int dir_fd = open(dirname.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | kNoATime);
+  if (dir_fd < 0) return false;
+  ON_SCOPE_EXIT(&) { CHECK(!close(dir_fd)) << Errno(); };
+  ssize_t n = ListDir(dir_fd, arena, tags, /* case_sensitive = */ true);
+  if (n == -1) {
+    tags.clear();
+    return false;
+  }
+  tags.resize(n);
+  return true;
+}
+
 }  // namespace
 
 TagDb::TagDb(git_repository* repo) : repo_(repo) { CHECK(repo); }
@@ -115,13 +129,11 @@ std::string TagDb::TagForCommit(const git_oid& oid) {
   auto StrLt = [](const char* a, const char* b) { return std::strcmp(a, b) < 0; };
 
   std::string res;
-  std::string arena;
-  std::vector<const char*> loose_tags;
-  arena.reserve(1 << 10);
+  Arena arena;
+  std::vector<char*> loose_tags;
   loose_tags.reserve(128);
 
-  if (ListDir((git_repository_path(repo_) + "refs/tags"s).c_str(), arena, loose_tags)) {
-    Sort(loose_tags);
+  if (GetLooseTags(repo_, arena, loose_tags)) {
     std::string ref = "refs/tags/";
     size_t prefix_len = ref.size();
     for (const char* tag : loose_tags) {
@@ -131,9 +143,6 @@ std::string TagDb::TagForCommit(const git_oid& oid) {
         if (res < tag) res = tag;
       }
     }
-  } else {
-    arena.clear();
-    loose_tags.clear();
   }
 
   std::vector<const char*> matches;
@@ -252,7 +261,7 @@ std::vector<const char*> TagDb::ParsePack(const git_oid& commit) {
     }
   }
 
-  Sort(unpeeled_tags_);
+  StrSort(unpeeled_tags_.begin(), unpeeled_tags_.end(), /* case_sensitive = */ true);
 
   sorting_ = true;
   GlobalThreadPool()->Schedule([this] {

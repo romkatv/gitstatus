@@ -33,14 +33,40 @@ namespace gitstatus {
 
 // Thread-compatible. Very fast and very flexible w.r.t. allocation size and alignment.
 //
-// Default constructor doesn't allocate any memory. The first call to Allocate() will allocate
-// a small block. Subsequent blocks will be twice as big as the last until they saturate.
-// The saturation threshold and the first block size are defined in NextBlockSize(). These constants
-// can easily be made configurable per arena.
+// Natural API extensions:
+//
+//   // Donates a block to the arena. When the time comes, it'll be freed with
+//   // free(p, size, userdata).
+//   void Donate(void* p, size_t size, void* userdata, void(*free)(void*, void*));
 class Arena {
  public:
+  struct Options {
+    // The first call to Allocate() will allocate a block of this size. There is one exception when
+    // the first requested allocation size is larger than this limit. Subsequent blocks will be
+    // twice as large as the last until they saturate at max_block_size.
+    size_t min_block_size = 64;
+    // Allocate blocks at most this large. There is one exception when the requested allocation
+    // size is larger than this limit.
+    size_t max_block_size = 4 << 10;
+    // When the size of the first allocation in a block is larger than this threshold, the block
+    // size will be equal to the allocation size. This is meant to reduce memory waste when making
+    // many allocations with sizes slightly over max_block_size / 2. With max_alloc_threshold equal
+    // to max_block_size / N, the upper bound on wasted memory when making many equally-sized
+    // allocations is 100.0 / (N + 1) percent. When making allocations of different sizes, the upper
+    // bound on wasted memory is 50%.
+    size_t max_alloc_threshold = 1 << 10;
+    // Natural extensions:
+    //
+    //   void* userdata;
+    //   void (*alloc)(size_t size, size_t alignment, void* userdata);
+    //   void (*free)(size_t size, void* userdata);
+  };
+
+  // Requires: opt.min_block_size <= opt.max_block_size.
+  //
   // Doesn't allocate any memory.
-  Arena();
+  Arena(Options opt);
+  Arena() : Arena(Options()) {}
   Arena(Arena&&);
   ~Arena();
 
@@ -80,13 +106,19 @@ class Arena {
   }
 
   // Copies the null-terminated string (including the trailing null character) to the arena and
-  // returns a StringView pointing to it.
-  inline StringView StrDup(const char* s) {
+  // returns a pointer to the copy.
+  inline char* StrDup(const char* s) {
     size_t len = std::strlen(s);
-    return StringView(MemDup(s, len + 1), len);
+    return MemDup(s, len + 1);
   }
 
-  inline StringView StrDup(StringView s) { return StringView(MemDup(s.ptr, s.len), s.len); }
+  // Guarantees: !StrDup(p, len)[len].
+  inline char* StrDup(const char* p, size_t len) {
+    char* res = Allocate<char>(len + 1);
+    std::memcpy(res, p, len);
+    res[len] = 0;
+    return res;
+  }
 
   // Copies/moves `val` to the arena and returns a pointer to it.
   template <class T>
@@ -110,8 +142,25 @@ class Arena {
     return res;
   }
 
+  // Tip() and TipSize() allow you to allocate the remainder of the current block. They can be
+  // useful if you are flexible w.r.t. to allocation size.
+  //
+  // Invariant:
+  //
+  //   const void* tip = Tip();
+  //   void* p = Allocate(TipSize(), 1);  // grab the remainder of the current block
+  //   assert(p == tip);
+  const void* Tip() const { return reinterpret_cast<const void*>(top_->tip); }
+  size_t TipSize() const { return top_->end - top_->tip; }
+
+  // Invalidates all allocations (without running destructors of allocated objects) and frees all
+  // blocks except at most the specified number of blocks. The remaining blocks will be used to
+  // fulfil future allocation requests.
+  void Reuse(size_t num_blocks = std::numeric_limits<size_t>::max());
+
  private:
   struct Block {
+    size_t size() const { return end - start; }
     uintptr_t start;
     uintptr_t tip;
     uintptr_t end;
@@ -119,12 +168,19 @@ class Arena {
 
   inline static size_t Align(size_t n, size_t m) { return (n + m - 1) & ~(m - 1); };
 
-  void AddBlock(size_t size);
+  void AddBlock(size_t size, size_t alignment);
+  bool ReuseBlock(size_t size, size_t alignment);
 
   __attribute__((noinline)) void* AllocateSlow(size_t size, size_t alignment);
 
+  Options opt_;
   std::vector<Block> blocks_;
+  // Invariant: reusable_ <= blocks_.size() && (blocks_.empty() || reusable_ > 0).
+  size_t reusable_ = 0;
+  // Invariant: (top_ == &g_empty_block) == blocks_.empty().
   Block* top_;
+
+  static Block g_empty_block;
 };
 
 // Copies of ArenaAllocator use the same thread-compatible Arena without synchronization.
