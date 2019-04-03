@@ -45,9 +45,11 @@ class Arena {
     // the first requested allocation size is larger than this limit. Subsequent blocks will be
     // twice as large as the last until they saturate at max_block_size.
     size_t min_block_size = 64;
+
     // Allocate blocks at most this large. There is one exception when the requested allocation
     // size is larger than this limit.
     size_t max_block_size = 4 << 10;
+
     // When the size of the first allocation in a block is larger than this threshold, the block
     // size will be equal to the allocation size. This is meant to reduce memory waste when making
     // many allocations with sizes slightly over max_block_size / 2. With max_alloc_threshold equal
@@ -55,6 +57,7 @@ class Arena {
     // allocations is 100.0 / (N + 1) percent. When making allocations of different sizes, the upper
     // bound on wasted memory is 50%.
     size_t max_alloc_threshold = 1 << 10;
+
     // Natural extensions:
     //
     //   void* userdata;
@@ -154,7 +157,7 @@ class Arena {
   size_t TipSize() const { return top_->end - top_->tip; }
 
   // Invalidates all allocations (without running destructors of allocated objects) and frees all
-  // blocks except at most the specified number of blocks. The remaining blocks will be used to
+  // blocks except at most the specified number of blocks. The retained blocks will be used to
   // fulfil future allocation requests.
   void Reuse(size_t num_blocks = std::numeric_limits<size_t>::max());
 
