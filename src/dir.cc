@@ -21,7 +21,6 @@
 #include <cstring>
 
 #include <dirent.h>
-#include <endian.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,6 +28,7 @@
 #include <unistd.h>
 
 #ifdef __linux__
+#include <endian.h>
 #include <sys/syscall.h>
 #endif
 
