@@ -69,7 +69,12 @@ void Arena::Reuse(size_t num_blocks) {
     ::operator delete(reinterpret_cast<void*>(b.start), b.size());
   }
   blocks_.resize(reusable_);
-  top_ = reusable_ ? blocks_.data() : &g_empty_block;
+  if (reusable_) {
+    top_ = blocks_.data();
+    top_->tip = top_->start;
+  } else {
+    top_ = &g_empty_block;
+  }
 }
 
 void Arena::AddBlock(size_t size, size_t alignment) {
