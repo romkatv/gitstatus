@@ -193,8 +193,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
     }
 
     arena.Reuse();
-    const ssize_t num_entries = ListDir(*dir_fd, arena, entries, str.case_sensitive);
-    if (num_entries == -1) {
+    if (!ListDir(*dir_fd, arena, entries, str.case_sensitive)) {
       AddUnmached("");
       continue;
     }
@@ -205,13 +204,12 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
     const git_index_entry* const* file_end = file + dir.files.size();
     const StringView* subdir = dir.subdirs.data();
     const StringView* subdir_end = subdir + dir.subdirs.size();
-    const char* const* entry_end = entries.data() + num_entries;
 
-    for (char* const* entry = entries.data(); entry != entry_end; ++entry) {
+    for (char* entry : entries) {
       bool matched = false;
 
       for (; file != file_end; ++file) {
-        int cmp = str.Cmp(Basename(*file), *entry);
+        int cmp = str.Cmp(Basename(*file), entry);
         if (cmp < 0) {
           res.push_back((*file)->path);  // deleted
         } else if (cmp == 0) {
@@ -219,7 +217,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
             res.push_back((*file)->path);  // racy
           } else {
             struct stat st;
-            if (fstatat(*dir_fd, *entry, &st, AT_SYMLINK_NOFOLLOW)) st = {};
+            if (fstatat(*dir_fd, entry, &st, AT_SYMLINK_NOFOLLOW)) st = {};
             if (IsModified(*file, st)) res.push_back((*file)->path);  // modified
           }
           matched = true;
@@ -233,7 +231,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       if (matched) continue;
 
       for (; subdir != subdir_end; ++subdir) {
-        int cmp = str.Cmp(*subdir, *entry);
+        int cmp = str.Cmp(*subdir, entry);
         if (cmp > 0) break;
         if (cmp == 0) {
           matched = true;
@@ -243,8 +241,8 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       }
 
       if (!matched) {
-        StringView basename(*entry);
-        if ((*entry)[-1] == DT_DIR) (*entry)[basename.len++] = '/';
+        StringView basename(entry);
+        if (entry[-1] == DT_DIR) entry[basename.len++] = '/';
         AddUnmached(basename);  // new
       }
     }
