@@ -88,7 +88,7 @@ void SortEntries<false>(char** begin, char** end) {
   std::sort(begin, end, StrLt<false>());
 }
 
-ssize_t ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool case_sensitive) {
+bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool case_sensitive) {
   struct linux_dirent64 {
     ino64_t d_ino;
     off64_t d_off;
@@ -98,24 +98,20 @@ ssize_t ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool case
   };
 
   constexpr size_t kBufSize = 8 << 10;
+  entries.clear();
 
-  size_t res = 0;
   while (true) {
     char* buf = static_cast<char*>(arena.Allocate(kBufSize, alignof(linux_dirent64)));
     // Save 256 bytes for the rainy day.
     int n = syscall(SYS_getdents64, dir_fd, buf, kBufSize - 256);
-    if (n < 0) return -1;
+    if (n < 0) {
+      entries.clear();
+      return false;
+    }
     if (n == 0) break;
     for (int pos = 0; pos < n;) {
       auto* ent = reinterpret_cast<linux_dirent64*>(buf + pos);
-      if (!Dots(ent->d_name)) {
-        if (res == entries.size()) {
-          entries.push_back(ent->d_name);
-        } else {
-          entries[res] = ent->d_name;
-        }
-        ++res;
-      }
+      if (!Dots(ent->d_name)) entries.push_back(ent->d_name);
       pos += ent->d_reclen;
       // It's tempting to bail here if n + sizeof(linux_dirent64) + 512 <= n. After all, there
       // was enough space for another entry but SYS_getdents64 didn't write it, so this must be
@@ -125,17 +121,17 @@ ssize_t ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool case
   }
 
   if (case_sensitive) {
-    SortEntries<true>(entries.data(), entries.data() + res);
+    SortEntries<true>(entries.data(), entries.data() + entries.size());
   } else {
-    SortEntries<false>(entries.data(), entries.data() + res);
+    SortEntries<false>(entries.data(), entries.data() + entries.size());
   }
 
-  return res;
+  return true;
 }
 
 #else
 
-ssize_t ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool case_sensitive) {
+bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool case_sensitive) {
   VERIFY((dir_fd = dup(dir_fd)) >= 0);
   DIR* dir = fdopendir(dir_fd);
   if (!dir) {
@@ -143,23 +139,21 @@ ssize_t ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool case
     return -1;
   }
   ON_SCOPE_EXIT(&) { CHECK(!closedir(dir)) << Errno(); };
-  size_t res = 0;
+  entries.clear();
   while (struct dirent* ent = (errno = 0, readdir(dir))) {
     if (Dots(ent->d_name)) continue;
     size_t len = std::strlen(ent->d_name);
     char* p = arena.Allocate<char>(len + 2);
     *p++ = ent->d_type;
     std::memcpy(p, ent->d_name, len + 1);
-    if (res == entries.size()) {
-      entries.push_back(p);
-    } else {
-      entries[res] = p;
-    }
-    ++res;
+    entries.push_back(p);
   }
-  if (errno) return -1;
-  StrSort(entries.data(), entries.data() + res, case_sensitive);
-  return res;
+  if (errno) {
+    entries.clear();
+    return false;
+  }
+  StrSort(entries.data(), entries.data() + entries.size(), case_sensitive);
+  return true;
 }
 
 #endif

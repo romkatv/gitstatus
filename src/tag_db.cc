@@ -104,15 +104,12 @@ bool TagHasTarget(git_repository* repo, git_refdb* refdb, const char* name, cons
 bool GetLooseTags(git_repository* repo, Arena& arena, std::vector<char*>& tags) {
   std::string dirname = git_repository_path(repo) + "refs/tags"s;
   int dir_fd = open(dirname.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | kNoATime);
-  if (dir_fd < 0) return false;
-  ON_SCOPE_EXIT(&) { CHECK(!close(dir_fd)) << Errno(); };
-  ssize_t n = ListDir(dir_fd, arena, tags, /* case_sensitive = */ true);
-  if (n == -1) {
+  if (dir_fd < 0) {
     tags.clear();
     return false;
   }
-  tags.resize(n);
-  return true;
+  ON_SCOPE_EXIT(&) { CHECK(!close(dir_fd)) << Errno(); };
+  return ListDir(dir_fd, arena, tags, /* case_sensitive = */ true);
 }
 
 }  // namespace

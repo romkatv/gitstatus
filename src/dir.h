@@ -25,18 +25,24 @@
 
 namespace gitstatus {
 
-// On error, returns -1. Does not throw.
+// On error, clears entries and returns false. Does not throw.
 //
-// On success, returns the number of elements written to `entries`. Every element is a
-// null-terminated file name. At -1 offset is its d_type. All elements point into the arena.
-// They are sorted either by strcmp or strcasecmp depending on case_sensitive.
+// On success, fills entries with the names of files from the specified directory and returns true.
+// Every entry is a null-terminated string. At -1 offset is its d_type. All elements point into the
+// arena. They are sorted either by strcmp or strcasecmp depending on case_sensitive.
 //
 // Does not close dir_fd.
 //
-// The reason this API is so fucked up is performance on Linux. Elsewhere it's 20% slower. For best
-// results, do not clear entries between ListDir() calls to avoid uselessly zeroing memory. And
-// reuse the arena of course.
-ssize_t ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool case_sensitive);
+// There are two distinct implementations of ListDir -- one for Linux and another for everything
+// else. The linux-specific implementation is 20% faster.
+//
+// The reason sorting is bundled with directory listing is performance on Linux. The API of
+// getdents64 allows for much faster sorting than what can be done with a plain vector<char*>.
+// For the POSIX implementation there is no need to bundle sorting in this way. In fact, it's
+// done at the end with a generic StrSort() call.
+//
+// For best results, reuse the arena and vector for multiple calls to avoid heap allocations.
+bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool case_sensitive);
 
 }  // namespace gitstatus
 
