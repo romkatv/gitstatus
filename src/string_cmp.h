@@ -141,7 +141,6 @@ struct Str<-1> {
   StrEq<-1> Eq;
 };
 
-
 template <class Iter>
 void StrSort(Iter begin, Iter end, bool case_sensitive) {
   case_sensitive ? std::sort(begin, end, StrLt<true>()) : std::sort(begin, end, StrLt<false>());
