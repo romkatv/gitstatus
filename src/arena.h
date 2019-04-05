@@ -178,9 +178,10 @@ class Arena {
 
   Options opt_;
   std::vector<Block> blocks_;
-  // Invariant: reusable_ <= blocks_.size() && (blocks_.empty() || reusable_ > 0).
+  // Invariant: !blocks_.empty() <= reusable_ && reusable_ <= blocks_.size().
   size_t reusable_ = 0;
   // Invariant: (top_ == &g_empty_block) == blocks_.empty().
+  // Invariant: blocks_.empty() || top_ == &blocks_.back() || top_ < blocks_.data() + reusable_.
   Block* top_;
 
   static Block g_empty_block;
