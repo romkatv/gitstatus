@@ -146,7 +146,7 @@ class Arena {
   }
 
   // Tip() and TipSize() allow you to allocate the remainder of the current block. They can be
-  // useful if you are flexible w.r.t. to allocation size.
+  // useful if you are flexible w.r.t. the allocation size.
   //
   // Invariant:
   //
