@@ -70,7 +70,7 @@ performance score of 100. A twice-as-fast alternative will be 200.
 
 | version |     optimization           |     score |
 |---------|----------------------------|----------:|
-| v1      |                            |     100.0 |
+| v1      | baseline                   |     100.0 |
 | **v2**  | **avoid heap allocations** | **112.7** |
 
 Avoiding heap allocations makes `ListDir()` 12.7% faster. Not bad. As an added bonus, those casts
@@ -113,7 +113,7 @@ This is worth about 3.5% in speed.
 
 | version | optimization                         |     score |
 |---------|--------------------------------------|----------:|
-| v1      |                                      |     100.0 |
+| v1      | baseline                             |     100.0 |
 | v2      | avoid heap allocations               |     112.7 |
 | **v3**  | **open directories with `openat()`** | **116.2** |
 
@@ -197,7 +197,7 @@ How are we doing with this one?
 
 | version | optimization                     |     score |
 |---------|----------------------------------|----------:|
-| v1      |                                  |     100.0 |
+| v1      | baseline                         |     100.0 |
 | v2      | avoid heap allocations           |     112.7 |
 | v3      | open directories with `openat()` |     116.2 |
 | **v4**  | **call `getdents64()` directly** | **137.8** |
@@ -296,7 +296,7 @@ faster.
 
 | version | optimization                     |     score |
 |---------|----------------------------------|----------:|
-| v1      |                                  |     100.0 |
+| v1      | baseline                         |     100.0 |
 | v2      | avoid heap allocations           |     112.7 |
 | v3      | open directories with `openat()` |     116.2 |
 | v4      | call `getdents64()` directly     |     137.8 |
