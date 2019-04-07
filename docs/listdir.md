@@ -2,8 +2,9 @@
 
 In order to find untracked files in a git repository,
 [gitstatusd](https://github.com/romkatv/gitstatus) needs to list the contents of every directory.
-The implementation of `ListDir()` in gitstatusd is about 40% faster than a simple POSIX-based
-implementation. This document explains the optimizations that went into it.
+gitstatusd does it 27% faster than a reasonable implementation that a seasoned C/C++ practitioner
+might write. This document explains the optimizations that went into it. As directory listing is a
+common operation, many other projects can benefit from applying these optimizations.
 
 ## v1
 
@@ -306,13 +307,15 @@ Fast and respectably arcane.
 
 ## Conclusion
 
-Through a series of incremental improvements we've sped up `ListDir()` by 43.3% on an artificial
-benchmark.
+Through a series of incremental improvements we've sped up directory listing by 43.3% compared to a
+naive implementation (v1) and 27.2% compared to a reasonable implementation that a seasoned C/C++
+practitioner might write (v2).
 
-However, the real judge is the real code. Our goal was to speed up gitstatusd. Benchmark was just a
-tool. Thankfully, the different versions of `ListDir()` have the same comparative performance within
-gitstatusd as in the benchmark. The reason is that the benchmark wasn't arbitrary, but chosen from
-sampling gitstatusd when it runs on [chromium](https://github.com/chromium/chromium) git repository.
+However, these numbers are based on an artificial benchmarks while the real judge is always the real
+code. Our goal was to speed up gitstatusd. Benchmark was just a tool. Thankfully, the different
+versions of `ListDir()` have the same comparative performance within gitstatusd as in the benchmark.
+In truth, the benchmark wasn't arbitrary. It was chosen from sampling gitstatusd when it runs on
+[chromium](https://github.com/chromium/chromium) git repository.
 
 `ListDir()` spends 97% of its CPU time in the kernel. If we assume that it makes the minimum
 possible number of system calls and these calls are optimal, it puts the upper bound on possible
