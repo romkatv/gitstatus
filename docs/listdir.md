@@ -225,7 +225,7 @@ back to Insertion Sort.
 If we cannot make fewer comparisons, perhaps we can make each of them faster? `strcmp()` compares
 characters one at a time. It cannot read ahead as it can be illegal to touch memory past the first
 null byte. But _we_ know that it's safe to read a few extra bytes past the end of `d_name` for every
-entry except the last in the buffer. And since we own the buffer, we can overalocate it so that
+entry except the last in the buffer. And since we own the buffer, we can overallocate it so that
 reading past the end of the last entry is also safe.
 
 Combining these ideas with the fact that file names on Linux are at most 255 bytes long, we can
