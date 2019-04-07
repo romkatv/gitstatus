@@ -221,7 +221,7 @@ in reality `strcmp` and `memcmp`.)
 This is a superset of the previous -- hot -- profile, with an extra `syscall` and string sorting for
 directory listing. gitstatusd uses `getdents64` Linux system call directly, bypassing the glibc
 wrapper that libgit2 uses. This is 23% faster. The details of this optimization can be found in a
-[separate document](https://raw.githubusercontent.com/romkatv/gitstatus/master/docs/listdir.md).
+[separate document](https://github.com/romkatv/gitstatus/blob/master/docs/listdir.md).
 
 ### Multithreading
 
