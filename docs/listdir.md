@@ -235,7 +235,7 @@ int n = syscall(SYS_getdents64, dir_fd, buf, Arena::kBlockSize - 256);
 
 And then compare entries like this:
 
-```
+```c++
 [](const char* a, const char* b) { return memcmp(a, b, 255) < 0; }
 ```
 
