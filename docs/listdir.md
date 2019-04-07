@@ -36,8 +36,8 @@ a helper function `Dots()`.
 bool Dots(const char* s) { return s[0] == '.' && (!s[1] || (s[1] == '.' && !s[2])); }
 ```
 
-To check how fast this function performs, we can run it many times on a typical directory. One
-million runs on a directory with 32 files with 16-character names takes 12.7 seconds.
+To check how fast `ListDir()` performs, we can run it many times on a typical directory. One million
+runs on a directory with 32 files with 16-character names takes 12.7 seconds.
 
 ## v2
 
