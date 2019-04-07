@@ -41,8 +41,9 @@ million runs on a directory with 32 files with 16-character names takes 12.7 sec
 
 ## v2
 
-Returning `vector<string>` is convenient but costly. To avoid heap allocations we can use a simple
-arena that will allow us to reuse memory between different `ListDir()` calls.
+Experienced C++ practitioners will scoff at our implementation of `ListDir()`. If it's meant to be
+efficient, returning `vector<string>` is an unaffordable convenience. To avoid heap allocations we
+can use a simple arena that will allow us to reuse memory between different `ListDir()` calls.
 
 (Changed and added lines are marked with comments.)
 
