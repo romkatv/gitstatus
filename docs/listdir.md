@@ -122,7 +122,7 @@ This is worth about 3.5% in speed.
 ## v4
 
 Copying file names to the arena isn't free but it doesn't seem like we can avoid it. Poking around
-we can see that the POSIX API we are using is implemented on Linux on top of `gitdents64` system
+we can see that the POSIX API we are using is implemented on Linux on top of `getdents64` system
 call. Its documentation isn't very encouraging:
 
 ```text
