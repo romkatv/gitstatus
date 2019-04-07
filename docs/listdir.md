@@ -204,9 +204,9 @@ How are we doing with this one?
 | v3      | open directories with `openat()` |     116.2 |
 | **v4**  | **call `getdents64()` directly** | **137.8** |
 
-Solid 20% speedup. Worth the trouble. Unfortunately, we now have just one cast instead of two, and
-it's not nearly as scary-looking. Hopefully with the next iteration we can get back some of that
-evil vibe of low-level code.
+Solid 20% speedup. Worth the trouble. Unfortunately, we now have just one `reinterpret_cast` instead
+of two, and it's not nearly as scary-looking. Hopefully with the next iteration we can get back some
+of that evil vibe of low-level code.
 
 As a bonus, every element in `entries` has `d_type` at offset -1. This can be useful to the callers
 that need to distinguish between regular files and directories (gitstatusd, in fact, needs this).
