@@ -67,7 +67,7 @@ void ListDir(const char* dirname, string& arena, vector<char*>& entries) {  // +
 }
 ```
 
-To make performance comparions easier, we can normalize them relative to the baseline. v1 will get
+To make performance comparison easier, we can normalize them relative to the baseline. v1 will get
 performance score of 100. A twice-as-fast alternative will be 200.
 
 | version |     optimization           |     score |
@@ -133,7 +133,7 @@ documents the bare kernel system call interfaces.
 Note: There are no glibc wrappers for these system calls.
 ```
 
-Hm... The API looks like something we can take advantage of, so let's try it anyway.
+Hmm... The API looks like something we can take advantage of, so let's try it anyway.
 
 First, we'll need a simple `Arena` class that can allocate 8KB blocks of memory.
 
