@@ -248,6 +248,12 @@ first 5 bytes one by one, and only then switch to comparing 8 bytes at a time. I
 first 5 bytes ourselves, we can pass aligned memory to `memcmp()` and take full advantage of its
 vectorized loop.
 
+The last 8 bytes of `memcmp()` can be aligned similarily by passing the size of 256 bytes instead of
+255 bytes. This allows the trailing code in `memcmp()` that processes bytes one-by-one after the
+vectorized loop to be eliminated. This code never executes because the vectorized loop will always
+terminate early (all file names differ in the first 255 bytes), so it's nice if it doesn't have to
+be emitted.
+
 Here's the implementation:
 
 ```c++
@@ -286,7 +292,7 @@ void ListDir(int parent_fd, Arena& arena, vector<char*>& entries) {
   sort(entries.begin(), entries.end(), [](const char* a, const char* b) {
     uint64_t x = Read64(a);                                                               // +
     uint64_t y = Read64(b);                                                               // +
-    return x < y || (x == y && a != b && memcmp(a + 5, b + 5, 255 - 5) < 0);              // +
+    return x < y || (x == y && a != b && memcmp(a + 5, b + 5, 256) < 0);                  // +
   });
   for (char* p : entries) ByteSwap64(p);                                                  // +
   close(dir_fd);
