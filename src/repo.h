@@ -39,6 +39,7 @@
 
 #include "check.h"
 #include "index.h"
+#include "string_cmp.h"
 #include "tag_db.h"
 #include "time.h"
 
@@ -67,6 +68,7 @@ class Repo {
 
  private:
   struct Shard {
+    bool Contains(Str<> str, StringView path) const;
     std::string start;
     std::string end;
   };
