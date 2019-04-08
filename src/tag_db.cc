@@ -31,7 +31,6 @@
 #include "check.h"
 #include "dir.h"
 #include "git.h"
-#include "port.h"
 #include "scope_guard.h"
 #include "stat.h"
 #include "string_cmp.h"
@@ -103,7 +102,7 @@ bool TagHasTarget(git_repository* repo, git_refdb* refdb, const char* name, cons
 
 bool GetLooseTags(git_repository* repo, Arena& arena, std::vector<char*>& tags) {
   std::string dirname = git_repository_path(repo) + "refs/tags"s;
-  int dir_fd = open(dirname.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | kNoATime);
+  int dir_fd = open(dirname.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
   if (dir_fd < 0) {
     tags.clear();
     return false;
@@ -185,7 +184,7 @@ bool TagDb::UpdatePack(const git_oid& commit, std::vector<const char*>& match) {
   try {
     while (true) {
       LOG(INFO) << "Parsing " << pack_path;
-      int fd = open(pack_path.c_str(), kNoATime | O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+      int fd = open(pack_path.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
       VERIFY(fd >= 0);
       ON_SCOPE_EXIT(&) { CHECK(!close(fd)) << Errno(); };
       pack_.resize(st.st_size + 1);

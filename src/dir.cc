@@ -33,7 +33,6 @@
 #endif
 
 #include "check.h"
-#include "port.h"
 #include "scope_guard.h"
 #include "string_cmp.h"
 
