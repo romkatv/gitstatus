@@ -77,6 +77,13 @@ T Exchange(std::atomic<T>& x, T v) {
 
 }  // namespace
 
+bool Repo::Shard::Contains(Str<> str, StringView path) const {
+  if (str.Lt(path, start)) return false;
+  if (end.empty()) return true;
+  path.len = std::min(path.len, end.size());
+  return !str.Lt(end, path);
+}
+
 Repo::Repo(git_repository* repo) : repo_(repo), tag_db_(repo) {
   GlobalThreadPool()->Schedule([this] {
     bool check = CheckDirMtime(git_repository_path(repo_));
@@ -184,8 +191,8 @@ void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
     opt.range_end = *p;
     opt.pathspec.strings = const_cast<char**>(&*p);
     opt.pathspec.count = 1;
-    while (str.Lt(*p, shard->start) || (!shard->end.empty() && str.Lt(shard->end, *p))) ++shard;
-    while (++p != paths.end() && (shard->end.empty() || !str.Lt(shard->end, *p))) {
+    while (!shard->Contains(str, StringView(*p))) ++shard;
+    while (++p != paths.end() && shard->Contains(str, StringView(*p))) {
       opt.range_end = *p;
       ++opt.pathspec.count;
     }
