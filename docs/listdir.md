@@ -286,7 +286,7 @@ void ListDir(int parent_fd, Arena& arena, vector<char*>& entries) {
   sort(entries.begin(), entries.end(), [](const char* a, const char* b) {
     uint64_t x = Read64(a);                                                               // +
     uint64_t y = Read64(b);                                                               // +
-    return x < y || (x == y && a != b && memcmp(a + 5, b + 5, 256) < 0);                  // +
+    return x < y || (x == y && a != b && memcmp(a + 5, b + 5, 255 - 5) < 0);              // +
   });
   for (char* p : entries) ByteSwap64(p);                                                  // +
   close(dir_fd);
