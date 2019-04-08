@@ -67,7 +67,7 @@ void ListDir(const char* dirname, string& arena, vector<char*>& entries) {  // +
 }
 ```
 
-To make performance comparions easier, we can normalize them relative to the baseline. v1 will get
+To make performance comparison easier, we can normalize them relative to the baseline. v1 will get
 performance score of 100. A twice-as-fast alternative will be 200.
 
 | version |     optimization           |     score |
@@ -82,7 +82,7 @@ will fend off the occasional frontend developer who accidentally wanders into th
 
 `opendir()` is an expensive call whose performance is linear in the number of subdirectories in the
 path because it needs to perform a lookup for every one of them. We can replace it with `openat()`,
-which takes a file destriptor to the parent directory and a name of the subdirectory. Just a single
+which takes a file descriptor to the parent directory and a name of the subdirectory. Just a single
 lookup, less CPU time. This optimization assumes that callers already have a descriptor to the
 parent directory, which is indeed the case for gitstatusd, and is often the case in other
 applications that traverse filesystem.
@@ -133,7 +133,7 @@ documents the bare kernel system call interfaces.
 Note: There are no glibc wrappers for these system calls.
 ```
 
-Hm... The API looks like something we can take advantage of, so let's try it anyway.
+Hmm... The API looks like something we can take advantage of, so let's try it anyway.
 
 First, we'll need a simple `Arena` class that can allocate 8KB blocks of memory.
 
