@@ -39,7 +39,7 @@ produce output in the same format. It does perform the same computation though.
 
 The following benchmark results were obtained on Intel i9-7900X running Ubuntu 18.04 in
 a clean [chromium](https://github.com/chromium/chromium) repository synced to `9394e49a`. The
-repository was checked out to an ext4 filesysem on M.2 SSD.
+repository was checked out to an ext4 filesystem on M.2 SSD.
 
 Three functionally equivalent tools for computing git status were benchmarked:
 
@@ -181,7 +181,7 @@ files) -- that's 25k `stat()` calls that could be avoided. The second reason is 
 gitstatusd use different flavors of `stat()`. libgit2 uses `lstat()`, which takes a path to the file
 as input. Its performance is linear in the number of subdirectories in the path because it needs to
 perform a lookup for every one of them and to check permissions. gitstatusd uses `fstatat()`, which
-takes a file destriptor to the parent directory and a name of the file. Just a single lookup, less
+takes a file descriptor to the parent directory and a name of the file. Just a single lookup, less
 CPU time.
 
 Similarly to `lstat()` vs `fstatat()`, it's faster to open files and directories with `openat()`
@@ -191,7 +191,7 @@ of the directories (this depends on the actual directory structure of the reposi
 immediate parent -- the most efficient way -- and the remaining 10% it opens from the repository's
 root directory. The reason it's done this way is to keep the maximum number of simultaneously open
 file descriptors bounded. libgit2 can have O(repository depth) simultaneously open file descriptors,
-which may be OK for a single-threaded application but can baloon to a large number when scans are
+which may be OK for a single-threaded application but can balloon to a large number when scans are
 done by many threads simultaneously, like in gitstatusd.
 
 There is no equivalent to `__opendir` or `__readdir` in the gitstatusd profile because it uses the
