@@ -323,3 +323,6 @@ possible number of system calls and these calls are optimal, it puts the upper b
 future performance improvements at just 3%.
 
 ![ListDir() CPU profile](https://raw.githubusercontent.com/romkatv/gitstatus/master/docs/cpu-profile-listdir.png)
+
+(The CPU profile was created with [gperftools](https://github.com/gperftools/gperftools) and
+rendered with [pprof](https://github.com/google/pprof)).
