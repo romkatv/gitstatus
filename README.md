@@ -94,7 +94,7 @@ gitstatusd is once again faster than the alternatives, more so on hot runs.
 ## Why fast
 
 Since gitstatusd doesn't have to print all staged/unstaged/untracked files but only report
-wheather there are any, it can terminate repository scan early. It can also remember which files
+whether there are any, it can terminate repository scan early. It can also remember which files
 were dirty on the previous run and check them first on the next run to avoid the scan entirely if
 the files are still dirty. However, the benchmarks above were performed in a clean repository where
 these shortcuts do not trigger. All benchmarked tools had to do the same work -- check the status
@@ -262,7 +262,7 @@ _WARNING: Changes to libgit2 are extensive but the testing they underwent isn't.
 ## Compiling
 
 There are prebuilt `gitstatusd` binaries in
-[bin](https://github.com/romkatv/gitstatus/tree/master/bin). When using ZSH bindings privided by
+[bin](https://github.com/romkatv/gitstatus/tree/master/bin). When using ZSH bindings provided by
 `gitstatus.plugin.zsh`, the right binary for your architecture is picked up automatically.
 
 If precompiled binaries don't work for you, you'll need to get your hands dirty.
