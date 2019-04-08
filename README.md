@@ -150,6 +150,9 @@ profile from 200 hot runs over chromium repository.
 
 ![libgit2 CPU profile (hot)](https://raw.githubusercontent.com/romkatv/gitstatus/master/docs/cpu-profile-libgit2.png)
 
+(The CPU profile was created with [gperftools](https://github.com/gperftools/gperftools) and
+rendered with [pprof](https://github.com/google/pprof)).
+
 We can see `__GI__lxstat` taking a lot of time. This is the `stat()` call for every file in the
 index. We can also identify `__opendir`, `__readdir` and `__GI___close_nocancel` -- glibc wrappers
 for reading the contents of a directory. This is for finding untracked files. Out of the total 232
