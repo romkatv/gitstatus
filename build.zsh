@@ -40,7 +40,7 @@ function prepare() {
 
 function build_libgit2() {
   cd $DIR
-  git clone $LIBGIT2_REPO_URL
+  git clone --depth 1 $LIBGIT2_REPO_URL
   mkdir libgit2/build
   cd libgit2/build
   cmake                        \
@@ -59,7 +59,7 @@ function build_libgit2() {
 
 function build_gitstatus() {
   cd $DIR
-  git clone $GITSTATUS_REPO_URL
+  git clone --depth 1 $GITSTATUS_REPO_URL
   cd gitstatus
   local cxxflags=${CXXFLAGS:-''}
   local ldflags=${LDFLAGS:-''}
