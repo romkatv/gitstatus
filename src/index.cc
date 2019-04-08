@@ -33,7 +33,6 @@
 #include "check.h"
 #include "dir.h"
 #include "index.h"
-#include "port.h"
 #include "scope_guard.h"
 #include "stat.h"
 #include "string_cmp.h"
@@ -72,7 +71,7 @@ bool IsModified(const git_index_entry* entry, const struct stat& st) {
 }
 
 int OpenDir(int parent_fd, const char* name) {
-  return openat(parent_fd, name, kNoATime | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+  return openat(parent_fd, name, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
 }
 
 void OpenTail(int* fds, size_t nfds, int root_fd, StringView dirname, Arena& arena) {
@@ -340,7 +339,7 @@ void Index::InitSplits(size_t total_weight) {
 }
 
 std::vector<const char*> Index::GetDirtyCandidates(Tribool untracked_cache) {
-  int root_fd = open(root_dir_, kNoATime | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+  int root_fd = open(root_dir_, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
   VERIFY(root_fd >= 0);
   ON_SCOPE_EXIT(&) { CHECK(!close(root_fd)) << Errno(); };
 

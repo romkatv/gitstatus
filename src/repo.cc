@@ -37,7 +37,6 @@
 #include "check_dir_mtime.h"
 #include "dir.h"
 #include "git.h"
-#include "port.h"
 #include "scope_guard.h"
 #include "stat.h"
 #include "string_cmp.h"
