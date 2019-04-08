@@ -247,6 +247,8 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
         AddUnmached(basename);  // new
       }
     }
+
+    for (; file != file_end; ++file) res.push_back((*file)->path);  // deleted
   }
 
   return res;
