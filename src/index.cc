@@ -183,8 +183,13 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       }
       if (untracked_cache == Tribool::kTrue && StatEq(st, dir.st)) {
         for (const git_index_entry* file : dir.files) {
-          if (fstatat(*dir_fd, Basename(file), &st, AT_SYMLINK_NOFOLLOW)) st = {};
-          if (IsModified(file, st)) res.push_back(file->path);  // modified or deleted
+          if (git_index_entry_newer_than_index(file, index)) {
+            res.push_back(file->path);  // racy
+          } else if (fstatat(*dir_fd, Basename(file), &st, AT_SYMLINK_NOFOLLOW)) {
+            res.push_back(file->path);  // deleted
+          } else if (IsModified(file, st)) {
+            res.push_back(file->path);  // modified
+          }
         }
         res.insert(res.end(), dir.unmatched.begin(), dir.unmatched.end());
         continue;
