@@ -48,7 +48,7 @@ class Arena {
 
     // Allocate blocks at most this large. There is one exception when the requested allocation
     // size is larger than this limit.
-    size_t max_block_size = 4 << 10;
+    size_t max_block_size = 8 << 10;
 
     // When the size of the first allocation in a block is larger than this threshold, the block
     // size will be equal to the allocation size. This is meant to reduce memory waste when making
