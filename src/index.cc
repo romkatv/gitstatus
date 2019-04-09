@@ -55,19 +55,21 @@ void CommonDir(Str<> str, const char* a, const char* b, size_t* dir_len, size_t*
 
 size_t Weight(const IndexDir& dir) { return 1 + dir.subdirs.size() + dir.files.size(); }
 
-mode_t Mode(mode_t mode) {
+mode_t Mode(mode_t mode, mode_t other, bool trust_filemode, bool has_symlinks) {
   if (S_ISREG(mode)) {
-    mode_t perm = mode & 0111 ? 0755 : 0644;
-    return S_IFREG | perm;
+    if (!has_symlinks && S_ISLNK(other)) return other;
+    if (!trust_filemode) return other;
+    return S_IFREG | (mode & 0111 ? 0755 : 0644);
   }
   return mode & S_IFMT;
 }
 
-bool IsModified(const git_index_entry* entry, const struct stat& st) {
-  return entry->mtime.seconds != MTim(st).tv_sec ||
+bool IsModified(const git_index_entry* entry, const struct stat& st, bool trust_filemode,
+                bool has_symlinks) {
+  return GIT_INDEX_ENTRY_STAGE(entry) > 0 || entry->mtime.seconds != MTim(st).tv_sec ||
          int64_t{entry->mtime.nanoseconds} != MTim(st).tv_nsec || entry->ino != st.st_ino ||
-         entry->mode != Mode(st.st_mode) || entry->gid != st.st_gid ||
-         int64_t{entry->file_size} != st.st_size;
+         entry->mode != Mode(st.st_mode, entry->mode, trust_filemode, has_symlinks) ||
+         entry->gid != st.st_gid || int64_t{entry->file_size} != st.st_size;
 }
 
 int OpenDir(int parent_fd, const char* name) {
@@ -111,7 +113,10 @@ void OpenTail(int* fds, size_t nfds, int root_fd, StringView dirname, Arena& are
 
 std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const* begin,
                                   IndexDir* const* end, Tribool untracked_cache) {
+  const bool trust_filemode = git_index_is_filemode_trustworthy(index);
+  const bool has_symlinks = git_index_supports_symlinks(index);
   const Str<> str(git_index_is_case_sensitive(index));
+
   Arena arena;
   std::vector<const char*> dirty_candidates;
   std::vector<char*> entries;
@@ -192,7 +197,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
             AddCandidate("racy", file->path);
           } else if (fstatat(*dir_fd, Basename(file), &st, AT_SYMLINK_NOFOLLOW)) {
             AddCandidate("deleted", file->path);
-          } else if (IsModified(file, st)) {
+          } else if (IsModified(file, st, trust_filemode, has_symlinks)) {
             AddCandidate("modified", file->path);
           }
         }
@@ -227,8 +232,11 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
             AddCandidate("racy", (*file)->path);
           } else {
             struct stat st;
-            if (fstatat(*dir_fd, entry, &st, AT_SYMLINK_NOFOLLOW)) st = {};
-            if (IsModified(*file, st)) AddCandidate("modified", (*file)->path);
+            if (fstatat(*dir_fd, entry, &st, AT_SYMLINK_NOFOLLOW)) {
+              AddCandidate("unreadable", (*file)->path);
+            } else if (IsModified(*file, st, trust_filemode, has_symlinks)) {
+              AddCandidate("modified", (*file)->path);
+            }
           }
           matched = true;
           ++file;
