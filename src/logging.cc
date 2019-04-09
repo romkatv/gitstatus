@@ -34,6 +34,8 @@ std::mutex g_log_mutex;
 
 const char* Str(Severity severity) {
   switch (severity) {
+    case DEBUG:
+      return "DEBUG";
     case INFO:
       return "INFO";
     case WARN:
