@@ -2,7 +2,7 @@ APPNAME ?= gitstatusd
 
 CXX ?= g++
 
-CXXFLAGS += -std=c++14 -funsigned-char -O3 -DNDEBUG -Wall -Werror # -g -fsanitize=thread
+CXXFLAGS += -std=c++14 -funsigned-char -O3 -DNDEBUG -Wall -Werror -DGITSTATUS_MIN_LOG_LVL=INFO # -g -fsanitize=thread
 LDFLAGS += -pthread # -fsanitize=thread
 LDLIBS += -lgit2 # -lprofiler -lunwind
 
