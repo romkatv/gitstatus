@@ -112,7 +112,7 @@ void OpenTail(int* fds, size_t nfds, int root_fd, StringView dirname, Arena& are
 std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const* begin,
                                   IndexDir* const* end, Tribool untracked_cache) {
   const Str<> str(git_index_is_case_sensitive(index));
-  Arena arena({.min_block_size = 8 << 10, .max_block_size = 8 << 10});
+  Arena arena;
   std::vector<const char*> dirty_candidates;
   std::vector<char*> entries;
   entries.reserve(128);
