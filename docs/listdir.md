@@ -88,10 +88,10 @@ parent directory, which is indeed the case for gitstatusd, and is often the case
 applications that traverse filesystem.
 
 ```c++
-void ListDir(int parent_fd, const char* dirname, string& arena, vector<char*>& entries) {  // +
+void ListDir(int parent_fd, const char* dirname, string& arena, vector<char*>& entries) {   // +
   entries.clear();
-  int dir_fd = openat(root_fd, dirname, O_NOATIME | O_RDONLY | O_DIRECTORY | O_CLOEXEC);   // +
-  if (dir_fd < 0) return;                                                                  // +
+  int dir_fd = openat(parent_fd, dirname, O_NOATIME | O_RDONLY | O_DIRECTORY | O_CLOEXEC);  // +
+  if (dir_fd < 0) return;                                                                   // +
   if (DIR* dir = fdopendir(dir_fd)) {
     arena.clear();
     while (struct dirent* ent = (errno = 0, readdir(dir))) {
@@ -105,9 +105,9 @@ void ListDir(int parent_fd, const char* dirname, string& arena, vector<char*>& e
     sort(entries.begin(), entries.end(),
          [](const char* a, const char* b) { return strcmp(a, b) < 0; });
     closedir(dir);
-  } else {                                                                                 // +
-    close(dir_fd);                                                                         // +
-  }                                                                                        // +
+  } else {                                                                                  // +
+    close(dir_fd);                                                                          // +
+  }                                                                                         // +
 }
 ```
 
@@ -173,7 +173,7 @@ Finally we can get to the implementation of `ListDir()`.
 ```c++
 void ListDir(int parent_fd, Arena& arena, vector<char*>& entries) {                       // +
   entries.clear();
-  int dir_fd = openat(root_fd, dirname, O_NOATIME | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+  int dir_fd = openat(parent_fd, dirname, O_NOATIME | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
   if (dir_fd < 0) return;
   arena.Clear();                                                                          // +
   while (true) {                                                                          // +
@@ -264,7 +264,7 @@ void ByteSwap64(void* p) {                                                      
 
 void ListDir(int parent_fd, Arena& arena, vector<char*>& entries) {
   entries.clear();
-  int dir_fd = openat(root_fd, dirname, O_NOATIME | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+  int dir_fd = openat(parent_fd, dirname, O_NOATIME | O_RDONLY | O_DIRECTORY | O_CLOEXEC);
   if (dir_fd < 0) return;
   arena.Clear();
   while (true) {
