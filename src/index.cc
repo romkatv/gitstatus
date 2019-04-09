@@ -113,9 +113,14 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
                                   IndexDir* const* end, Tribool untracked_cache) {
   const Str<> str(git_index_is_case_sensitive(index));
   Arena arena({.min_block_size = 8 << 10, .max_block_size = 8 << 10});
-  std::vector<const char*> res;
+  std::vector<const char*> dirty_candidates;
   std::vector<char*> entries;
   entries.reserve(128);
+
+  auto AddCandidate = [&](const char* kind, const char* path) {
+    LOG(DEBUG) << "Dirty candidate (" << kind << "): " << path;
+    dirty_candidates.push_back(path);
+  };
 
   constexpr ssize_t kDirStackSize = 5;
   int dir_fd[kDirStackSize];
@@ -148,7 +153,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       std::memcpy(path + dir.path.len, basename.ptr, basename.len);
       path[dir.path.len + basename.len] = 0;
       dir.unmatched.push_back(path);
-      res.push_back(path);
+      AddCandidate(basename.len ? "new" : "unreadable", path);
     };
 
     ssize_t d = 0;
@@ -184,14 +189,14 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       if (untracked_cache == Tribool::kTrue && StatEq(st, dir.st)) {
         for (const git_index_entry* file : dir.files) {
           if (git_index_entry_newer_than_index(file, index)) {
-            res.push_back(file->path);  // racy
+            AddCandidate("racy", file->path);
           } else if (fstatat(*dir_fd, Basename(file), &st, AT_SYMLINK_NOFOLLOW)) {
-            res.push_back(file->path);  // deleted
+            AddCandidate("deleted", file->path);
           } else if (IsModified(file, st)) {
-            res.push_back(file->path);  // modified
+            AddCandidate("modified", file->path);
           }
         }
-        res.insert(res.end(), dir.unmatched.begin(), dir.unmatched.end());
+        for (const char* path : dir.unmatched) AddCandidate("new", path);
         continue;
       }
       dir.st = st;
@@ -216,14 +221,14 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       for (; file != file_end; ++file) {
         int cmp = str.Cmp(Basename(*file), entry);
         if (cmp < 0) {
-          res.push_back((*file)->path);  // deleted
+          AddCandidate("deleted", (*file)->path);
         } else if (cmp == 0) {
           if (git_index_entry_newer_than_index(*file, index)) {
-            res.push_back((*file)->path);  // racy
+            AddCandidate("racy", (*file)->path);
           } else {
             struct stat st;
             if (fstatat(*dir_fd, entry, &st, AT_SYMLINK_NOFOLLOW)) st = {};
-            if (IsModified(*file, st)) res.push_back((*file)->path);  // modified
+            if (IsModified(*file, st)) AddCandidate("modified", (*file)->path);
           }
           matched = true;
           ++file;
@@ -248,14 +253,14 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       if (!matched) {
         StringView basename(entry);
         if (entry[-1] == DT_DIR) entry[basename.len++] = '/';
-        AddUnmached(basename);  // new
+        AddUnmached(basename);
       }
     }
 
-    for (; file != file_end; ++file) res.push_back((*file)->path);  // deleted
+    for (; file != file_end; ++file) AddCandidate("deleted", (*file)->path);
   }
 
-  return res;
+  return dirty_candidates;
 }
 
 }  // namespace
