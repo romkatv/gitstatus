@@ -42,10 +42,11 @@ namespace gitstatus {
 namespace internal_logging {
 
 enum Severity {
-  INFO = 0,
-  WARN = 1,
-  ERROR = 2,
-  FATAL = 3,
+  DEBUG = 0,
+  INFO = 1,
+  WARN = 2,
+  ERROR = 3,
+  FATAL = 4,
 };
 
 struct Assignable {
