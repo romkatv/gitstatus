@@ -175,7 +175,7 @@ bool TagDb::UpdatePack(const git_oid& commit, std::vector<const char*>& match) {
 
   std::string pack_path = git_repository_path(repo_) + "packed-refs"s;
   struct stat st;
-  if (lstat(pack_path.c_str(), &st)) {
+  if (stat(pack_path.c_str(), &st)) {
     Reset();
     return false;
   }
@@ -184,7 +184,7 @@ bool TagDb::UpdatePack(const git_oid& commit, std::vector<const char*>& match) {
   try {
     while (true) {
       LOG(INFO) << "Parsing " << pack_path;
-      int fd = open(pack_path.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+      int fd = open(pack_path.c_str(), O_RDONLY | O_CLOEXEC);
       VERIFY(fd >= 0);
       ON_SCOPE_EXIT(&) { CHECK(!close(fd)) << Errno(); };
       pack_.resize(st.st_size + 1);
