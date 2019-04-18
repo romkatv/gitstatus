@@ -312,15 +312,16 @@ Through a series of incremental improvements we've sped up directory listing by 
 naive implementation (v1) and 27.2% compared to a reasonable implementation that a seasoned C/C++
 practitioner might write (v2).
 
-However, these numbers are based on an artificial benchmarks while the real judge is always the real
+However, these numbers are based on an artificial benchmark while the real judge is always the real
 code. Our goal was to speed up gitstatusd. Benchmark was just a tool. Thankfully, the different
 versions of `ListDir()` have the same comparative performance within gitstatusd as in the benchmark.
 In truth, the directory chosen for the benchmark wasn't arbitrary. It was picked by sampling
 gitstatusd when it runs on [chromium](https://github.com/chromium/chromium) git repository.
 
-`ListDir()` spends 97% of its CPU time in the kernel. If we assume that it makes the minimum
-possible number of system calls and these calls are optimal, it puts the upper bound on possible
-future performance improvements at just 3%.
+The final version of `ListDir()` spends 97% of its CPU time in the kernel. If we assume that it
+makes the minimum possible number of system calls and these calls are optimal (true to the best
+of my knowledge), it puts the upper bound on possible future performance improvements at just 3%.
+There is almost nothing left in `ListDir()` to optimize.
 
 ![ListDir() CPU profile](https://raw.githubusercontent.com/romkatv/gitstatus/master/docs/cpu-profile-listdir.png)
 
