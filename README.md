@@ -365,6 +365,14 @@ VCS_STATUS_WORKDIR=/home/romka/.oh-my-zsh/custom/plugins/gitstatus
 
 gitstatusd will terminate when you exit zsh from which it was started.
 
+### Bash bindings
+
+There are no official bash bindings for `gitstatusd`. There is, however, an incomplete port
+of ZSH bindings that can be used as a starting point. It can be found in
+[bash-prompt-example.sh](https://github.com/romkatv/gitstatus/blob/master/bash-prompt-example.sh).
+
+A more complete port of the gitstatus ZSH API to bash would be a most welcome contribution.
+
 ## License
 
 GNU General Public License v3.0. See
