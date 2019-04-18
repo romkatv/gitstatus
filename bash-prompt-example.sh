@@ -83,6 +83,7 @@ function gitstatus_query() {
   VCS_STATUS_TAG="${resp[15]}"
 }
 
+# This is an example showing how gitstatus_query can be used to put git info into PS1.
 function gitstatus_prompt() {
   shopt -u promptvars
   PS1="\w"
