@@ -333,6 +333,10 @@ is support for synchronous and asynchronous requests.
 
 #### Example
 
+For an example of using gitstatus in `PROMPT`, see
+[zsh-prompt-example.zsh](https://github.com/romkatv/gitstatus/blob/master/zsh-prompt-example.zsh).
+See below how to explore the data gitstatus produces.
+
 Start gitstatusd, send it a request, wait for response and print it.
 
 ```zsh
