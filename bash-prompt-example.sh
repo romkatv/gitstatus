@@ -7,7 +7,7 @@
 #
 # Example prompt:
 #
-#   ~/powerlevel10k master+!
+#   ~/powerlevel10k master+!? ⇡2 ⇣3 *4
 #   ❯
 #
 # Meaning:
@@ -16,6 +16,10 @@
 #   * master          -- current git branch
 #   * +               -- git repo has changes staged for commit
 #   * !               -- git repo has unstaged changes
+#   * ?               -- git repo has untracked files
+#   * ⇡2              -- local branch is ahead of origin by 2 commits
+#   * ⇣3              -- local branch is behind origin by 3 commits
+#   * *4              -- git repo has 4 stashes
 #
 # This code uses `gitstatusd` directly, whose API has no backward compatibility
 # guarantees.
@@ -163,23 +167,39 @@ function gitstatus_query() {
 
 # This is an example showing how gitstatus_query can be used to put git info into PS1.
 #
-# Sets GIT_PROMPT to reflect the state of the current git repository (empty if not in
+# Sets GITSTATUS_PROMPT to reflect the state of the current git repository (empty if not in
 # a git repository).
 function update_git_prompt() {
-  GIT_PROMPT=""
+  GITSTATUS_PROMPT=""
 
   # Call gitstatus_query synchronously with 5s timeout.
   gitstatus_query -t 5                  || return 1  # error
   [[ "$VCS_STATUS_RESULT" == ok-sync ]] || return 0  # not a git repo
 
-  GIT_PROMPT=" ${VCS_STATUS_LOCAL_BRANCH:-@${VCS_STATUS_COMMIT}}"
-  [[ -n "$VCS_STATUS_TAG"               ]] && GIT_PROMPT+="#${VCS_STATUS_TAG}"
-  [[ "$VCS_STATUS_HAS_STAGED"      == 1 ]] && GIT_PROMPT+="+"
-  [[ "$VCS_STATUS_HAS_UNSTAGED"    == 1 ]] && GIT_PROMPT+="!"
-  [[ "$VCS_STATUS_HAS_UNTRACKED"   == 1 ]] && GIT_PROMPT+="?"
-  [[ "$VCS_STATUS_COMMITS_AHEAD"  -gt 0 ]] && GIT_PROMPT+=" ⇡${VCS_STATUS_COMMITS_AHEAD}"
-  [[ "$VCS_STATUS_COMMITS_BEHIND" -gt 0 ]] && GIT_PROMPT+=" ⇣${VCS_STATUS_COMMITS_BEHIND}"
-  [[ "$VCS_STATUS_STASHES"        -gt 0 ]] && GIT_PROMPT+=" *${VCS_STATUS_STASHES}"
+  local     reset=$'\e[0m'         # no color
+  local     clean=$'\e[38;5;076m'  # green foreground
+  local untracked=$'\e[38;5;014m'  # teal foreground
+  local  modified=$'\e[38;5;011m'  # yellow foreground
+
+  local p
+  if (( VCS_STATUS_HAS_STAGED || VCS_STATUS_HAS_UNSTAGED )); then
+    p+="$modified"
+  elif (( VCS_STATUS_HAS_UNTRACKED )); then
+    p+="$untracked"
+  else
+    p+="$clean"
+  fi
+  p+="${VCS_STATUS_LOCAL_BRANCH:-@${VCS_STATUS_COMMIT}}"
+
+  [[ -n "$VCS_STATUS_TAG"               ]] && p+="#${VCS_STATUS_TAG}"
+  [[ "$VCS_STATUS_HAS_STAGED"      == 1 ]] && p+="${modified}+"
+  [[ "$VCS_STATUS_HAS_UNSTAGED"    == 1 ]] && p+="${modified}!"
+  [[ "$VCS_STATUS_HAS_UNTRACKED"   == 1 ]] && p+="${untracked}?"
+  [[ "$VCS_STATUS_COMMITS_AHEAD"  -gt 0 ]] && p+="${clean} ⇡${VCS_STATUS_COMMITS_AHEAD}"
+  [[ "$VCS_STATUS_COMMITS_BEHIND" -gt 0 ]] && p+="${clean} ⇣${VCS_STATUS_COMMITS_BEHIND}"
+  [[ "$VCS_STATUS_STASHES"        -gt 0 ]] && p+="${clean} *${VCS_STATUS_STASHES}"
+
+  GITSTATUS_PROMPT="${reset}${p}${reset}"
 }
 
 # Start gitstatusd in the background.
@@ -187,4 +207,4 @@ gitstatus_start
 
 shopt -s promptvars
 PROMPT_COMMAND=update_git_prompt
-PS1='\w${GIT_PROMPT}\n❯ '
+PS1='\w${GITSTATUS_PROMPT:+ }${GITSTATUS_PROMPT}\n❯ '
