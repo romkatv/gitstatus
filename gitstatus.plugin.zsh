@@ -192,7 +192,7 @@ function gitstatus_start() {
   local lock_file req_fifo resp_fifo log_file
   local -i lock_fd=-1 req_fd=-1 resp_fd=-1 daemon_pid=-1
 
-  function start() {
+  function gitstatus_start_impl() {
     lock_file=$(mktemp "${TMPDIR:-/tmp}"/gitstatus.$$.lock.XXXXXXXXXX)
     zsystem flock -f lock_fd $lock_file
 
@@ -254,12 +254,13 @@ function gitstatus_start() {
     add-zsh-hook zshexit _gitstatus_cleanup_${ZSH_SUBSHELL}_${daemon_pid}
   }
 
-  start && {
+  gitstatus_start_impl && {
     typeset -g    GITSTATUS_DAEMON_LOG_${name}=$log_file
     typeset -gi   GITSTATUS_DAEMON_PID_${name}=$daemon_pid
     typeset -giH _GITSTATUS_REQ_FD_${name}=$req_fd
     typeset -giH _GITSTATUS_RESP_FD_${name}=$resp_fd
     typeset -giH _GITSTATUS_CLIENT_PID_${name}=$$
+    unset -f gitstatus_start_impl
   } || {
     echo "gitstatus failed to initialize" >&2 || true
     [[ $daemon_pid -gt 0 ]] && kill -- -$daemon_pid &>/dev/null || true
@@ -267,6 +268,7 @@ function gitstatus_start() {
     [[ $req_fd -ge 0 ]] && exec {req_fd}>&- || true
     [[ $resp_fd -ge 0 ]] && { zle -F $resp_fd || true } && { exec {resp_fd}>&- || true}
     command rm -f $lock_file $req_fifo $resp_fifo || true
+    unset -f gitstatus_start_impl
     return 1
   }
 }
