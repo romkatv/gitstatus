@@ -21,14 +21,16 @@
 # from the same directory where the current script resides otherwise.
 source ${GITSTATUS_DIR:-${${(%):-%x}:h}}/gitstatus.plugin.zsh
 
+# Sets GIT_PROMPT to reflect the state of the current git repository (empty if not
+# in a git repository).
 function update_git_prompt() {
   emulate -L zsh
   typeset -g GIT_PROMPT=""
 
   # Call gitstatus_query synchronously with 5s timeout. Note that gitstatus_query
   # can also be called asynchronously; see documentation in gitstatus.plugin.zsh
-  gitstatus_query -t 5 MY || return
-  [[ $VCS_STATUS_RESULT == ok-sync ]] || return  # not a git repo
+  gitstatus_query -t 5 MY             || return 1  # error
+  [[ $VCS_STATUS_RESULT == ok-sync ]] || return 0  # not a git repo
 
   GIT_PROMPT+=" "
   GIT_PROMPT+="${VCS_STATUS_LOCAL_BRANCH:-@${VCS_STATUS_COMMIT}}"
@@ -48,5 +50,4 @@ gitstatus_start MY
 autoload -Uz add-zsh-hook
 add-zsh-hook precmd update_git_prompt
 setopt nopromptbang prompt{cr,percent,sp,subst}
-
 PROMPT=$'%~${GIT_PROMPT}\n❯ '
