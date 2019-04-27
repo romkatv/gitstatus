@@ -32,15 +32,14 @@ function update_git_prompt() {
   gitstatus_query -t 5 MY             || return 1  # error
   [[ $VCS_STATUS_RESULT == ok-sync ]] || return 0  # not a git repo
 
-  GIT_PROMPT+=" "
-  GIT_PROMPT+="${VCS_STATUS_LOCAL_BRANCH:-@${VCS_STATUS_COMMIT}}"
-  [[ -n $VCS_STATUS_TAG ]] && GIT_PROMPT+="#${VCS_STATUS_TAG}"
-  [[ $VCS_STATUS_HAS_STAGED == 1 ]] && GIT_PROMPT+="+"
-  [[ $VCS_STATUS_HAS_UNSTAGED == 1 ]] && GIT_PROMPT+="!"
-  [[ $VCS_STATUS_HAS_UNTRACKED == 1 ]] && GIT_PROMPT+="?"
-  [[ $VCS_STATUS_COMMITS_AHEAD -gt 0 ]] && GIT_PROMPT+=" ⇡${VCS_STATUS_COMMITS_AHEAD}"
+  GIT_PROMPT=" ${VCS_STATUS_LOCAL_BRANCH:-@${VCS_STATUS_COMMIT}}"
+  [[ -n $VCS_STATUS_TAG               ]] && GIT_PROMPT+="#${VCS_STATUS_TAG}"
+  [[ $VCS_STATUS_HAS_STAGED      == 1 ]] && GIT_PROMPT+="+"
+  [[ $VCS_STATUS_HAS_UNSTAGED    == 1 ]] && GIT_PROMPT+="!"
+  [[ $VCS_STATUS_HAS_UNTRACKED   == 1 ]] && GIT_PROMPT+="?"
+  [[ $VCS_STATUS_COMMITS_AHEAD  -gt 0 ]] && GIT_PROMPT+=" ⇡${VCS_STATUS_COMMITS_AHEAD}"
   [[ $VCS_STATUS_COMMITS_BEHIND -gt 0 ]] && GIT_PROMPT+=" ⇣${VCS_STATUS_COMMITS_BEHIND}"
-  [[ $VCS_STATUS_STASHES -gt 0 ]] && GIT_PROMPT+=" *${VCS_STATUS_STASHES}"
+  [[ $VCS_STATUS_STASHES        -gt 0 ]] && GIT_PROMPT+=" *${VCS_STATUS_STASHES}"
 }
 
 # Start gitstatusd instance with name "MY". The same name is passed to

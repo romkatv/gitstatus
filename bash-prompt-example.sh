@@ -43,9 +43,9 @@ function gitstatus_start() {
 
   local daemon="$GITSTATUS_DAEMON"
   if [[ -z "$daemon" ]]; then
-    local os && os=$(uname -s) && [[ -n "$os" ]]       || return
-    local arch && arch=$(uname -m) && [[ -n "$arch" ]] || return
-    local dir && dir=$(dirname "${BASH_SOURCE[0]}")    || return
+    local os   &&   os=$(uname -s)                    || return
+    local arch && arch=$(uname -m)                    || return
+    local dir  &&  dir=$(dirname "${BASH_SOURCE[0]}") || return
     daemon="$dir/bin/gitstatusd-${os,,}-${arch,,}"
   fi
 
@@ -74,11 +74,11 @@ function gitstatus_start() {
     echo -nE $'hello\x1f\x1e' >&$GITSTATUS_REQ_FD                              &&
     IFS='' read -rd $'\x1e' -u $GITSTATUS_RESP_FD -t5 reply                    &&
     [[ "$reply" == $'hello\x1f0' ]] || {
-      [[ "$daemon_pid" -gt 0 ]]        && kill "$daemon_pid" &>/dev/null
-      [[ "$GITSTATUS_REQ_FD" -gt 0 ]]  && exec {GITSTATUS_REQ_FD}>&-
+      [[ "$daemon_pid"        -gt 0 ]] && kill "$daemon_pid" &>/dev/null
+      [[ "$GITSTATUS_REQ_FD"  -gt 0 ]] && exec {GITSTATUS_REQ_FD}>&-
       [[ "$GITSTATUS_RESP_FD" -gt 0 ]] && exec {GITSTATUS_RESP_FD}>&-
-      [[ -n "$req_fifo" ]]             && rm -f "$req_fifo"
-      [[ -n "$resp_fifo" ]]            && rm -f "$resp_fifo"
+      [[ -n "$req_fifo"             ]] && rm -f "$req_fifo"
+      [[ -n "$resp_fifo"            ]] && rm -f "$resp_fifo"
       unset GITSTATUS_REQ_FD GITSTATUS_RESP_FD
       return 1
     }
@@ -146,15 +146,14 @@ function update_git_prompt() {
   gitstatus_query -t 5                  || return 1  # error
   [[ "$VCS_STATUS_RESULT" == ok-sync ]] || return 0  # not a git repo
 
-  GIT_PROMPT+=" "
-  GIT_PROMPT+="${VCS_STATUS_LOCAL_BRANCH:-@${VCS_STATUS_COMMIT}}"
-  [[ -n "$VCS_STATUS_TAG" ]] && GIT_PROMPT+="#${VCS_STATUS_TAG}"
-  [[ "$VCS_STATUS_HAS_STAGED" == 1 ]] && GIT_PROMPT+="+"
-  [[ "$VCS_STATUS_HAS_UNSTAGED" == 1 ]] && GIT_PROMPT+="!"
-  [[ "$VCS_STATUS_HAS_UNTRACKED" == 1 ]] && GIT_PROMPT+="?"
-  [[ "$VCS_STATUS_COMMITS_AHEAD" -gt 0 ]] && GIT_PROMPT+=" ⇡${VCS_STATUS_COMMITS_AHEAD}"
+  GIT_PROMPT=" ${VCS_STATUS_LOCAL_BRANCH:-@${VCS_STATUS_COMMIT}}"
+  [[ -n "$VCS_STATUS_TAG"               ]] && GIT_PROMPT+="#${VCS_STATUS_TAG}"
+  [[ "$VCS_STATUS_HAS_STAGED"      == 1 ]] && GIT_PROMPT+="+"
+  [[ "$VCS_STATUS_HAS_UNSTAGED"    == 1 ]] && GIT_PROMPT+="!"
+  [[ "$VCS_STATUS_HAS_UNTRACKED"   == 1 ]] && GIT_PROMPT+="?"
+  [[ "$VCS_STATUS_COMMITS_AHEAD"  -gt 0 ]] && GIT_PROMPT+=" ⇡${VCS_STATUS_COMMITS_AHEAD}"
   [[ "$VCS_STATUS_COMMITS_BEHIND" -gt 0 ]] && GIT_PROMPT+=" ⇣${VCS_STATUS_COMMITS_BEHIND}"
-  [[ "$VCS_STATUS_STASHES" -gt 0 ]] && GIT_PROMPT+=" *${VCS_STATUS_STASHES}"
+  [[ "$VCS_STATUS_STASHES"        -gt 0 ]] && GIT_PROMPT+=" *${VCS_STATUS_STASHES}"
 }
 
 # Start gitstatusd in the background.
