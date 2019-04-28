@@ -33,7 +33,7 @@ long ParseLong(const char* s) {
   errno = 0;
   char* end = nullptr;
   long res = std::strtol(s, &end, 10);
-  if (*end || errno) {
+  if (*end || end == s || errno) {
     std::cerr << "gitstatusd: not an integer: " << s << std::endl;
     std::exit(1);
   }
@@ -104,7 +104,7 @@ void PrintUsage() {
             << "    11. 1 if there are untracked files, 0 if there aren't, -1 if unknown.\n"
             << "    12. Number of commits the current branch is ahead of upstream.\n"
             << "    13. Number of commits the current branch is behind upstream.\n"
-            << "    14. The first tag (in lexicographical order) that points to the same\n"
+            << "    14. The last tag (in lexicographical order) that points to the same\n"
             << "        commit as HEAD.\n"
             << "    15. Absolute path to the git repository workdir.\n"
             << "\n"
