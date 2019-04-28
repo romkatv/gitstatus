@@ -3,34 +3,159 @@
 **gitstatus** is a 10x faster alternative to `git status` and `git describe`. Its primary use
 case is to enable fast git prompt in interactive shells.
 
-![Pure Power ZSH Theme](https://raw.githubusercontent.com/romkatv/gitstatus/master/docs/purepower.png)
-
-gitstatus is bundled with several ZSH themes including
-[Powerlevel10k](https://github.com/romkatv/powerlevel10k).
-
-Heavy lifting is done by **gitstatusd** -- a custom binary written in C++.
+Heavy lifting is done by **gitstatusd** -- a custom binary written in C++. It comes with ZSH and
+Bash bindings for integration with shell.
 
 ## Table of Contents
 
-1. [What it does](#what-it-does)
-2. [Benchmarks](#benchmarks)
-3. [Why fast](#why-fast)
-4. [Requirements](#requirements)
-5. [Compiling](#compiling)
-6. [User documentation](#user-documentation)
-7. [License](#license)
+1. [Using from ZSH](#using-from-zsh)
+1. [Using from Bash](#using-from-bash)
+2. [Using from other shells](#using-from-other-shells)
+1. [How it works](#how-it-works)
+1. [Benchmarks](#benchmarks)
+1. [Why fast](#why-fast)
+1. [Requirements](#requirements)
+1. [Compiling](#compiling)
+1. [License](#license)
 
-## What it does
+## Using from ZSH
+
+The easiest way to take advantage of gitstatus from ZSH is to use a theme that's already integrated
+with it. For example, [Powerlevel10k](https://github.com/romkatv/powerlevel10k) is a flexible and
+fast theme with first-class gitstatus integration.
+
+![Pure Power ZSH Theme](https://raw.githubusercontent.com/romkatv/gitstatus/master/docs/purepower.png)
+
+For those who wish to use gitstatus without a theme, there is
+[gitstatus.prompt.zsh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.prompt.zsh).
+Install it as follows:
+
+```zsh
+git clone https://github.com/romkatv/gitstatus.git ~/gitstatus
+echo 'source ~/gitstatus/gitstatus.prompt.zsh' >>! ~/.zshrc
+```
+
+_Make sure to disable your current theme if you have one._
+
+This will give you a basic yet functional prompt with git status in it. In order to customize it,
+set `PROMPT` and/or `RPROMPT` at the end of `~/.zshrc` after sourcing `gitstatus.prompt.zsh`.
+Insert `${GITSTATUS_PROMPT}` where you want git status to go. For example:
+
+```zsh
+source ~/gitstatus/gitstatus.prompt.zsh
+
+PROMPT='%~# '                # left prompt: directory followed by %/# (normal/root)
+RPROMPT='$GITSTATUS_PROMPT'  # right prompt: git status
+```
+
+If you'd like to change the format of git status, or want to have greater control over the
+process of assembling `PROMPT`, you can copy and modify parts of
+[gitstatus.prompt.zsh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.prompt.zsh)
+instead of sourcing the script. Your `~/.zshrc` might look something like this:
+
+```zsh
+source ~/gitstatus/gitstatus.plugin.zsh
+
+function my_set_prompt() {
+  PROMPT='%~# '
+  RPROMPT=''
+
+  gitstatus_query MY                  || return  # error
+  [[ $VCS_STATUS_RESULT == ok-sync ]] || return  # not a git repo
+
+  RPROMPT=${${VCS_STATUS_LOCAL_BRANCH:-@${VCS_STATUS_COMMIT}}//\%/%%}  # escape %
+  [[ $VCS_STATUS_HAS_STAGED    == 1 ]] && RPROMPT+='+'
+  [[ $VCS_STATUS_HAS_UNSTAGED  == 1 ]] && RPROMPT+='!'
+  [[ $VCS_STATUS_HAS_UNTRACKED == 1 ]] && RPROMPT+='?'
+
+  setopt noprompt{bang,subst} promptpercent  # enable/disable correct prompt expansions
+}
+
+gitstatus_start MY
+autoload -Uz add-zsh-hook
+add-zsh-hook precmd my_set_prompt
+```
+
+Unlike [Powerlevel10k](https://github.com/romkatv/powerlevel10k),
+code based on
+[gitstatus.prompt.zsh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.prompt.zsh) is
+communicating with gitstatusd synchronously. This can make your prompt slow when working in a large
+git repository or on a slow machine. To avoid this problem, call `gitstatus_query`
+asynchronously as documented in
+[gitstatus.plugin.zsh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.plugin.zsh). This
+can be quite challenging.
+
+## Using from Bash
+
+The easiest way to take advantage of gitstatus from Bash is via
+[gitstatus.prompt.zsh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.prompt.sh).
+Install it as follows:
+
+```zsh
+git clone https://github.com/romkatv/gitstatus.git ~/gitstatus
+echo 'source ~/gitstatus/gitstatus.prompt.sh' >> ~/.bashrc
+```
+
+This will give you a basic yet functional prompt with git status in it.
+
+![Bash Prompt with GitStatus](https://raw.githubusercontent.com/romkatv/gitstatus/master/docs/bash-prompt.png)
+
+In order to customize prompt, set `PS1` at the end of `~/.bashrc` after sourcing
+`gitstatus.prompt.sh`. Insert `${GITSTATUS_PROMPT}` where you want git status to go. For example:
+
+```bash
+PS1='\w ${GITSTATUS_PROMPT}\n\$ ' # directory followed by git status and $/# (normal/root)
+```
+
+If you'd like to change the format of git status, or want to have greater control over the
+process of assembling `PS1`, you can copy and modify parts of
+[gitstatus.prompt.sh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.prompt.sh)
+instead of sourcing the script. Your `~/.bashrc` might look something like this:
+
+```bash
+source ~/gitstatus/gitstatus.plugin.sh
+
+function my_set_prompt() {
+  PS1='\w'
+
+  if gitstatus_query && [[ "$VCS_STATUS_RESULT" == ok-sync ]]; then
+    if [[ -n "$VCS_STATUS_LOCAL_BRANCH" ]]; then
+      PS1+=" ${VCS_STATUS_LOCAL_BRANCH//\\/\\\\}"  # escape backslash
+    else
+      PS1+=" @${VCS_STATUS_COMMIT//\\/\\\\}"       # escape backslash
+    fi
+    [[ "$VCS_STATUS_HAS_STAGED"    == 1 ]] && PS1+='+'
+    [[ "$VCS_STATUS_HAS_UNSTAGED"  == 1 ]] && PS1+='!'
+    [[ "$VCS_STATUS_HAS_UNTRACKED" == 1 ]] && PS1+='?'
+  fi
+
+  PS1+='\n\$ '
+
+  shopt -u promptvars  # disable expansion of '$(...)' and the like
+}
+
+gitstatus_stop && gitstatus_start
+PROMPT_COMMAND=my_set_prompt
+```
+
+## Using from other shells
+
+If there are no gitstatusd bindings for your shell, you'll need to get your hands dirty.
+Use the existing bindings for inspiration; run `gitstatusd --help` or read the same thing in
+[options.cc](https://github.com/romkatv/gitstatus/blob/master/src/options.cc).
+
+## How it works
 
 gitstatusd reads requests from stdin and prints responses to stdout. Requests contain an ID and
 a directory. Responses contain the same ID and machine-readable git status for the directory.
 gitstatusd keeps some state in memory for the directories it has seen in order to serve future
 requests faster.
 
-[ZSH bindings](https://github.com/romkatv/gitstatus/blob/master/gitstatus.plugin.zsh) start
+[ZSH bindings](https://github.com/romkatv/gitstatus/blob/master/gitstatus.plugin.zsh) and
+[Bash bindings](https://github.com/romkatv/gitstatus/blob/master/gitstatus.plugin.sh) start
 gitstatusd in the background and communicate with it via pipes.
-[Powerlevel10k](https://github.com/romkatv/powerlevel10k) uses these bindings to put git status
-in `PROMPT`.
+Themes such as [Powerlevel10k](https://github.com/romkatv/powerlevel10k) uses these bindings to put
+git status in `PROMPT`.
 
 Note that gitstatus cannot be used as a drop-in replacement for `git status` command as it doesn't
 produce output in the same format. It does perform the same computation though.
@@ -283,99 +408,6 @@ To build from locally modified sources, read
 [build.zsh](https://github.com/romkatv/gitstatus/tree/master/build.zsh) and improvise. This is a
 release script from which you'll have to devise a local build script. Expect painful experience if
 you aren't familiar with ZSH, C++, GCC, CMake or GNU make.
-
-## User documentation
-
-### gitstatusd
-
-Run `gitstatusd --help` for help or read the same thing in
-[options.cc](https://github.com/romkatv/gitstatus/blob/master/src/options.cc).
-
-#### Example
-
-Send a single request and print response (zsh syntax):
-
-```zsh
-local req_id=id
-local dir=$PWD
-echo -nE $req_id$'\x1f'$dir$'\x1e' | ./gitstatusd --num-threads=32 | {
-  local resp
-  IFS=$'\x1f' read -rd $'\x1e' -A resp && print -lr -- "${(@qq)resp}"
-}
-```
-
-Output:
-
-```
-'id'
-'1'
-'/home/romka/.oh-my-zsh/custom/plugins/gitstatus'
-'6e86ec135bf77875e222463cbac8ef72a7e8d823'
-'master'
-'master'
-'origin'
-'git@github.com:romkatv/gitstatus.git'
-''
-'0'
-'1'
-'1'
-'0'
-'0'
-'0'
-''
-```
-
-### ZSH bindings
-
-ZSH bindings are documented in
-[gitstatus.plugin.zsh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.plugin.zsh). There
-is support for synchronous and asynchronous requests.
-
-#### Example
-
-For an example of using gitstatus in `PROMPT`, see
-[zsh-prompt-example.zsh](https://github.com/romkatv/gitstatus/blob/master/zsh-prompt-example.zsh).
-See below how to explore the data gitstatus produces.
-
-Start gitstatusd, send it a request, wait for response and print it.
-
-```zsh
-source ./gitstatus.plugin.zsh
-gitstatus_start MY
-gitstatus_query -d $PWD MY
-set | egrep '^VCS_STATUS'
-```
-
-Output:
-
-```
-VCS_STATUS_ACTION=''
-VCS_STATUS_ALL=( /home/romka/.oh-my-zsh/custom/plugins/gitstatus 6e86ec135bf77875e222463cbac8ef72a7e8d823 master master origin git@github.com:romkatv/gitstatus.git '' 0 1 1 0 0 0 '' )
-VCS_STATUS_COMMIT=6e86ec135bf77875e222463cbac8ef72a7e8d823
-VCS_STATUS_COMMITS_AHEAD=0
-VCS_STATUS_COMMITS_BEHIND=0
-VCS_STATUS_HAS_STAGED=0
-VCS_STATUS_HAS_UNSTAGED=1
-VCS_STATUS_HAS_UNTRACKED=1
-VCS_STATUS_LOCAL_BRANCH=master
-VCS_STATUS_REMOTE_BRANCH=master
-VCS_STATUS_REMOTE_NAME=origin
-VCS_STATUS_REMOTE_URL=git@github.com:romkatv/gitstatus.git
-VCS_STATUS_RESULT=ok-sync
-VCS_STATUS_STASHES=0
-VCS_STATUS_TAG=''
-VCS_STATUS_WORKDIR=/home/romka/.oh-my-zsh/custom/plugins/gitstatus
-```
-
-gitstatusd will terminate when you exit zsh from which it was started.
-
-### Bash bindings
-
-There are no official bash bindings for `gitstatusd`. There is, however, an incomplete port
-of ZSH bindings that can be used as a starting point. It can be found in
-[bash-prompt-example.sh](https://github.com/romkatv/gitstatus/blob/master/bash-prompt-example.sh).
-
-A more complete port of the gitstatus ZSH API to bash would be a most welcome contribution.
 
 ## License
 
