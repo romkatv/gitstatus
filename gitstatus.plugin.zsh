@@ -60,8 +60,6 @@
 #   VCS_STATUS_STASHES         Number of stashes. Non-negative integer.
 #   VCS_STATUS_TAG             The last tag (in lexicographical order) that points to the same
 #                              commit as HEAD.
-#   VCS_STATUS_ALL             All of the above in an array. The order of elements is unspecified.
-#                              More elements can be added in the future.
 #
 # The point of reporting -1 as unstaged and untracked is to allow the command to skip scanning
 # files in large repos. See -m flag of gitstatus_start.
@@ -122,38 +120,35 @@ function _gitstatus_process_response() {
   local req_id=$3
   local resp_fd_var=_GITSTATUS_RESP_FD_${name}
 
-  typeset -ga VCS_STATUS_ALL
   typeset -g VCS_STATUS_RESULT
   (( timeout >= 0 )) && local -a t=(-t $timeout) || local -a t=()
-  IFS=$'\x1f' read -rd $'\x1e' -u ${(P)resp_fd_var} $t -A VCS_STATUS_ALL || {
+  local -a resp
+  IFS=$'\x1f' read -rd $'\x1e' -u ${(P)resp_fd_var} $t -A resp || {
     VCS_STATUS_RESULT=tout
-    unset VCS_STATUS_ALL
     return
   }
 
-  local -a header=("${(@Q)${(z)VCS_STATUS_ALL[1]}}")
+  local -a header=("${(@Q)${(z)resp[1]}}")
   [[ ${header[1]} == $req_id ]] && local -i ours=1 || local -i ours=0
   shift header
-  [[ ${VCS_STATUS_ALL[2]} == 1 ]] && {
-    shift 2 VCS_STATUS_ALL
+  [[ ${resp[2]} == 1 ]] && {
     (( ours )) && VCS_STATUS_RESULT=ok-sync || VCS_STATUS_RESULT=ok-async
-    typeset -g  VCS_STATUS_WORKDIR="${VCS_STATUS_ALL[1]}"
-    typeset -g  VCS_STATUS_COMMIT="${VCS_STATUS_ALL[2]}"
-    typeset -g  VCS_STATUS_LOCAL_BRANCH="${VCS_STATUS_ALL[3]}"
-    typeset -g  VCS_STATUS_REMOTE_BRANCH="${VCS_STATUS_ALL[4]}"
-    typeset -g  VCS_STATUS_REMOTE_NAME="${VCS_STATUS_ALL[5]}"
-    typeset -g  VCS_STATUS_REMOTE_URL="${VCS_STATUS_ALL[6]}"
-    typeset -g  VCS_STATUS_ACTION="${VCS_STATUS_ALL[7]}"
-    typeset -gi VCS_STATUS_HAS_STAGED="${VCS_STATUS_ALL[8]}"
-    typeset -gi VCS_STATUS_HAS_UNSTAGED="${VCS_STATUS_ALL[9]}"
-    typeset -gi VCS_STATUS_HAS_UNTRACKED="${VCS_STATUS_ALL[10]}"
-    typeset -gi VCS_STATUS_COMMITS_AHEAD="${VCS_STATUS_ALL[11]}"
-    typeset -gi VCS_STATUS_COMMITS_BEHIND="${VCS_STATUS_ALL[12]}"
-    typeset -gi VCS_STATUS_STASHES="${VCS_STATUS_ALL[13]}"
-    typeset -g  VCS_STATUS_TAG="${VCS_STATUS_ALL[14]}"
+    typeset -g  VCS_STATUS_WORKDIR="${resp[3]}"
+    typeset -g  VCS_STATUS_COMMIT="${resp[4]}"
+    typeset -g  VCS_STATUS_LOCAL_BRANCH="${resp[5]}"
+    typeset -g  VCS_STATUS_REMOTE_BRANCH="${resp[6]}"
+    typeset -g  VCS_STATUS_REMOTE_NAME="${resp[7]}"
+    typeset -g  VCS_STATUS_REMOTE_URL="${resp[8]}"
+    typeset -g  VCS_STATUS_ACTION="${resp[9]}"
+    typeset -gi VCS_STATUS_HAS_STAGED="${resp[10]}"
+    typeset -gi VCS_STATUS_HAS_UNSTAGED="${resp[11]}"
+    typeset -gi VCS_STATUS_HAS_UNTRACKED="${resp[12]}"
+    typeset -gi VCS_STATUS_COMMITS_AHEAD="${resp[13]}"
+    typeset -gi VCS_STATUS_COMMITS_BEHIND="${resp[14]}"
+    typeset -gi VCS_STATUS_STASHES="${resp[15]}"
+    typeset -g  VCS_STATUS_TAG="${resp[16]}"
   } || {
     (( ours )) && VCS_STATUS_RESULT=norepo-sync || VCS_STATUS_RESULT=norepo-async
-    unset VCS_STATUS_ALL
     unset VCS_STATUS_WORKDIR
     unset VCS_STATUS_COMMIT
     unset VCS_STATUS_LOCAL_BRANCH
