@@ -3,6 +3,8 @@
 
 # Retrives status of a git repo from a directory under its working tree.
 #
+## Usage: gitstatus_query [OPTION]... NAME
+#
 #   -d STR    Directory to query. Defaults to ${${GIT_DIR:-$PWD}:a}. Must be absolute.
 #   -c STR    Callback function to call once the results are available. Called only after
 #             gitstatus_query returns 0 with VCS_STATUS_RESULT=tout.
@@ -16,7 +18,7 @@
 #   norepo-sync  The directory isn't a git repo.
 #   ok-sync      The directory is a git repo.
 #
-# When the callback is called VCS_STATUS_RESULT s set to one of the following values:
+# When the callback is called VCS_STATUS_RESULT is set to one of the following values:
 #
 #   norepo-async  The directory isn't a git repo.
 #   ok-async      The directory is a git repo.
@@ -39,7 +41,7 @@
 #   VCS_STATUS_COMMITS_BEHIND  Number of commits the current branch is behind upstream. Non-negative
 #                              integer.
 #   VCS_STATUS_STASHES         Number of stashes. Non-negative integer.
-#   VCS_STATUS_TAG             The first tag (in lexicographical order) that points to the same
+#   VCS_STATUS_TAG             The last tag (in lexicographical order) that points to the same
 #                              commit as HEAD.
 #   VCS_STATUS_ALL             All of the above in an array. The order of elements is unspecified.
 #                              More elements can be added in the future.
@@ -48,7 +50,7 @@
 # files in large repos. See -m flag of gitstatus_start.
 #
 # gitstatus_query returns an error if gitstatus_start hasn't been called in the same shell or
-# failed.
+# the call had failed.
 #
 #       !!!!! WARNING: CONCURRENT CALLS WITH THE SAME NAME ARE NOT ALLOWED !!!!!
 #
@@ -154,6 +156,8 @@ function _gitstatus_process_response() {
   (( ! ours )) && (( #header )) && emulate -L zsh && "${header[@]}" || true
 }
 
+# Starts gitstatusd in the background. Does nothing and succeeds if gitstatusd is already running.
+#
 # Usage: gitstatus_start [OPTION]... NAME
 #
 #   -t FLOAT  Fail the self-check on initialization if not getting a response from gitstatusd for
