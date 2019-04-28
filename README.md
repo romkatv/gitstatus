@@ -88,10 +88,10 @@ can be quite challenging.
 ## Using from Bash
 
 The easiest way to take advantage of gitstatus from Bash is via
-[gitstatus.prompt.zsh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.prompt.sh).
+[gitstatus.prompt.sh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.prompt.sh).
 Install it as follows:
 
-```zsh
+```bash
 git clone https://github.com/romkatv/gitstatus.git ~/gitstatus
 echo 'source ~/gitstatus/gitstatus.prompt.sh' >> ~/.bashrc
 ```
@@ -137,6 +137,8 @@ function my_set_prompt() {
 gitstatus_stop && gitstatus_start
 PROMPT_COMMAND=my_set_prompt
 ```
+
+Note: Bash bindings, unlike ZSH bindings, don't support asynchronous calls.
 
 ## Using from other shells
 
