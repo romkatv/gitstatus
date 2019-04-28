@@ -43,7 +43,7 @@
 #   VCS_STATUS_WORKDIR=/home/romka/.oh-my-zsh/custom/themes/powerlevel10k
 
 [[ -o interactive ]] || return
- autoload -Uz add-zsh-hook && zmodload zsh/datetime && zmodload zsh/system || return
+autoload -Uz add-zsh-hook && zmodload zsh/datetime && zmodload zsh/system || return
 
 # Retrives status of a git repo from a directory under its working tree.
 #
