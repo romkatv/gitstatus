@@ -108,6 +108,8 @@ In order to customize prompt, set `PS1` at the end of `~/.bashrc` after sourcing
 `gitstatus.prompt.sh`. Insert `${GITSTATUS_PROMPT}` where you want git status to go. For example:
 
 ```bash
+source ~/gitstatus/gitstatus.prompt.sh
+
 PS1='\w ${GITSTATUS_PROMPT}\n\$ ' # directory followed by git status and $/# (normal/root)
 ```
 
