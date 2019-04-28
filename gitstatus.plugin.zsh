@@ -1,3 +1,5 @@
+# ZSH bindings for gitstatusd.
+
 [[ -o interactive ]] || return
  autoload -Uz add-zsh-hook && zmodload zsh/datetime && zmodload zsh/system || return
 
