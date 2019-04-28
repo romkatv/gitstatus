@@ -37,10 +37,11 @@ echo 'source ~/gitstatus/gitstatus.prompt.zsh' >>! ~/.zshrc
 
 _Make sure to disable your current theme if you have one._
 
-This will give you a basic yet functional prompt with git status in it. It's **over 10x faster**
-than any alternative that can give you comparable prompt. In order to customize it, set `PROMPT`
-and/or `RPROMPT` at the end of `~/.zshrc` after sourcing `gitstatus.prompt.zsh`. Insert
-`${GITSTATUS_PROMPT}` where you want git status to go. For example:
+This will give you a basic yet functional prompt with git status in it. It's
+[over 10x faster](https://github.com/romkatv/gitstatus/#benchmarks) than any alternative that can
+give you comparable prompt. In order to customize it, set `PROMPT` and/or `RPROMPT` at the end of
+`~/.zshrc` after sourcing `gitstatus.prompt.zsh`. Insert `${GITSTATUS_PROMPT}` where you want git
+status to go. For example:
 
 ```zsh
 source ~/gitstatus/gitstatus.prompt.zsh
@@ -115,8 +116,9 @@ git clone https://github.com/romkatv/gitstatus.git ~/gitstatus
 echo 'source ~/gitstatus/gitstatus.prompt.sh' >> ~/.bashrc
 ```
 
-This will give you a basic yet functional prompt with git status in it. It's **over 10x faster**
-than any alternative that can give you comparable prompt.
+This will give you a basic yet functional prompt with git status in it. It's
+[over 10x faster](https://github.com/romkatv/gitstatus/#benchmarks) than any alternative that can
+give you comparable prompt.
 
 ![Bash Prompt with GitStatus](https://raw.githubusercontent.com/romkatv/gitstatus/master/docs/bash-prompt.png)
 
