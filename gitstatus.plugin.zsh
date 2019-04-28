@@ -228,15 +228,12 @@ function gitstatus_start() {
       (( threads <= 32 )) || threads=32
     }
 
-    local -i sigwinch_pid=-1
-    (( ! ${GITSTATUS_SEND_SIGWINCH:-0} )) || sigwinch_pid=$$
-
     # We use `zsh -c` instead of plain {} or () to work around bugs in zplug. It hangs on startup.
     zsh -xc "
-      ${(q)daemon}                   \
-        --lock-fd=3                  \
-        --sigwinch-pid=$sigwinch_pid \
-        --num-threads=$threads       \
+      ${(q)daemon}             \
+        --lock-fd=3            \
+        --parent-pid=$$        \
+        --num-threads=$threads \
         --dirty-max-index-size=$max_dirty
       echo -nE $'bye\x1f0\x1e'
     " <&$req_fd >&$resp_fd 2>$log_file 3<$lock_file &!

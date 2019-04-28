@@ -61,8 +61,8 @@ std::ostream& operator<<(std::ostream& strm, const Request& req) {
   return strm;
 }
 
-RequestReader::RequestReader(int fd, int lock_fd, int sigwinch_pid)
-    : fd_(fd), lock_fd_(lock_fd), sigwinch_pid_(sigwinch_pid) {
+RequestReader::RequestReader(int fd, int lock_fd, int parent_pid)
+    : fd_(fd), lock_fd_(lock_fd), parent_pid_(parent_pid) {
   CHECK(fd != lock_fd);
 }
 
@@ -80,7 +80,7 @@ Request RequestReader::ReadRequest() {
     FD_ZERO(&fds);
     FD_SET(fd_, &fds);
     struct timeval second = {.tv_sec = 1};
-    struct timeval* timeout = lock_fd_ >= 0 || sigwinch_pid_ >= 0 ? &second : nullptr;
+    struct timeval* timeout = lock_fd_ >= 0 || parent_pid_ >= 0 ? &second : nullptr;
 
     int n;
     CHECK((n = select(fd_ + 1, &fds, NULL, NULL, timeout)) >= 0) << Errno();
@@ -89,8 +89,8 @@ Request RequestReader::ReadRequest() {
         LOG(INFO) << "Lock on fd " << lock_fd_ << " is gone. Exiting.";
         std::exit(0);
       }
-      if (sigwinch_pid_ >= 0 && kill(sigwinch_pid_, SIGWINCH)) {
-        LOG(INFO) << "Unable to send SIGWINCH to " << sigwinch_pid_ << ". Exiting.";
+      if (parent_pid_ >= 0 && kill(parent_pid_, 0)) {
+        LOG(INFO) << "Unable to send signal 0 to " << parent_pid_ << ". Exiting.";
         std::exit(0);
       }
       continue;
