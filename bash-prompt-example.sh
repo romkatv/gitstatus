@@ -15,8 +15,8 @@
 # You should have received a copy of the GNU General Public License
 # along with GitStatus. If not, see <https://www.gnu.org/licenses/>.
 
-# Source gitstatus.plugin.sh from $GITSTATUS_DIR if it's set or
-# from the same directory in which the current script resides.
+# Source gitstatus.plugin.sh from $GITSTATUS_DIR or from the same directory
+# in which the current script resides if the variable isn't set.
 source "${GITSTATUS_DIR:-$(dirname "${BASH_SOURCE[0]}")}/gitstatus.plugin.sh" || return
 
 # Sets GITSTATUS_PROMPT to reflect the state of the current git repository.
@@ -74,6 +74,9 @@ gitstatus_stop && gitstatus_start
 # On every prompt, fetch git status and set GITSTATUS_PROMPT.
 PROMPT_COMMAND=gitstatus_prompt_update
 
+# Enable promptvars so that ${GITSTATUS_PROMPT} in PS1 is expanded.
+shopt -s promptvars
+
 # Customize prompt. Put $GITSTATUS_PROMPT in it reflect git status.
 #
 # Example:
@@ -82,6 +85,6 @@ PROMPT_COMMAND=gitstatus_prompt_update
 #   $ █
 PS1='\[\033[01;32m\]\u@\h\[\033[00m\] '           # green user@host
 PS1+='\[\033[01;34m\]\w\[\033[00m\]'              # blue current working directory
-PS1+='${GITSTATUS_PROMPT:+ }${GITSTATUS_PROMPT}'  # git status (requires promptvars option)
+PS1+='${GITSTATUS_PROMPT:+ $GITSTATUS_PROMPT}'    # git status (requires promptvars option)
 PS1+='\n\[\033[01;$((31+!$?))m\]\$\[\033[00m\] '  # green/red (success/error) $/# (normal/root)
 PS1+='\[\e]0;\u@\h: \w\a\]'                       # terminal title: user@host: dir
