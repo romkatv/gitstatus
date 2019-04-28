@@ -279,8 +279,8 @@ function gitstatus_prompt_update() {
 # Start gitstatusd in the background.
 gitstatus_stop && gitstatus_start
 
-# On every prompt, fetch git status with 5s timeout and set GITSTATUS_PROMPT.
-PROMPT_COMMAND='gitstatus_prompt_update -t 5'
+# On every prompt, fetch git status and set GITSTATUS_PROMPT.
+PROMPT_COMMAND=gitstatus_prompt_update
 
 # Customize prompt. Put $GITSTATUS_PROMPT in it reflect git status.
 #
