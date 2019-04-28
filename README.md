@@ -76,6 +76,10 @@ autoload -Uz add-zsh-hook
 add-zsh-hook precmd my_set_prompt
 ```
 
+This snippet is sourcing `gitstatus.plugin.zsh` instead of `gitstatus.prompt.zsh`. The former
+defines low-level bindings that communicate with gitstatusd over pipes. The latter is a simple
+script that uses these bindings to assemble git prompt.
+
 Unlike [Powerlevel10k](https://github.com/romkatv/powerlevel10k),
 code based on
 [gitstatus.prompt.zsh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.prompt.zsh) is
@@ -137,6 +141,10 @@ function my_set_prompt() {
 gitstatus_stop && gitstatus_start
 PROMPT_COMMAND=my_set_prompt
 ```
+
+This snippet is sourcing `gitstatus.plugin.sh` instead of `gitstatus.prompt.sh`. The former
+defines low-level bindings that communicate with gitstatusd over pipes. The latter is a simple
+script that uses these bindings to assemble git prompt.
 
 Note: Bash bindings, unlike ZSH bindings, don't support asynchronous calls.
 
