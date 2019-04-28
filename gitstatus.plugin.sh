@@ -221,3 +221,12 @@ function gitstatus_query() {
     unset VCS_STATUS_TAG
   fi
 }
+
+
+# Usage: gitstatus_check.
+#
+# Returns 0 if and only if gitstatus_start has succeeded previously.
+# If it returns non-zero, gitstatus_query is guaranteed to return non-zero.
+function gitstatus_check() {
+  [[ -n "$GITSTATUS_DAEMON_PID" ]]
+}
