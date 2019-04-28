@@ -31,9 +31,9 @@ struct Options {
   // If non-negative, check whether the specified file descriptor is locked when not receiving any
   // requests for one second; exit if it isn't locked.
   int lock_fd = -1;
-  // If non-negative, send SIGWINCH to the specified PID when not receiving any requests for one
+  // If non-negative, send signal 0 to the specified PID when not receiving any requests for one
   // second; exit if signal sending fails.
-  int sigwinch_pid = -1;
+  int parent_pid = -1;
 };
 
 Options ParseOptions(int argc, char** argv);

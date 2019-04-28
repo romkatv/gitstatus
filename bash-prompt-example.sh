@@ -68,7 +68,7 @@ function gitstatus_start() {
     { <&$GITSTATUS_REQ_FD >&$GITSTATUS_RESP_FD 2>"$GITSTATUS_DAEMON_LOG" bash -c "
         trap 'kill %1 &>/dev/null' SIGINT SIGTERM EXIT
         ${daemon@Q}                             \
-          --sigwinch-pid=$$                     \
+          --parent-pid=$$                       \
           --num-threads=${threads@Q}            \
           --dirty-max-index-size=${max_dirty@Q} \
           0<&0 1>&1 2>&2 &

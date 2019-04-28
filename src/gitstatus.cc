@@ -143,7 +143,7 @@ int GitStatus(int argc, char** argv) {
   for (int i = 0; i != argc; ++i) LOG(INFO) << "argv[" << i << "]: " << argv[i];
 
   Options opts = ParseOptions(argc, argv);
-  RequestReader reader(fileno(stdin), opts.lock_fd, opts.sigwinch_pid);
+  RequestReader reader(fileno(stdin), opts.lock_fd, opts.parent_pid);
   RepoCache cache;
 
   InitGlobalThreadPool(opts.num_threads);

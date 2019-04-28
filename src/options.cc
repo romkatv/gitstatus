@@ -58,8 +58,8 @@ void PrintUsage() {
             << "   If non-negative, check whether the specified file descriptor is locked when\n"
             << "   not receiving any requests for one second; exit if it isn't locked.\n"
             << "\n"
-            << "  -p, --sigwinch-pid=NUM [default=-1]\n"
-            << "   If non-negative, send SIGWINCH to the specified PID when not receiving any\n"
+            << "  -p, --parent-pid=NUM [default=-1]\n"
+            << "   If non-negative, send signal 0 to the specified PID when not receiving any\n"
             << "   requests for one second; exit if signal sending fails.\n"
             << "\n"
             << "  -t, --num-threads=NUM [default=-1]\n"
@@ -153,7 +153,7 @@ void PrintUsage() {
 Options ParseOptions(int argc, char** argv) {
   const struct option opts[] = {{"help", no_argument, nullptr, 'h'},
                                 {"lock-fd", required_argument, nullptr, 'l'},
-                                {"sigwinch-pid", required_argument, nullptr, 'p'},
+                                {"parent-pid", required_argument, nullptr, 'p'},
                                 {"num-threads", required_argument, nullptr, 't'},
                                 {"dirty-max-index-size", required_argument, nullptr, 'm'},
                                 {}};
@@ -169,7 +169,7 @@ Options ParseOptions(int argc, char** argv) {
         res.lock_fd = ParseInt(optarg);
         break;
       case 'p':
-        res.sigwinch_pid = ParseInt(optarg);
+        res.parent_pid = ParseInt(optarg);
         break;
       case 't': {
         long n = ParseLong(optarg);
