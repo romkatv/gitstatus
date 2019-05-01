@@ -164,7 +164,8 @@ void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
   git_diff_options opt = GIT_DIFF_OPTIONS_INIT;
   opt.payload = this;
   opt.flags = GIT_DIFF_SKIP_BINARY_CHECK | GIT_DIFF_DISABLE_PATHSPEC_MATCH |
-              GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_RECURSE_UNTRACKED_DIRS;
+              GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_RECURSE_UNTRACKED_DIRS |
+              GIT_DIFF_EXEMPLARS;
   opt.ignore_submodules = GIT_SUBMODULE_IGNORE_DIRTY;
   opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
                       const char* matched_pathspec, void* payload) -> int {
