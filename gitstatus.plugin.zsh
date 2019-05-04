@@ -276,7 +276,7 @@ function gitstatus_start() {
     }
 
     # We use `zsh -c` instead of plain {} or () to work around bugs in zplug. It hangs on startup.
-    zsh -xc "
+    zsh -dfxc "
       ${(q)daemon}             \
         --lock-fd=3            \
         --parent-pid=$$        \
