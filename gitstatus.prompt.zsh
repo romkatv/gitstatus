@@ -58,7 +58,7 @@ function gitstatus_prompt_update() {
 
 # Start gitstatusd instance with name "MY". The same name is passed to
 # gitstatus_query in gitstatus_prompt_update.
-gitstatus_start MY
+gitstatus_stop MY && gitstatus_start MY
 
 # On every prompt, fetch git status and set GITSTATUS_PROMPT.
 autoload -Uz add-zsh-hook
