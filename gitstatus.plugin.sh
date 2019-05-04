@@ -66,7 +66,7 @@ function gitstatus_start() {
     req_fifo=$(mktemp -u "${TMPDIR:-/tmp}"/gitstatus.$$.pipe.req.XXXXXXXXXX)   || return
     resp_fifo=$(mktemp -u "${TMPDIR:-/tmp}"/gitstatus.$$.pipe.resp.XXXXXXXXXX) || return
     mkfifo "$req_fifo" "$resp_fifo"                                            || return
-    exec {GITSTATUS_REQ_FD}<>"$req_fifo" {GITSTATUS_RESP_FD}<>"$resp_fifo"     || return
+    exec {_GITSTATUS_REQ_FD}<>"$req_fifo" {_GITSTATUS_RESP_FD}<>"$resp_fifo"   || return
     command rm "$req_fifo" "$resp_fifo"                                        || return
 
     if [[ "${GITSTATUS_ENABLE_LOGGING:-0}" == 1 ]]; then
@@ -75,7 +75,7 @@ function gitstatus_start() {
       GITSTATUS_DAEMON_LOG=/dev/null
     fi
 
-    { <&$GITSTATUS_REQ_FD >&$GITSTATUS_RESP_FD 2>"$GITSTATUS_DAEMON_LOG" bash -c "
+    { <&$_GITSTATUS_REQ_FD >&$_GITSTATUS_RESP_FD 2>"$GITSTATUS_DAEMON_LOG" bash -c "
         trap 'kill %1 &>/dev/null' SIGINT SIGTERM EXIT
         ${daemon@Q}                             \
           --parent-pid=$$                       \
@@ -88,9 +88,9 @@ function gitstatus_start() {
     GITSTATUS_DAEMON_PID=$!
 
     local reply
-    echo -nE $'hello\x1f\x1e' >&$GITSTATUS_REQ_FD                     || return
-    IFS='' read -rd $'\x1e' -u $GITSTATUS_RESP_FD -t "$timeout" reply || return
-    [[ "$reply" == $'hello\x1f0' ]]                                   || return
+    echo -nE $'hello\x1f\x1e' >&$_GITSTATUS_REQ_FD                     || return
+    IFS='' read -rd $'\x1e' -u $_GITSTATUS_RESP_FD -t "$timeout" reply || return
+    [[ "$reply" == $'hello\x1f0' ]]                                    || return
   }
 
   if ! gitstatus_start_impl; then
@@ -129,11 +129,11 @@ function gitstatus_start() {
 
 # Stops gitstatusd if it's running.
 function gitstatus_stop() {
-  [[ -z "${GITSTATUS_REQ_FD:-}"     ]] || exec {GITSTATUS_REQ_FD}>&-               || true
-  [[ -z "${GITSTATUS_RESP_FD:-}"    ]] || exec {GITSTATUS_RESP_FD}>&-              || true
+  [[ -z "${_GITSTATUS_REQ_FD:-}"    ]] || exec {_GITSTATUS_REQ_FD}>&-              || true
+  [[ -z "${_GITSTATUS_RESP_FD:-}"   ]] || exec {_GITSTATUS_RESP_FD}>&-             || true
   [[ -z "${GITSTATUS_DAEMON_PID:-}" ]] || kill "$GITSTATUS_DAEMON_PID" &>/dev/null || true
   [[ -z "${_GITSTATUS_EXEC_HOOK:-}" ]] || unalias exec builtin &>/dev/null         || true
-  unset GITSTATUS_REQ_FD GITSTATUS_RESP_FD GITSTATUS_DAEMON_PID _GITSTATUS_EXEC_HOOK
+  unset _GITSTATUS_REQ_FD _GITSTATUS_RESP_FD GITSTATUS_DAEMON_PID _GITSTATUS_EXEC_HOOK
   unset -f _gitstatus_exec _gitstatus_builtin
 }
 
@@ -194,11 +194,11 @@ function gitstatus_query() {
 
   local req_id="$RANDOM.$RANDOM.$RANDOM.$RANDOM"
   [[ "$dir" == /* ]] || dir="$PWD/$dir"
-  echo -nE "$req_id"$'\x1f'"$dir"$'\x1e' >&$GITSTATUS_REQ_FD || return
+  echo -nE "$req_id"$'\x1f'"$dir"$'\x1e' >&$_GITSTATUS_REQ_FD || return
 
   local -a resp
   while true; do
-    IFS=$'\x1f' read -rd $'\x1e' -a resp -u $GITSTATUS_RESP_FD "${timeout[@]}" || return
+    IFS=$'\x1f' read -rd $'\x1e' -a resp -u $_GITSTATUS_RESP_FD "${timeout[@]}" || return
     [[ "${resp[0]}" == "$req_id" ]] && break
   done
 
