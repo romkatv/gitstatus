@@ -76,4 +76,4 @@ setopt nopromptbang prompt{percent,subst}
 PROMPT='%F{002}%n@%m%f '                           # green user@host
 PROMPT+='%F{039}%~%f'                              # bright blue current working directory
 PROMPT+='${GITSTATUS_PROMPT:+ $GITSTATUS_PROMPT}'  # git status (requires promptsubst option)
-PROMPT+=$'\n%F{00$((2+7*!!$?))}%#%f '              # green/red (success/error) %/# (normal/root)
+PROMPT+=$'\n%F{%(?.076.196)}%#%f '                 # green/red (success/error) %/# (normal/root)
