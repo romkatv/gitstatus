@@ -399,6 +399,8 @@ function gitstatus_stop() {
     add-zsh-hook -d zshexit $cleanup_func
     unfunction $cleanup_func
   fi
+
+  return 0
 }
 
 # Usage: gitstatus_check NAME.

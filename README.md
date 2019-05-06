@@ -87,12 +87,12 @@ function my_set_prompt() {
   setopt noprompt{bang,subst} promptpercent  # enable/disable correct prompt expansions
 }
 
-gitstatus_start MY
+gitstatus_stop MY && gitstatus_start MY
 autoload -Uz add-zsh-hook
 add-zsh-hook precmd my_set_prompt
 ```
 
-This snippet is sourcing `gitstatus.plugin.zsh` instead of `gitstatus.prompt.zsh`. The former
+This snippet is sourcing `gitstatus.plugin.zsh` rather than `gitstatus.prompt.zsh`. The former
 defines low-level bindings that communicate with gitstatusd over pipes. The latter is a simple
 script that uses these bindings to assemble git prompt.
 
@@ -176,7 +176,7 @@ gitstatus_stop && gitstatus_start
 PROMPT_COMMAND=my_set_prompt
 ```
 
-This snippet is sourcing `gitstatus.plugin.sh` instead of `gitstatus.prompt.sh`. The former
+This snippet is sourcing `gitstatus.plugin.sh` rather than `gitstatus.prompt.sh`. The former
 defines low-level bindings that communicate with gitstatusd over pipes. The latter is a simple
 script that uses these bindings to assemble git prompt.
 
