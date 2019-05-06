@@ -296,8 +296,11 @@ function gitstatus_start() {
     function _gitstatus_cleanup_${ZSH_SUBSHELL}_${daemon_pid}() {
       emulate -L zsh
       setopt err_return no_unset
-      local -i daemon_pid=${${(%):-%N}#_gitstatus_cleanup_${ZSH_SUBSHELL}_}
-      [[ $daemon_pid -gt 0 ]] && kill -- -$daemon_pid &>/dev/null || true
+      local fname=${(%):-%N}
+      local prefix=_gitstatus_cleanup_${ZSH_SUBSHELL}_
+      [[ $fname == ${prefix}* ]] || return 0
+      local -i daemon_pid=${fname#$prefix}
+      kill -- -$daemon_pid &>/dev/null || true
     }
     add-zsh-hook zshexit _gitstatus_cleanup_${ZSH_SUBSHELL}_${daemon_pid}
 
