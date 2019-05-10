@@ -76,13 +76,12 @@ function my_set_prompt() {
   PROMPT='%~# '
   RPROMPT=''
 
-  gitstatus_query MY                  || return  # error
-  [[ $VCS_STATUS_RESULT == ok-sync ]] || return  # not a git repo
-
-  RPROMPT=${${VCS_STATUS_LOCAL_BRANCH:-@${VCS_STATUS_COMMIT}}//\%/%%}  # escape %
-  [[ $VCS_STATUS_HAS_STAGED    == 1 ]] && RPROMPT+='+'
-  [[ $VCS_STATUS_HAS_UNSTAGED  == 1 ]] && RPROMPT+='!'
-  [[ $VCS_STATUS_HAS_UNTRACKED == 1 ]] && RPROMPT+='?'
+  if gitstatus_query MY && [[ $VCS_STATUS_RESULT == ok-sync ]]; then
+    RPROMPT=${${VCS_STATUS_LOCAL_BRANCH:-@${VCS_STATUS_COMMIT}}//\%/%%}  # escape %
+    [[ $VCS_STATUS_HAS_STAGED    == 1 ]] && RPROMPT+='+'
+    [[ $VCS_STATUS_HAS_UNSTAGED  == 1 ]] && RPROMPT+='!'
+    [[ $VCS_STATUS_HAS_UNTRACKED == 1 ]] && RPROMPT+='?'
+  fi
 
   setopt noprompt{bang,subst} promptpercent  # enable/disable correct prompt expansions
 }
