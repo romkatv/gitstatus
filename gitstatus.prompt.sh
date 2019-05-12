@@ -72,7 +72,9 @@ function gitstatus_prompt_update() {
 gitstatus_stop && gitstatus_start
 
 # On every prompt, fetch git status and set GITSTATUS_PROMPT.
-PROMPT_COMMAND=gitstatus_prompt_update
+if ! [[ "${PROMPT_COMMAND:-}" =~ gitstatus_prompt_update ]]; then
+  PROMPT_COMMAND="gitstatus_prompt_update${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+fi
 
 # Enable promptvars so that ${GITSTATUS_PROMPT} in PS1 is expanded.
 shopt -s promptvars
