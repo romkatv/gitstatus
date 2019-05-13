@@ -105,21 +105,28 @@ function gitstatus_start() {
   unset -f gitstatus_start_impl
 
   if [[ "${GITSTATUS_STOP_ON_EXEC:-1}" == 1 ]]; then
-    function _gitstatus_exec() {
+    type -t _gitstatus_exec &>/dev/null    || function _gitstatus_exec()    { exec    "$@"; }
+    type -t _gitstatus_builtin &>/dev/null || function _gitstatus_builtin() { builtin "$@"; }
+
+    function _gitstatus_exec_wrapper() {
       (( ! $# )) || gitstatus_stop
       local ret=0
-      exec "$@" || ret=$?
+      _gitstatus_exec "$@" || ret=$?
       [[ -n "${GITSTATUS_DAEMON_PID:-}" ]] || gitstatus_start || true
       return $ret
     }
-    alias exec=_gitstatus_exec
 
-    function _gitstatus_builtin() {
+    function _gitstatus_builtin_wrapper() {
       while [[ "${1:-}" == builtin ]]; do shift; done
-      [[ "${1:-}" != exec ]] || set -- _gitstatus_exec "${@:2}"
-      "$@"
+      if [[ "${1:-}" == exec ]]; then
+        _gitstatus_exec_wrapper "${@:2}"
+      else
+        _gitstatus_builtin "$@"
+      fi
     }
-    alias builtin=_gitstatus_builtin
+
+    alias exec=_gitstatus_exec_wrapper
+    alias builtin=_gitstatus_builtin_wrapper
 
     _GITSTATUS_EXEC_HOOK=1
   else
@@ -132,9 +139,12 @@ function gitstatus_stop() {
   [[ -z "${_GITSTATUS_REQ_FD:-}"    ]] || exec {_GITSTATUS_REQ_FD}>&-              || true
   [[ -z "${_GITSTATUS_RESP_FD:-}"   ]] || exec {_GITSTATUS_RESP_FD}>&-             || true
   [[ -z "${GITSTATUS_DAEMON_PID:-}" ]] || kill "$GITSTATUS_DAEMON_PID" &>/dev/null || true
-  [[ -z "${_GITSTATUS_EXEC_HOOK:-}" ]] || unalias exec builtin &>/dev/null         || true
+  if [[ -n "${_GITSTATUS_EXEC_HOOK:-}" ]]; then
+    unalias exec builtin &>/dev/null || true
+    function _gitstatus_exec_wrapper()    { _gitstatus_exec    "$@"; }
+    function _gitstatus_builtin_wrapper() { _gitstatus_builtin "$@"; }
+  fi
   unset _GITSTATUS_REQ_FD _GITSTATUS_RESP_FD GITSTATUS_DAEMON_PID _GITSTATUS_EXEC_HOOK
-  unset -f _gitstatus_exec _gitstatus_builtin
 }
 
 # Retrives status of a git repository from a directory under its working tree.
