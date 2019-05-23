@@ -67,9 +67,19 @@ void PrintUsage() {
             << "   Non-positive value means as many threads as there are CPUs. E.g., on a\n"
             << "   quad-core machine with hyperthreading enabled gitstatusd will use 8 threads.\n"
             << "\n"
+            << "  -s, --max-num-staged=NUM [default=1]\n"
+            << "   Report at most this many staged changes; negative value means infinity.\n"
+            << "\n"
+            << "  -u, --max-num-unstaged=NUM [default=1]\n"
+            << "   Report at most this many unstaged changes; negative value means infinity.\n"
+            << "\n"
+            << "  -d, --max-num-untracked=NUM [default=1]\n"
+            << "   Report at most this many untracked fles; negative value means infinity.\n"
+            << "\n"
             << "  -m, --dirty-max-index-size=NUM [default=-1]\n"
-            << "   Report -1 unstaged and untracked if there are more than this many files in\n"
-            << "   the index; negative value means infinity.\n"
+            << "   If a repo has more files in its index than this, override --max-num-unstaged\n"
+            << "   and --max-num-untracked (but not --max-num-staged) with zeros; negative value\n"
+            << "   means infinity.\n"
             << "\n"
             << "  -h, --help\n"
             << "  Display this help and exit.\n"
@@ -99,14 +109,15 @@ void PrintUsage() {
             << "     6. Upstream branch name. Can be empty.\n"
             << "     7. Remote URL. Can be empty.\n"
             << "     8. Repository state, A.K.A. action. Can be empty.\n"
-            << "     9. 1 if there are staged changes, 0 otherwise.\n"
-            << "    10. 1 if there are unstaged changes, 0 if there aren't, -1 if unknown.\n"
-            << "    11. 1 if there are untracked files, 0 if there aren't, -1 if unknown.\n"
-            << "    12. Number of commits the current branch is ahead of upstream.\n"
-            << "    13. Number of commits the current branch is behind upstream.\n"
-            << "    14. The last tag (in lexicographical order) that points to the same\n"
+            << "     9. The number of files in the index.\n"
+            << "    10. The number of staged changes.\n"
+            << "    11. The number of unstaged changes.\n"
+            << "    12. The number of untracked files.\n"
+            << "    13. Number of commits the current branch is ahead of upstream.\n"
+            << "    14. Number of commits the current branch is behind upstream.\n"
+            << "    15. The last tag (in lexicographical order) that points to the same\n"
             << "        commit as HEAD.\n"
-            << "    15. Absolute path to the git repository workdir.\n"
+            << "    16. Absolute path to the git repository workdir.\n"
             << "\n"
             << "EXAMPLE\n"
             << "\n"
@@ -155,6 +166,9 @@ Options ParseOptions(int argc, char** argv) {
                                 {"lock-fd", required_argument, nullptr, 'l'},
                                 {"parent-pid", required_argument, nullptr, 'p'},
                                 {"num-threads", required_argument, nullptr, 't'},
+                                {"max-num-staged", required_argument, nullptr, 's'},
+                                {"max-num-unstaged", required_argument, nullptr, 'u'},
+                                {"max-num-untracked", required_argument, nullptr, 'd'},
                                 {"dirty-max-index-size", required_argument, nullptr, 'm'},
                                 {}};
   Options res;
@@ -180,6 +194,15 @@ Options ParseOptions(int argc, char** argv) {
         res.num_threads = n;
         break;
       }
+      case 's':
+        res.max_num_staged = ParseLong(optarg);
+        break;
+      case 'u':
+        res.max_num_unstaged = ParseLong(optarg);
+        break;
+      case 'd':
+        res.max_num_untracked = ParseLong(optarg);
+        break;
       case 'm':
         res.dirty_max_index_size = ParseLong(optarg);
         break;

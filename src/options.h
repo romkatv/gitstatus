@@ -22,10 +22,19 @@
 
 namespace gitstatus {
 
-struct Options {
-  // If a repo has more files in its index than this, don't scan its files to see what's dirty.
-  // Instead, report -1 as the the number of unstaged changes and untracked files.
+struct Limits {
+  // Report at most this many staged changes.
+  size_t max_num_staged = 1;
+  // Report at most this many unstaged changes.
+  size_t max_num_unstaged = 1;
+  // Report at most this many untracked files.
+  size_t max_num_untracked = 1;
+  // If a repo has more files in its index than this, override max_num_unstaged and
+  // max_num_untracked (but not max_num_staged) with zeros.
   size_t dirty_max_index_size = -1;
+};
+
+struct Options : Limits {
   // Use this many threads to scan git workdir for unstaged and untracked files. Must be positive.
   size_t num_threads = 1;
   // If non-negative, check whether the specified file descriptor is locked when not receiving any
