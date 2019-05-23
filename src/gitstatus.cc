@@ -105,17 +105,16 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   resp.Print(RepoState(repo->repo()));
 
   // Look for staged, unstaged and untracked. This is where most of the time is spent.
-  const IndexStats stats = repo->GetIndexStats(head_target, opts.dirty_max_index_size);
+  const IndexStats stats = repo->GetIndexStats(head_target);
 
-  // 1 if there are staged changes, 0 otherwise. In the output of `git status` these are listed
-  // under "changes to be committed".
-  resp.Print(stats.has_staged);
-  // 1 if there are unstaged changes, 0 if there aren't, -1 if we don't know. In the output of
-  // `git status` these are listed under "changes not staged for commit".
-  resp.Print(static_cast<int>(stats.has_unstaged));
-  // 1 if there are untracked files, 0 if there aren't, -1 if we don't know. In the output of
-  // `git status` these are listed under "untracked files".
-  resp.Print(static_cast<int>(stats.has_untracked));
+  // The number of files in the index.
+  resp.Print(stats.index_size);
+  // The number of staged changes. At most opts.max_num_staged.
+  resp.Print(stats.num_staged);
+  // The number of unstaged changes. At most opts.max_num_unstaged. Zero if index is too large.
+  resp.Print(stats.num_unstaged);
+  // The number of untracked changes. At most opts.max_num_untracked. Zero if index is too large.
+  resp.Print(stats.num_untracked);
 
   if (upstream) {
     // Number of commits we are ahead of upstream. Non-negative integer. If positive, it means
@@ -144,7 +143,7 @@ int GitStatus(int argc, char** argv) {
 
   Options opts = ParseOptions(argc, argv);
   RequestReader reader(fileno(stdin), opts.lock_fd, opts.parent_pid);
-  RepoCache cache;
+  RepoCache cache(opts);
 
   InitGlobalThreadPool(opts.num_threads);
   git_libgit2_opts(GIT_OPT_ENABLE_STRICT_HASH_VERIFICATION, 0);

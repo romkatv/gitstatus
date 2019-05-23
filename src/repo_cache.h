@@ -21,18 +21,22 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 #include <git2.h>
 
+#include "options.h"
 #include "repo.h"
 
 namespace gitstatus {
 
 class RepoCache {
  public:
+  explicit RepoCache(Limits lim) : lim_(std::move(lim)) {}
   Repo* Open(const std::string& dir);
 
  private:
+  Limits lim_;
   std::unordered_map<std::string, std::unique_ptr<Repo>> cache_;
 };
 

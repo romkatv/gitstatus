@@ -54,7 +54,7 @@ Repo* RepoCache::Open(const std::string& dir) {
     VERIFY(!git_repository_refdb(&refdb, repo)) << GitError();
     git_refdb_free(refdb);
 
-    x.first->second = std::make_unique<Repo>(std::exchange(repo, nullptr));
+    x.first->second = std::make_unique<Repo>(std::exchange(repo, nullptr), lim_);
   }
   return x.first->second.get();
 }

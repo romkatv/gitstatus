@@ -39,6 +39,7 @@
 
 #include "check.h"
 #include "index.h"
+#include "options.h"
 #include "string_cmp.h"
 #include "tag_db.h"
 #include "time.h"
@@ -46,21 +47,22 @@
 namespace gitstatus {
 
 struct IndexStats {
-  bool has_staged = false;
-  Tribool has_unstaged = Tribool::kUnknown;
-  Tribool has_untracked = Tribool::kUnknown;
+  size_t index_size = 0;
+  size_t num_staged = 0;
+  size_t num_unstaged = 0;
+  size_t num_untracked = 0;
 };
 
 class Repo {
  public:
-  explicit Repo(git_repository* repo);
+  explicit Repo(git_repository* repo, Limits lim);
   Repo(Repo&& other) = delete;
   ~Repo();
 
   git_repository* repo() const { return repo_; }
 
   // Head can be null, in which case has_staged will be false.
-  IndexStats GetIndexStats(const git_oid* head, size_t dirty_max_index_size);
+  IndexStats GetIndexStats(const git_oid* head);
 
   // Returns the last tag in lexicographical order whose target is equal to the given, or an
   // empty string. Target can be null, in which case the tag is empty.
@@ -82,6 +84,7 @@ class Repo {
   void RunAsync(std::function<void()> f);
   void Wait();
 
+  const Limits lim_;
   git_repository* const repo_;
   git_index* git_index_ = nullptr;
   std::vector<Shard> shards_;
@@ -93,9 +96,9 @@ class Repo {
   std::condition_variable cv_;
   std::atomic<size_t> inflight_{0};
   std::atomic<bool> error_{false};
-  std::atomic<bool> staged_{false};
-  std::atomic<Tribool> unstaged_{Tribool::kUnknown};
-  std::atomic<Tribool> untracked_{Tribool::kUnknown};
+  std::atomic<size_t> staged_{0};
+  std::atomic<size_t> unstaged_{0};
+  std::atomic<size_t> untracked_{0};
   std::atomic<Tribool> untracked_cache_{Tribool::kUnknown};
 };
 

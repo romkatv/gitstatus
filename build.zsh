@@ -47,6 +47,7 @@ function build_libgit2() {
     -DCMAKE_BUILD_TYPE=Release \
     -DTHREADSAFE=ON            \
     -DUSE_BUNDLED_ZLIB=ON      \
+    -DREGEX_BACKEND=builtin    \
     -DUSE_ICONV=OFF            \
     -DBUILD_CLAR=OFF           \
     -DUSE_SSH=OFF              \

@@ -83,7 +83,7 @@ bool Repo::Shard::Contains(Str<> str, StringView path) const {
   return !str.Lt(end, path);
 }
 
-Repo::Repo(git_repository* repo) : repo_(repo), tag_db_(repo) {
+Repo::Repo(git_repository* repo, Limits lim) : lim_(std::move(lim)), repo_(repo), tag_db_(repo) {
   GlobalThreadPool()->Schedule([this] {
     bool check = CheckDirMtime(git_repository_path(repo_));
     std::unique_lock<std::mutex> lock(mutex_);
@@ -103,7 +103,7 @@ Repo::~Repo() {
   git_repository_free(repo_);
 }
 
-IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size) {
+IndexStats Repo::GetIndexStats(const git_oid* head) {
   Wait();
 
   if (git_index_) {
@@ -122,9 +122,9 @@ IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size)
 
   UpdateShards();
   Store(error_, false);
-  Store(staged_, false);
-  Store(unstaged_, Tribool::kUnknown);
-  Store(untracked_, Tribool::kUnknown);
+  Store(staged_, {});
+  Store(unstaged_, {});
+  Store(untracked_, {});
 
   std::vector<const char*> dirty_candidates;
   const size_t index_size = git_index_entrycount(git_index_);
@@ -133,12 +133,11 @@ IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size)
     StartStagedScan(head);
   } else if (index_size > 0) {
     // An empty repo with non-empty index must have staged changes.
-    Store(staged_, true);
+    Store(staged_, index_size);
   }
 
-  if (index_size <= dirty_max_index_size) {
-    Store(unstaged_, Tribool::kFalse);
-    Store(untracked_, Tribool::kFalse);
+  if (index_size <= lim_.dirty_max_index_size &&
+      (lim_.max_num_unstaged || lim_.max_num_untracked)) {
     if (!index_) index_ = std::make_unique<Index>(git_repository_workdir(repo_), git_index_);
     dirty_candidates = index_->GetDirtyCandidates(Load(untracked_cache_));
     if (dirty_candidates.empty()) {
@@ -153,9 +152,10 @@ IndexStats Repo::GetIndexStats(const git_oid* head, size_t dirty_max_index_size)
   Wait();
   VERIFY(!Load(error_));
 
-  return {.has_staged = Load(staged_),
-          .has_unstaged = Load(unstaged_),
-          .has_untracked = Load(untracked_)};
+  return {.index_size = index_size,
+          .num_staged = std::min(Load(staged_), lim_.max_num_staged),
+          .num_unstaged = std::min(Load(unstaged_), lim_.max_num_unstaged),
+          .num_untracked = std::min(Load(untracked_), lim_.max_num_untracked)};
 }
 
 void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
@@ -163,24 +163,35 @@ void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
 
   git_diff_options opt = GIT_DIFF_OPTIONS_INIT;
   opt.payload = this;
-  opt.flags = GIT_DIFF_SKIP_BINARY_CHECK | GIT_DIFF_DISABLE_PATHSPEC_MATCH |
-              GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_RECURSE_UNTRACKED_DIRS |
-              GIT_DIFF_EXEMPLARS;
+  opt.flags = GIT_DIFF_SKIP_BINARY_CHECK | GIT_DIFF_DISABLE_PATHSPEC_MATCH | GIT_DIFF_EXEMPLARS;
+  if (lim_.max_num_untracked) {
+    opt.flags |= GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_RECURSE_UNTRACKED_DIRS;
+  }
   opt.ignore_submodules = GIT_SUBMODULE_IGNORE_DIRTY;
   opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
                       const char* matched_pathspec, void* payload) -> int {
     Repo* repo = static_cast<Repo*>(payload);
     if (Load(repo->error_)) return GIT_EUSER;
     if (delta->status == GIT_DELTA_UNTRACKED) {
-      if (Exchange(repo->untracked_, Tribool::kTrue) != Tribool::kTrue) {
+      size_t untracked = Inc(repo->untracked_);
+      if (!untracked) {
         LOG(INFO) << "Found untracked file: " << delta->new_file.path;
       }
-      return Load(repo->unstaged_) == Tribool::kTrue ? GIT_EUSER : 1;
+      if (untracked + 1 < repo->lim_.max_num_untracked) return GIT_DIFF_DELTA_DO_NOT_INSERT;
+      if (Load(repo->unstaged_) < repo->lim_.max_num_unstaged) {
+        return GIT_DIFF_DELTA_DO_NOT_INSERT | GIT_DIFF_DELTA_SKIP_TYPE;
+      }
+      return GIT_EUSER;
     } else {
-      if (Exchange(repo->unstaged_, Tribool::kTrue) != Tribool::kTrue) {
+      size_t unstaged = Inc(repo->unstaged_);
+      if (!unstaged) {
         LOG(INFO) << "Found unstaged file: " << delta->new_file.path;
       }
-      return Load(repo->untracked_) == Tribool::kTrue ? GIT_EUSER : 1;
+      if (unstaged + 1 < repo->lim_.max_num_unstaged) return GIT_DIFF_DELTA_DO_NOT_INSERT;
+      if (Load(repo->untracked_) < repo->lim_.max_num_untracked) {
+        return GIT_DIFF_DELTA_DO_NOT_INSERT | GIT_DIFF_DELTA_SKIP_TYPE;
+      }
+      return GIT_EUSER;
     }
   };
 
@@ -224,10 +235,11 @@ void Repo::StartStagedScan(const git_oid* head) {
   opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
                       const char* matched_pathspec, void* payload) -> int {
     Repo* repo = static_cast<Repo*>(payload);
-    if (!Exchange(repo->staged_, true)) {
+    size_t staged = Inc(repo->staged_);
+    if (!staged) {
       LOG(INFO) << "Found staged file: " << delta->new_file.path;
     }
-    return GIT_EUSER;
+    return staged + 1 < repo->lim_.max_num_unstaged ? 1 : GIT_EUSER;
   };
 
   for (const Shard& shard : shards_) {
