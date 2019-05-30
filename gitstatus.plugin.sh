@@ -24,14 +24,27 @@
 #
 #   -t FLOAT  Fail the self-check on initialization if not getting a response from
 #             gitstatusd for this this many seconds. Defaults to 5.
+#
+#   -s INT    Report at most this many staged changes; negative value means infinity.
+#             Defaults to 1.
+#
+#   -u INT    Report at most this many unstaged changes; negative value means infinity.
+#             Defaults to 1.
+#
+#   -d INT    Report at most this many untracked files; negative value means infinity.
+#             Defaults to 1.
+#
 #   -m INT    Report -1 unstaged and untracked if there are more than this many files
 #             in the index. Negative value means infinity. Defaults to -1.
 function gitstatus_start() {
   unset OPTIND
-  local opt timeout=5 max_dirty=-1
+  local opt timeout=5 max_num_staged=1 max_num_unstaged=1 max_num_untracked=1 max_dirty=-1
   while getopts "t:m:" opt; do
     case "$opt" in
       t) timeout=$OPTARG;;
+      s) max_num_staged=$OPTARG;;
+      u) max_num_unstaged=$OPTARG;;
+      d) max_num_untracked=$OPTARG;;
       m) max_dirty=$OPTARG;;
       *) return 1;;
     esac
@@ -77,10 +90,13 @@ function gitstatus_start() {
 
     { <&$_GITSTATUS_REQ_FD >&$_GITSTATUS_RESP_FD 2>"$GITSTATUS_DAEMON_LOG" bash -c "
         trap 'kill %1 &>/dev/null' SIGINT SIGTERM EXIT
-        ${daemon@Q}                             \
-          --parent-pid=$$                       \
-          --num-threads=${threads@Q}            \
-          --dirty-max-index-size=${max_dirty@Q} \
+        ${daemon@Q}                                  \
+          --parent-pid=$$                            \
+          --num-threads=${threads@Q}                 \
+          --max-num-staged=${max_num_staged@Q}       \
+          --max-num-unstaged=${max_num_unstaged@Q}   \
+          --max-num-untracked=${max_num_untracked@Q} \
+          --dirty-max-index-size=${max_dirty@Q}      \
           0<&0 1>&1 2>&2 &
         wait
         echo -nE $'bye\x1f0\x1e'" & } 2>/dev/null
@@ -91,6 +107,8 @@ function gitstatus_start() {
     echo -nE $'hello\x1f\x1e' >&$_GITSTATUS_REQ_FD                     || return
     IFS='' read -rd $'\x1e' -u $_GITSTATUS_RESP_FD -t "$timeout" reply || return
     [[ "$reply" == $'hello\x1f0' ]]                                    || return
+
+    _GITSTATUS_DIRTY_MAX_INDEX_SIZE=$max_dirty
   }
 
   if ! gitstatus_start_impl; then
@@ -145,6 +163,7 @@ function gitstatus_stop() {
     function _gitstatus_builtin_wrapper() { _gitstatus_builtin "$@"; }
   fi
   unset _GITSTATUS_REQ_FD _GITSTATUS_RESP_FD GITSTATUS_DAEMON_PID _GITSTATUS_EXEC_HOOK
+  unset _GITSTATUS_DIRTY_MAX_INDEX_SIZE
 }
 
 # Retrives status of a git repository from a directory under its working tree.
@@ -170,6 +189,10 @@ function gitstatus_stop() {
 #   VCS_STATUS_REMOTE_BRANCH   Upstream branch name. Can be empty.
 #   VCS_STATUS_REMOTE_URL      Remote URL. Can be empty.
 #   VCS_STATUS_ACTION          Repository state, A.K.A. action. Can be empty.
+#   VCS_STATUS_INDEX_SIZE      The number of files in the index.
+#   VCS_STATUS_NUM_STAGED      The number of staged changes.
+#   VCS_STATUS_NUM_UNSTAGED    The number of unstaged changes.
+#   VCS_STATUS_NUM_UNTRACKED   The number of untracked files.
 #   VCS_STATUS_HAS_STAGED      1 if there are staged changes, 0 otherwise.
 #   VCS_STATUS_HAS_UNSTAGED    1 if there are unstaged changes, 0 if there aren't, -1 if
 #                              unknown.
@@ -221,13 +244,23 @@ function gitstatus_query() {
     VCS_STATUS_REMOTE_NAME="${resp[6]}"
     VCS_STATUS_REMOTE_URL="${resp[7]}"
     VCS_STATUS_ACTION="${resp[8]}"
-    VCS_STATUS_HAS_STAGED="${resp[9]}"
-    VCS_STATUS_HAS_UNSTAGED="${resp[10]}"
-    VCS_STATUS_HAS_UNTRACKED="${resp[11]}"
-    VCS_STATUS_COMMITS_AHEAD="${resp[12]}"
-    VCS_STATUS_COMMITS_BEHIND="${resp[13]}"
-    VCS_STATUS_STASHES="${resp[14]}"
-    VCS_STATUS_TAG="${resp[15]:-}"
+    VCS_STATUS_INDEX_SIZE="${resp[9]}"
+    VCS_STATUS_NUM_STAGED="${resp[10]}"
+    VCS_STATUS_NUM_UNSTAGED="${resp[11]}"
+    VCS_STATUS_NUM_UNTRACKED="${resp[12]}"
+    VCS_STATUS_COMMITS_AHEAD="${resp[13]}"
+    VCS_STATUS_COMMITS_BEHIND="${resp[14]}"
+    VCS_STATUS_STASHES="${resp[15]}"
+    VCS_STATUS_TAG="${resp[16]:-}"
+    VCS_STATUS_HAS_STAGED=$((VCS_STATUS_NUM_STAGED > 0))
+    if (( _GITSTATUS_DIRTY_MAX_INDEX_SIZE >= 0 &&
+          VCS_STATUS_INDEX_SIZE > _GITSTATUS_DIRTY_MAX_INDEX_SIZE_ )); then
+      VCS_STATUS_HAS_UNSTAGED=-1
+      VCS_STATUS_HAS_UNTRACKED=-1
+    else
+      VCS_STATUS_HAS_UNSTAGED=$((VCS_STATUS_NUM_UNSTAGED > 0))
+      VCS_STATUS_HAS_UNTRACKED=$((VCS_STATUS_NUM_UNTRACKED > 0))
+    fi
   else
     VCS_STATUS_RESULT=norepo-sync
     unset VCS_STATUS_WORKDIR
@@ -237,6 +270,10 @@ function gitstatus_query() {
     unset VCS_STATUS_REMOTE_NAME
     unset VCS_STATUS_REMOTE_URL
     unset VCS_STATUS_ACTION
+    unset VCS_STATUS_INDEX_SIZE
+    unset VCS_STATUS_NUM_STAGED
+    unset VCS_STATUS_NUM_UNSTAGED
+    unset VCS_STATUS_NUM_UNTRACKED
     unset VCS_STATUS_HAS_STAGED
     unset VCS_STATUS_HAS_UNSTAGED
     unset VCS_STATUS_HAS_UNTRACKED
