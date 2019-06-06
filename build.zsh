@@ -7,7 +7,7 @@
 # If everything goes well, the path to your newly built binary will be printed at the end.
 #
 # If something breaks due to a missing dependency (e.g., `cmake` not found), install the
-# dependency, remove `/tmp/gitstatus` and retry.
+# dependency, remove `${TMPDIR:-/tmp}/gitstatus` and retry.
 
 readonly GITSTATUS_REPO_URL=https://github.com/romkatv/gitstatus.git
 readonly LIBGIT2_REPO_URL=https://github.com/romkatv/libgit2.git
@@ -20,8 +20,9 @@ setopt err_return err_exit no_unset pipe_fail
   return 1
 }
 
-local DIR=${${1:-/tmp/gitstatus}:a}
+local DIR=${${1:-${TMPDIR:-/tmp}/gitstatus}:a}
 local OS && OS=$(uname -s)
+[[ $(uname -o) != Android ]] || OS=Android
 
 local CPUS
 case $OS in
@@ -62,12 +63,16 @@ function build_gitstatus() {
   cd $DIR
   git clone --depth 1 $GITSTATUS_REPO_URL
   cd gitstatus
+  local cxx=${CXX:-'g++'}
   local cxxflags=${CXXFLAGS:-''}
   local ldflags=${LDFLAGS:-''}
   local make=make
   cxxflags+=" -I$DIR/libgit2/include"
   ldflags+=" -L$DIR/libgit2/build"
   case $OS in
+    Android)
+      cxx=${CXX:-'clang++'}
+      ;;
     Linux)
       ldflags+=" -static-libstdc++ -static-libgcc"
       ;;
@@ -75,7 +80,7 @@ function build_gitstatus() {
       ldflags+=" -static"
       make=gmake
   esac
-  CXXFLAGS=$cxxflags LDFLAGS=$ldflags $make -j $CPUS
+  CXX=$cxx CXXFLAGS=$cxxflags LDFLAGS=$ldflags $make -j $CPUS
   strip gitstatusd
   local arch && arch=$(uname -m)
   local target=$PWD/bin/gitstatusd-${OS:l}-${arch:l}
