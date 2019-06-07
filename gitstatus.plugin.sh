@@ -63,8 +63,14 @@ function gitstatus_start() {
       local arch && arch=$(uname -m)                    || return
       local dir  &&  dir=$(dirname "${BASH_SOURCE[0]}") || return
       [[ "$os" != Linux || "$(uname -o)" != Android ]] || os=Android
-      local ldd_v && hash ldd &>/dev/null && ldd_v=$(command ldd --version 2>/dev/null) || true
-      local linkage && [[ ${ldd_v,,} == *glibc* || ${ldd_v,,} == *gnu\ libc* ]] || linkage=-static
+      local linkage
+      if [[ "$os" == Linux ]]; then
+        local ldd_v
+        if ! hash ldd &>/dev/null || ! ldd_v=$(command ldd --version 2>/dev/null) ||
+           [[ "${ldd_v,,}" != *glibc* && "${ldd_v,,}" != *gnu\ libc* ]]; then
+          linkage=-static
+        fi
+      fi
       daemon="$dir/bin/gitstatusd-${os,,}-${arch,,}${linkage}"
     fi
 
