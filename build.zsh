@@ -55,6 +55,7 @@ function build_libgit2() {
     -DUSE_HTTPS=OFF            \
     -DBUILD_SHARED_LIBS=OFF    \
     -DUSE_EXT_HTTP_PARSER=OFF  \
+    ${(@Q)${(z)CMAKEFLAGS}}    \
     ..
   make -j $CPUS
 }
