@@ -64,12 +64,21 @@ mode_t Mode(mode_t mode, mode_t other, bool trust_filemode, bool has_symlinks) {
   return mode & S_IFMT;
 }
 
+bool MTimeEq(const git_index_time& index, const struct timespec& workdir) {
+  if (index.seconds != workdir.tv_sec) return false;
+  if (int64_t{index.nanoseconds} == workdir.tv_nsec) return true;
+#ifdef GITSTATUS_ZERO_NSEC
+  return index.nanoseconds == 0;
+#else
+  return false;
+#endif
+}
+
 bool IsModified(const git_index_entry* entry, const struct stat& st, bool trust_filemode,
                 bool has_symlinks) {
-  return GIT_INDEX_ENTRY_STAGE(entry) > 0 || entry->mtime.seconds != MTim(st).tv_sec ||
-         int64_t{entry->mtime.nanoseconds} != MTim(st).tv_nsec || entry->ino != st.st_ino ||
-         entry->mode != Mode(st.st_mode, entry->mode, trust_filemode, has_symlinks) ||
-         entry->gid != st.st_gid || int64_t{entry->file_size} != st.st_size;
+  return GIT_INDEX_ENTRY_STAGE(entry) > 0 || entry->ino != st.st_ino || entry->gid != st.st_gid ||
+         int64_t{entry->file_size} != st.st_size || !MTimeEq(entry->mtime, MTim(st)) ||
+         entry->mode != Mode(st.st_mode, entry->mode, trust_filemode, has_symlinks);
 }
 
 int OpenDir(int parent_fd, const char* name) {
