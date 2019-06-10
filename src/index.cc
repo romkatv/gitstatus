@@ -202,9 +202,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       }
       if (untracked_cache == Tribool::kTrue && StatEq(st, dir.st)) {
         for (const git_index_entry* file : dir.files) {
-          if (git_index_entry_newer_than_index(file, index)) {
-            AddCandidate("racy", file->path);
-          } else if (fstatat(*dir_fd, Basename(file), &st, AT_SYMLINK_NOFOLLOW)) {
+          if (fstatat(*dir_fd, Basename(file), &st, AT_SYMLINK_NOFOLLOW)) {
             AddCandidate("deleted", file->path);
           } else if (IsModified(file, st, trust_filemode, has_symlinks)) {
             AddCandidate("modified", file->path);
@@ -237,15 +235,11 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
         if (cmp < 0) {
           AddCandidate("deleted", (*file)->path);
         } else if (cmp == 0) {
-          if (git_index_entry_newer_than_index(*file, index)) {
-            AddCandidate("racy", (*file)->path);
-          } else {
-            struct stat st;
-            if (fstatat(*dir_fd, entry, &st, AT_SYMLINK_NOFOLLOW)) {
-              AddCandidate("unreadable", (*file)->path);
-            } else if (IsModified(*file, st, trust_filemode, has_symlinks)) {
-              AddCandidate("modified", (*file)->path);
-            }
+          struct stat st;
+          if (fstatat(*dir_fd, entry, &st, AT_SYMLINK_NOFOLLOW)) {
+            AddCandidate("unreadable", (*file)->path);
+          } else if (IsModified(*file, st, trust_filemode, has_symlinks)) {
+            AddCandidate("modified", (*file)->path);
           }
           matched = true;
           ++file;
