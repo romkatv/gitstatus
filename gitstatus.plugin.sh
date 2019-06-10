@@ -89,19 +89,20 @@ function gitstatus_start() {
       GITSTATUS_DAEMON_LOG=/dev/null
     fi
 
+    local d="${GITSTATUS_DAEMON:-}"
     local daemon_args=(
-      --parent-pid="${$@Q}" \
-      --num-threads="${threads@Q}" \
-      --max-num-staged="${max_num_staged@Q}" \
-      --max-num-unstaged="${max_num_unstaged@Q}" \
-      --max-num-untracked="${max_num_untracked@Q}" \
+      --parent-pid="${$@Q}"
+      --num-threads="${threads@Q}"
+      --max-num-staged="${max_num_staged@Q}"
+      --max-num-unstaged="${max_num_unstaged@Q}"
+      --max-num-untracked="${max_num_untracked@Q}"
       --dirty-max-index-size="${max_dirty@Q}")
 
     { <&$_GITSTATUS_REQ_FD >&$_GITSTATUS_RESP_FD 2>"$GITSTATUS_DAEMON_LOG" bash -cx "
         trap 'kill %1 &>/dev/null' SIGINT SIGTERM EXIT
         ${daemon@Q} ${daemon_args[*]} 0<&0 1>&1 2>&2 &
         wait -n
-        if [[ \$? == 127 && -z ${GITSTATUS_DAEMON@Q} && -f ${daemon@Q}-static ]]; then
+        if [[ \$? == 127 && -z ${d@Q} && -f ${daemon@Q}-static ]]; then
           ${daemon@Q}-static ${daemon_args[*]} 0<&0 1>&1 2>&2 &
           wait -n
         fi
