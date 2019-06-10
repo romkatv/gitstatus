@@ -63,15 +63,7 @@ function gitstatus_start() {
       local arch && arch=$(uname -m)                    || return
       local dir  &&  dir=$(dirname "${BASH_SOURCE[0]}") || return
       [[ "$os" != Linux || "$(uname -o)" != Android ]] || os=Android
-      local linkage
-      if [[ "$os" == Linux ]]; then
-        local ldd_v
-        if ! hash ldd &>/dev/null || ! ldd_v=$(command ldd --version 2>/dev/null) ||
-           [[ "${ldd_v,,}" != *glibc* && "${ldd_v,,}" != *gnu\ libc* ]]; then
-          linkage=-static
-        fi
-      fi
-      daemon="$dir/bin/gitstatusd-${os,,}-${arch,,}${linkage}"
+      daemon="$dir/bin/gitstatusd-${os,,}-${arch,,}"
     fi
 
     local threads="${GITSTATUS_NUM_THREADS:-0}"
@@ -97,17 +89,22 @@ function gitstatus_start() {
       GITSTATUS_DAEMON_LOG=/dev/null
     fi
 
-    { <&$_GITSTATUS_REQ_FD >&$_GITSTATUS_RESP_FD 2>"$GITSTATUS_DAEMON_LOG" bash -c "
+    local daemon_args=(
+      --parent-pid="${$@Q}" \
+      --num-threads="${threads@Q}" \
+      --max-num-staged="${max_num_staged@Q}" \
+      --max-num-unstaged="${max_num_unstaged@Q}" \
+      --max-num-untracked="${max_num_untracked@Q}" \
+      --dirty-max-index-size="${max_dirty@Q}")
+
+    { <&$_GITSTATUS_REQ_FD >&$_GITSTATUS_RESP_FD 2>"$GITSTATUS_DAEMON_LOG" bash -cx "
         trap 'kill %1 &>/dev/null' SIGINT SIGTERM EXIT
-        ${daemon@Q}                                  \
-          --parent-pid=$$                            \
-          --num-threads=${threads@Q}                 \
-          --max-num-staged=${max_num_staged@Q}       \
-          --max-num-unstaged=${max_num_unstaged@Q}   \
-          --max-num-untracked=${max_num_untracked@Q} \
-          --dirty-max-index-size=${max_dirty@Q}      \
-          0<&0 1>&1 2>&2 &
-        wait
+        ${daemon@Q} ${daemon_args[*]} 0<&0 1>&1 2>&2 &
+        wait -n
+        if [[ \$? == 127 && -z ${GITSTATUS_DAEMON@Q} && -f ${daemon@Q}-static ]]; then
+          ${daemon@Q}-static ${daemon_args[*]} 0<&0 1>&1 2>&2 &
+          wait -n
+        fi
         echo -nE $'bye\x1f0\x1e'" & } 2>/dev/null
     disown
     GITSTATUS_DAEMON_PID=$!
