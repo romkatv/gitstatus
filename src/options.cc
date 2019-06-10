@@ -180,6 +180,10 @@ Options ParseOptions(int argc, char** argv) {
   while (true) {
     switch (getopt_long(argc, argv, "hl:t:m:", opts, nullptr)) {
       case -1:
+        if (optind != argc) {
+          std::cerr << "unexpected positional argument: " << argv[optind] << std::endl;
+          std::exit(1);
+        }
         return res;
       case 'h':
         PrintUsage();
