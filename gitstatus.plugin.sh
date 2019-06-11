@@ -102,7 +102,7 @@ function gitstatus_start() {
         trap 'kill %1 &>/dev/null' SIGINT SIGTERM EXIT
         ${daemon@Q} ${daemon_args[*]} 0<&0 1>&1 2>&2 &
         wait -n
-        if [[ \$? == 127 && -z ${d@Q} && -f ${daemon@Q}-static ]]; then
+        if [[ \$? != 0 && \$? != 10 && \$? -le 128 && -z ${d@Q} && -f ${daemon@Q}-static ]]; then
           ${daemon@Q}-static ${daemon_args[*]} 0<&0 1>&1 2>&2 &
           wait -n
         fi

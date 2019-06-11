@@ -35,7 +35,7 @@ long ParseLong(const char* s) {
   long res = std::strtol(s, &end, 10);
   if (*end || end == s || errno) {
     std::cerr << "gitstatusd: not an integer: " << s << std::endl;
-    std::exit(1);
+    std::exit(10);
   }
   return res;
 }
@@ -44,7 +44,7 @@ long ParseInt(const char* s) {
   long res = ParseLong(s);
   if (res < INT_MIN || res > INT_MAX) {
     std::cerr << "gitstatusd: integer out of bounds: " << s << std::endl;
-    std::exit(1);
+    std::exit(10);
   }
   return res;
 }
@@ -182,7 +182,7 @@ Options ParseOptions(int argc, char** argv) {
       case -1:
         if (optind != argc) {
           std::cerr << "unexpected positional argument: " << argv[optind] << std::endl;
-          std::exit(1);
+          std::exit(10);
         }
         return res;
       case 'h':
@@ -198,7 +198,7 @@ Options ParseOptions(int argc, char** argv) {
         long n = ParseLong(optarg);
         if (n <= 0) {
           std::cerr << "invalid number of threads: " << n << std::endl;
-          std::exit(1);
+          std::exit(10);
         }
         res.num_threads = n;
         break;
@@ -216,7 +216,7 @@ Options ParseOptions(int argc, char** argv) {
         res.dirty_max_index_size = ParseLong(optarg);
         break;
       default:
-        std::exit(1);
+        std::exit(10);
     }
   }
 }
