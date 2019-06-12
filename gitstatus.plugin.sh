@@ -101,10 +101,10 @@ function gitstatus_start() {
     { <&$_GITSTATUS_REQ_FD >&$_GITSTATUS_RESP_FD 2>"$GITSTATUS_DAEMON_LOG" bash -cx "
         trap 'kill %1 &>/dev/null' SIGINT SIGTERM EXIT
         ${daemon@Q} ${daemon_args[*]} 0<&0 1>&1 2>&2 &
-        wait -n
+        wait %1
         if [[ \$? != 0 && \$? != 10 && \$? -le 128 && -z ${d@Q} && -f ${daemon@Q}-static ]]; then
           ${daemon@Q}-static ${daemon_args[*]} 0<&0 1>&1 2>&2 &
-          wait -n
+          wait %1
         fi
         echo -nE $'bye\x1f0\x1e'" & } 2>/dev/null
     disown
