@@ -80,6 +80,11 @@ function build_gitstatus() {
     FreeBSD)
       ldflags+=" -static"
       make=gmake
+      ;;
+    CYGWIN*)
+      cxxflags+=" -D_GNU_SOURCE"
+      ldflags+=" -static"
+      ;;
   esac
   CXX=$cxx CXXFLAGS=$cxxflags LDFLAGS=$ldflags $make -j $CPUS
   strip gitstatusd
