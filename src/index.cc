@@ -76,7 +76,10 @@ bool MTimeEq(const git_index_time& index, const struct timespec& workdir) {
 
 bool IsModified(const git_index_entry* entry, const struct stat& st, bool trust_filemode,
                 bool has_symlinks) {
-  return GIT_INDEX_ENTRY_STAGE(entry) > 0 || entry->ino != st.st_ino || entry->gid != st.st_gid ||
+#ifndef GITSTATUS_BOGUS_INO
+  if (entry->ino != st.st_ino) return true;
+#endif
+  return GIT_INDEX_ENTRY_STAGE(entry) > 0 || entry->gid != st.st_gid ||
          int64_t{entry->file_size} != st.st_size || !MTimeEq(entry->mtime, MTim(st)) ||
          entry->mode != Mode(st.st_mode, entry->mode, trust_filemode, has_symlinks);
 }
