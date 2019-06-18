@@ -82,7 +82,7 @@ function build_gitstatus() {
       make=gmake
       ;;
     CYGWIN*)
-      cxxflags+=" -D_GNU_SOURCE"
+      cxxflags+=" -D_GNU_SOURCE -DGITSTATUS_BOGUS_INO"
       ldflags+=" -static"
       ;;
   esac
