@@ -428,7 +428,7 @@ _WARNING: Changes to libgit2 are extensive but the testing they underwent isn't.
 ## Requirements
 
 * To compile: C++14 compiler, GNU make, cmake.
-* To run: GNU libc on Linux, FreeBSD and WSL; nothing on Mac OS.
+* To run: Linux, macOS, FreeBSD, WSL or Cygwin.
 
 ## Compiling
 
