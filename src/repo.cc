@@ -109,7 +109,10 @@ IndexStats Repo::GetIndexStats(const git_oid* head) {
   if (git_index_) {
     int new_index;
     VERIFY(!git_index_read_ex(git_index_, 0, &new_index)) << GitError();
-    if (new_index) index_.reset();
+    if (new_index) {
+      head_ = {};
+      index_.reset();
+    }
   } else {
     VERIFY(!git_repository_index(&git_index_, repo_)) << GitError();
     // Query an attribute (doesn't matter which) to initialize repo's attribute
@@ -122,7 +125,6 @@ IndexStats Repo::GetIndexStats(const git_oid* head) {
 
   UpdateShards();
   Store(error_, false);
-  Store(staged_, {});
   Store(unstaged_, {});
   Store(untracked_, {});
 
@@ -130,8 +132,14 @@ IndexStats Repo::GetIndexStats(const git_oid* head) {
   const size_t index_size = git_index_entrycount(git_index_);
 
   if (head) {
-    StartStagedScan(head);
-  } else if (index_size > 0) {
+    if (git_oid_equal(head, &head_)) {
+      LOG(INFO) << "Index and HEAD unchanged; staged changes: " << Load(staged_);
+    } else {
+      head_ = *head;
+      Store(staged_, {});
+      StartStagedScan(head);
+    }
+  } else {
     // An empty repo with non-empty index must have staged changes.
     Store(staged_, index_size);
   }
