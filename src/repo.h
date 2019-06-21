@@ -88,6 +88,7 @@ class Repo {
   git_repository* const repo_;
   git_index* git_index_ = nullptr;
   std::vector<Shard> shards_;
+  git_oid head_ = {};
   TagDb tag_db_;
 
   std::unique_ptr<Index> index_;
