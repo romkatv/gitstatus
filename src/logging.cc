@@ -18,6 +18,7 @@
 #include "logging.h"
 
 #include <errno.h>
+#include <pthread.h>
 
 #include <cstdio>
 #include <cstring>
@@ -48,6 +49,20 @@ const char* Str(Severity severity) {
   return "UNKNOWN";
 }
 
+constexpr char kHexLower[] = {'0', '1', '2', '3', '4', '5', '6', '7',
+                              '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+
+void FormatThreadId(char (&out)[2 * sizeof(pthread_t) + 1]) {
+  pthread_t tid = pthread_self();
+  char* p = out + sizeof(out) - 1;
+  *p = 0;
+  do {
+    --p;
+    *p = kHexLower[tid & 0xF];
+    tid >>= 4;
+  } while (p != out);
+}
+
 }  // namespace
 
 LogStreamBase::LogStreamBase(const char* file, int line, Severity severity)
@@ -56,6 +71,9 @@ LogStreamBase::LogStreamBase(const char* file, int line, Severity severity)
 }
 
 void LogStreamBase::Flush() {
+  char tid[2 * sizeof(pthread_t) + 1];
+  FormatThreadId(tid);
+
   std::unique_lock<std::mutex> lock(g_log_mutex);
   std::time_t time = std::time(nullptr);
   char time_str[64];
@@ -63,7 +81,8 @@ void LogStreamBase::Flush() {
     std::strcpy(time_str, "undef");
   }
   std::string msg = strm_->str();
-  std::fprintf(stderr, "[%s %s %s:%d] %s\n", time_str, Str(severity_), file_, line_, msg.c_str());
+  std::fprintf(stderr, "[%s %s %s %s:%d] %s\n", time_str, tid, Str(severity_), file_, line_,
+               msg.c_str());
   strm_.reset();
   errno = errno_;
 }
