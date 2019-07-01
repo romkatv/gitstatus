@@ -22,7 +22,7 @@ setopt err_return err_exit no_unset pipe_fail
 
 local DIR=${${1:-${TMPDIR:-/tmp}/gitstatus}:a}
 local OS && OS=$(uname -s)
-[[ $(uname -o) != Android ]] || OS=Android
+[[ OS != Linux || $(uname -o) != Android ]] || OS=Android
 
 local CPUS
 case $OS in
