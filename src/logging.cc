@@ -38,8 +38,8 @@ std::mutex g_log_mutex;
 constexpr char kHexLower[] = {'0', '1', '2', '3', '4', '5', '6', '7',
                               '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
-void FormatThreadId(char (&out)[2 * sizeof(pthread_t) + 1]) {
-  pthread_t tid = pthread_self();
+void FormatThreadId(char (&out)[2 * sizeof(std::uintptr_t) + 1]) {
+  std::uintptr_t tid = (std::uintptr_t)pthread_self();
   char* p = out + sizeof(out) - 1;
   *p = 0;
   do {
@@ -67,7 +67,7 @@ LogStreamBase::LogStreamBase(const char* file, int line, LogLevel lvl)
 void LogStreamBase::Flush() {
   {
     std::string msg = strm_->str();
-    char tid[2 * sizeof(pthread_t) + 1];
+    char tid[2 * sizeof(std::uintptr_t) + 1];
     FormatThreadId(tid);
     char time[64];
     FormatCurrentTime(time);
