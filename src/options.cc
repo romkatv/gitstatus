@@ -67,6 +67,10 @@ void PrintUsage() {
             << "   Empirically, setting this parameter to twice the number of virtual CPU yields\n"
             << "   maximum performance.\n"
             << "\n"
+            << "  -v, --log-level=STR [default=INFO]\n"
+            << "   Don't write entires to log whose log level is below this. Log levels in\n"
+            << "   increasing order: DEBUG, INFO, WARN, ERROR, FATAL.\n"
+            << "\n"
             << "  -s, --max-num-staged=NUM [default=1]\n"
             << "   Report at most this many staged changes; negative value means infinity.\n"
             << "\n"
@@ -171,6 +175,7 @@ Options ParseOptions(int argc, char** argv) {
                                 {"lock-fd", required_argument, nullptr, 'l'},
                                 {"parent-pid", required_argument, nullptr, 'p'},
                                 {"num-threads", required_argument, nullptr, 't'},
+                                {"log-level", required_argument, nullptr, 'v'},
                                 {"max-num-staged", required_argument, nullptr, 's'},
                                 {"max-num-unstaged", required_argument, nullptr, 'u'},
                                 {"max-num-untracked", required_argument, nullptr, 'd'},
@@ -193,6 +198,12 @@ Options ParseOptions(int argc, char** argv) {
         break;
       case 'p':
         res.parent_pid = ParseInt(optarg);
+        break;
+      case 'v':
+        if (!ParseLogLevel(optarg, res.log_level)) {
+          std::cerr << "invalid log level: " << optarg << std::endl;
+          std::exit(10);
+        }
         break;
       case 't': {
         long n = ParseLong(optarg);

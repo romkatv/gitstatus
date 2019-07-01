@@ -23,31 +23,32 @@
 #include <ostream>
 #include <sstream>
 
-#ifndef GITSTATUS_MIN_LOG_LVL
-#define GITSTATUS_MIN_LOG_LVL INFO
-#endif
-
 #define LOG(severity) LOG_I(severity)
 
 #define LOG_I(severity)                                                                            \
-  (::gitstatus::internal_logging::severity < ::gitstatus::internal_logging::GITSTATUS_MIN_LOG_LVL) \
+  (::gitstatus::severity < ::gitstatus::g_min_log_level)                                           \
       ? static_cast<void>(0)                                                                       \
       : ::gitstatus::internal_logging::Assignable() =                                              \
-            ::gitstatus::internal_logging::LogStream<::gitstatus::internal_logging::severity>(     \
-                __FILE__, __LINE__, ::gitstatus::internal_logging::severity)                       \
+            ::gitstatus::internal_logging::LogStream<::gitstatus::severity>(__FILE__, __LINE__,    \
+                                                                            ::gitstatus::severity) \
                 .ref()
 
 namespace gitstatus {
 
-namespace internal_logging {
-
-enum Severity {
+enum LogLevel {
   DEBUG,
   INFO,
   WARN,
   ERROR,
   FATAL,
 };
+
+const char* LogLevelStr(LogLevel lvl);
+bool ParseLogLevel(const char* s, LogLevel& lvl);
+
+extern LogLevel g_min_log_level;
+
+namespace internal_logging {
 
 struct Assignable {
   template <class T>
@@ -56,7 +57,7 @@ struct Assignable {
 
 class LogStreamBase {
  public:
-  LogStreamBase(const char* file, int line, Severity severity);
+  LogStreamBase(const char* file, int line, LogLevel lvl);
 
   LogStreamBase& ref() { return *this; }
   std::ostream& strm() { return *strm_; }
@@ -69,11 +70,11 @@ class LogStreamBase {
   int errno_;
   const char* file_;
   int line_;
-  Severity severity_;
+  const char* lvl_;
   std::unique_ptr<std::ostringstream> strm_;
 };
 
-template <Severity>
+template <LogLevel>
 class LogStream : public LogStreamBase {
  public:
   using LogStreamBase::LogStreamBase;

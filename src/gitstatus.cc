@@ -142,9 +142,9 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
 
 int GitStatus(int argc, char** argv) {
   tzset();
-  for (int i = 0; i != argc; ++i) LOG(INFO) << "argv[" << i << "]: " << Print(argv[i]);
-
   Options opts = ParseOptions(argc, argv);
+  g_min_log_level = opts.log_level;
+  for (int i = 0; i != argc; ++i) LOG(INFO) << "argv[" << i << "]: " << Print(argv[i]);
   RequestReader reader(fileno(stdin), opts.lock_fd, opts.parent_pid);
   RepoCache cache(opts);
 
