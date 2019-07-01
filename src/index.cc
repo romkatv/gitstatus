@@ -25,6 +25,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <cstring>
+#include <iomanip>
 #include <iterator>
 #include <mutex>
 #include <stack>
@@ -56,15 +57,6 @@ void CommonDir(Str<> str, const char* a, const char* b, size_t* dir_len, size_t*
 
 size_t Weight(const IndexDir& dir) { return 1 + dir.subdirs.size() + dir.files.size(); }
 
-mode_t Mode(mode_t mode, mode_t other, bool trust_filemode, bool has_symlinks) {
-  if (S_ISREG(mode)) {
-    if (!has_symlinks && S_ISLNK(other)) return other;
-    if (!trust_filemode) return other;
-    return S_IFREG | (mode & 0111 ? 0755 : 0644);
-  }
-  return mode & S_IFMT;
-}
-
 bool MTimeEq(const git_index_time& index, const struct timespec& workdir) {
   if (index.seconds != workdir.tv_sec) return false;
   if (int64_t{index.nanoseconds} == workdir.tv_nsec) return true;
@@ -77,12 +69,40 @@ bool MTimeEq(const git_index_time& index, const struct timespec& workdir) {
 
 bool IsModified(const git_index_entry* entry, const struct stat& st, bool trust_filemode,
                 bool has_symlinks) {
+  mode_t mode = st.st_mode;
+  if (S_ISREG(mode)) {
+    if (!has_symlinks && S_ISLNK(entry->mode)) {
+      mode = entry->mode;
+    } else if (!trust_filemode) {
+      mode = entry->mode;
+    } else {
+      mode = S_IFREG | (mode & 0111 ? 0755 : 0644);
+    }
+  } else {
+    mode &= S_IFMT;
+  }
+
+  bool res = false;
+
+#define COND(field, cond...) \
+  if (cond) {                \
+  } else                     \
+    res = true,              \
+    LOG(DEBUG) << "Dirty candidate (modified): " << Print(entry->path) << ": " #field " "
+
 #ifndef GITSTATUS_BOGUS_INO
-  if (entry->ino != st.st_ino) return true;
+  COND(ino, entry->ino == st.st_ino) << entry->ino << " => " << st.st_ino;
 #endif
-  return GIT_INDEX_ENTRY_STAGE(entry) > 0 || entry->gid != st.st_gid ||
-         int64_t{entry->file_size} != st.st_size || !MTimeEq(entry->mtime, MTim(st)) ||
-         entry->mode != Mode(st.st_mode, entry->mode, trust_filemode, has_symlinks);
+
+  COND(stage, GIT_INDEX_ENTRY_STAGE(entry) == 0) << "=> " << GIT_INDEX_ENTRY_STAGE(entry);
+  COND(gid, entry->gid == st.st_gid) << entry->gid << " => " << st.st_gid;
+  COND(fsize, int64_t{entry->file_size} == st.st_size) << entry->file_size << " => " << st.st_size;
+  COND(mtime, MTimeEq(entry->mtime, MTim(st))) << Print(entry->mtime) << " => " << Print(MTim(st));
+  COND(mode, entry->mode == mode) << std::oct << entry->mode << " => " << std::oct << mode;
+
+#undef COND
+
+  return res;
 }
 
 int OpenDir(int parent_fd, const char* name) {
@@ -136,7 +156,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
   entries.reserve(128);
 
   auto AddCandidate = [&](const char* kind, const char* path) {
-    LOG(DEBUG) << "Dirty candidate (" << kind << "): " << Print(path);
+    if (kind) LOG(DEBUG) << "Dirty candidate (" << kind << "): " << Print(path);
     dirty_candidates.push_back(path);
   };
 
@@ -209,7 +229,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
           if (fstatat(*dir_fd, Basename(file), &st, AT_SYMLINK_NOFOLLOW)) {
             AddCandidate("deleted", file->path);
           } else if (IsModified(file, st, trust_filemode, has_symlinks)) {
-            AddCandidate("modified", file->path);
+            AddCandidate(nullptr, file->path);
           }
         }
         for (const char* path : dir.unmatched) AddCandidate("new", path);
@@ -243,7 +263,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
           if (fstatat(*dir_fd, entry, &st, AT_SYMLINK_NOFOLLOW)) {
             AddCandidate("unreadable", (*file)->path);
           } else if (IsModified(*file, st, trust_filemode, has_symlinks)) {
-            AddCandidate("modified", (*file)->path);
+            AddCandidate(nullptr, (*file)->path);
           }
           matched = true;
           ++file;
