@@ -18,11 +18,16 @@
 #ifndef ROMKATV_GITSTATUS_PRINT_H_
 #define ROMKATV_GITSTATUS_PRINT_H_
 
+#include <sys/stat.h>
+
+#include <iomanip>
 #include <ostream>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+#include <git2.h>
 
 #include "string_view.h"
 #include "strings.h"
@@ -78,6 +83,16 @@ std::ostream& operator<<(std::ostream& strm, const Printable<std::vector<T>>& p)
     strm << Print(p.value[i]);
   }
   strm << ']';
+  return strm;
+}
+
+inline std::ostream& operator<<(std::ostream& strm, const Printable<struct timespec>& p) {
+  strm << p.value.tv_sec << '.' << std::setw(9) << std::setfill('0') << p.value.tv_nsec;
+  return strm;
+}
+
+inline std::ostream& operator<<(std::ostream& strm, const Printable<git_index_time>& p) {
+  strm << p.value.seconds << '.' << std::setw(9) << std::setfill('0') << p.value.nanoseconds;
   return strm;
 }
 
