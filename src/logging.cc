@@ -19,6 +19,7 @@
 
 #include <errno.h>
 #include <pthread.h>
+#include <time.h>
 
 #include <cstdio>
 #include <cstring>
@@ -63,6 +64,14 @@ void FormatThreadId(char (&out)[2 * sizeof(pthread_t) + 1]) {
   } while (p != out);
 }
 
+void FormatCurrentTime(char (&out)[64]) {
+  std::time_t time = std::time(nullptr);
+  struct tm tm;
+  if (localtime_r(&time, &tm) != &tm || std::strftime(out, sizeof(out), "%F %T", &tm) == 0) {
+    std::strcpy(out, "undef");
+  }
+}
+
 }  // namespace
 
 LogStreamBase::LogStreamBase(const char* file, int line, Severity severity)
@@ -71,18 +80,17 @@ LogStreamBase::LogStreamBase(const char* file, int line, Severity severity)
 }
 
 void LogStreamBase::Flush() {
-  char tid[2 * sizeof(pthread_t) + 1];
-  FormatThreadId(tid);
+  {
+    std::string msg = strm_->str();
+    char tid[2 * sizeof(pthread_t) + 1];
+    FormatThreadId(tid);
+    char time[64];
+    FormatCurrentTime(time);
 
-  std::unique_lock<std::mutex> lock(g_log_mutex);
-  std::time_t time = std::time(nullptr);
-  char time_str[64];
-  if (std::strftime(time_str, sizeof(time_str), "%F %T", std::localtime(&time)) == 0) {
-    std::strcpy(time_str, "undef");
+    std::unique_lock<std::mutex> lock(g_log_mutex);
+    std::fprintf(stderr, "[%s %s %s %s:%d] %s\n", time, tid, Str(severity_), file_, line_,
+                 msg.c_str());
   }
-  std::string msg = strm_->str();
-  std::fprintf(stderr, "[%s %s %s %s:%d] %s\n", time_str, tid, Str(severity_), file_, line_,
-               msg.c_str());
   strm_.reset();
   errno = errno_;
 }

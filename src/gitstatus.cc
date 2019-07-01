@@ -15,8 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with GitStatus. If not, see <https://www.gnu.org/licenses/>.
 
-#include <cstddef>
+#include <time.h>
 
+#include <cstddef>
 #include <future>
 #include <string>
 
@@ -140,6 +141,7 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
 }
 
 int GitStatus(int argc, char** argv) {
+  tzset();
   for (int i = 0; i != argc; ++i) LOG(INFO) << "argv[" << i << "]: " << Print(argv[i]);
 
   Options opts = ParseOptions(argc, argv);
