@@ -29,6 +29,7 @@
 
 #include "check.h"
 #include "logging.h"
+#include "print.h"
 #include "serialization.h"
 
 namespace gitstatus {
@@ -57,7 +58,7 @@ bool IsLockedFd(int fd) {
 }  // namespace
 
 std::ostream& operator<<(std::ostream& strm, const Request& req) {
-  strm << req.id << " [" << req.dir << "]";
+  strm << Print(req.id) << " [" << Print(req.dir) << "]";
   return strm;
 }
 
