@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "check.h"
+#include "print.h"
 #include "scope_guard.h"
 
 namespace gitstatus {
@@ -92,7 +93,7 @@ git_repository* OpenRepo(const std::string& dir) {
     case GIT_ENOTFOUND:
       return nullptr;
     default:
-      LOG(ERROR) << "git_repository_open_ext: " << dir << ": " << GitError();
+      LOG(ERROR) << "git_repository_open_ext: " << Print(dir) << ": " << GitError();
       throw Exception();
   }
 }

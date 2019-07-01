@@ -31,6 +31,7 @@
 #include "check.h"
 #include "dir.h"
 #include "git.h"
+#include "print.h"
 #include "scope_guard.h"
 #include "stat.h"
 #include "string_cmp.h"
@@ -183,7 +184,7 @@ bool TagDb::UpdatePack(const git_oid& commit, std::vector<const char*>& match) {
 
   try {
     while (true) {
-      LOG(INFO) << "Parsing " << pack_path;
+      LOG(INFO) << "Parsing " << Print(pack_path);
       int fd = open(pack_path.c_str(), O_RDONLY | O_CLOEXEC);
       VERIFY(fd >= 0);
       ON_SCOPE_EXIT(&) { CHECK(!close(fd)) << Errno(); };

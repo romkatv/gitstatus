@@ -33,6 +33,7 @@
 #include "check.h"
 #include "dir.h"
 #include "index.h"
+#include "print.h"
 #include "scope_guard.h"
 #include "stat.h"
 #include "string_cmp.h"
@@ -135,7 +136,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
   entries.reserve(128);
 
   auto AddCandidate = [&](const char* kind, const char* path) {
-    LOG(DEBUG) << "Dirty candidate (" << kind << "): " << path;
+    LOG(DEBUG) << "Dirty candidate (" << kind << "): " << Print(path);
     dirty_candidates.push_back(path);
   };
 
