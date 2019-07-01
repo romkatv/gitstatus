@@ -28,27 +28,12 @@
 #include <string>
 
 namespace gitstatus {
+
 namespace internal_logging {
 
 namespace {
 
 std::mutex g_log_mutex;
-
-const char* Str(Severity severity) {
-  switch (severity) {
-    case DEBUG:
-      return "DEBUG";
-    case INFO:
-      return "INFO";
-    case WARN:
-      return "WARN";
-    case ERROR:
-      return "ERROR";
-    case FATAL:
-      return "FATAL";
-  }
-  return "UNKNOWN";
-}
 
 constexpr char kHexLower[] = {'0', '1', '2', '3', '4', '5', '6', '7',
                               '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
@@ -74,8 +59,8 @@ void FormatCurrentTime(char (&out)[64]) {
 
 }  // namespace
 
-LogStreamBase::LogStreamBase(const char* file, int line, Severity severity)
-    : errno_(errno), file_(file), line_(line), severity_(severity) {
+LogStreamBase::LogStreamBase(const char* file, int line, LogLevel lvl)
+    : errno_(errno), file_(file), line_(line), lvl_(LogLevelStr(lvl)) {
   strm_ = std::make_unique<std::ostringstream>();
 }
 
@@ -88,8 +73,7 @@ void LogStreamBase::Flush() {
     FormatCurrentTime(time);
 
     std::unique_lock<std::mutex> lock(g_log_mutex);
-    std::fprintf(stderr, "[%s %s %s %s:%d] %s\n", time, tid, Str(severity_), file_, line_,
-                 msg.c_str());
+    std::fprintf(stderr, "[%s %s %s %s:%d] %s\n", time, tid, lvl_, file_, line_, msg.c_str());
   }
   strm_.reset();
   errno = errno_;
@@ -115,4 +99,41 @@ std::ostream& operator<<(std::ostream& strm, Errno e) {
 }
 
 }  // namespace internal_logging
+
+LogLevel g_min_log_level = INFO;
+
+const char* LogLevelStr(LogLevel lvl) {
+  switch (lvl) {
+    case DEBUG:
+      return "DEBUG";
+    case INFO:
+      return "INFO";
+    case WARN:
+      return "WARN";
+    case ERROR:
+      return "ERROR";
+    case FATAL:
+      return "FATAL";
+  }
+  return "UNKNOWN";
+}
+
+bool ParseLogLevel(const char* s, LogLevel& lvl) {
+  if (!s)
+    return false;
+  else if (!std::strcmp(s, "DEBUG"))
+    lvl = DEBUG;
+  else if (!std::strcmp(s, "INFO"))
+    lvl = INFO;
+  else if (!std::strcmp(s, "WARN"))
+    lvl = WARN;
+  else if (!std::strcmp(s, "ERROR"))
+    lvl = ERROR;
+  else if (!std::strcmp(s, "FATAL"))
+    lvl = FATAL;
+  else
+    return false;
+  return true;
+}
+
 }  // namespace gitstatus

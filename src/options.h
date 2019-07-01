@@ -20,6 +20,8 @@
 
 #include <string>
 
+#include "logging.h"
+
 namespace gitstatus {
 
 struct Limits {
@@ -43,6 +45,9 @@ struct Options : Limits {
   // If non-negative, send signal 0 to the specified PID when not receiving any requests for one
   // second; exit if signal sending fails.
   int parent_pid = -1;
+  // Don't write entires to log whose log level is below this. Log levels in increasing order:
+  // DEBUG, INFO, WARN, ERROR, FATAL.
+  LogLevel log_level = INFO;
 };
 
 Options ParseOptions(int argc, char** argv);
