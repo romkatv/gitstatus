@@ -57,12 +57,15 @@ function gitstatus_start() {
   local req_fifo resp_fifo
 
   function gitstatus_start_impl() {
+    local log_level="${GITSTATUS_LOG_LEVEL:-}"
+    [[ -n "$log_level" || "${GITSTATUS_ENABLE_LOGGING:-0}" != 1 ]] || log_level=INFO
+
     local daemon="${GITSTATUS_DAEMON:-}"
     if [[ -z "$daemon" ]]; then
       local os   &&   os=$(uname -s)                    || return
       local arch && arch=$(uname -m)                    || return
       local dir  &&  dir=$(dirname "${BASH_SOURCE[0]}") || return
-      [[ "$os" != Linux || "$(uname -o)" != Android ]] || os=Android
+      [[ "$os" != Linux || "$(uname -o)" != Android ]]  || os=Android
       daemon="$dir/bin/gitstatusd-${os,,}-${arch,,}"
     fi
 
@@ -83,12 +86,6 @@ function gitstatus_start() {
     exec {_GITSTATUS_REQ_FD}<>"$req_fifo" {_GITSTATUS_RESP_FD}<>"$resp_fifo"   || return
     command rm "$req_fifo" "$resp_fifo"                                        || return
 
-    if [[ "${GITSTATUS_ENABLE_LOGGING:-0}" == 1 ]]; then
-      GITSTATUS_DAEMON_LOG=$(mktemp "${TMPDIR:-/tmp}"/gitstatus.$$.log.XXXXXXXXXX) || return
-    else
-      GITSTATUS_DAEMON_LOG=/dev/null
-    fi
-
     local d="${GITSTATUS_DAEMON:-}"
     local daemon_args=(
       --parent-pid="${$@Q}"
@@ -97,6 +94,13 @@ function gitstatus_start() {
       --max-num-unstaged="${max_num_unstaged@Q}"
       --max-num-untracked="${max_num_untracked@Q}"
       --dirty-max-index-size="${max_dirty@Q}")
+
+    if [[ -n "$log_level" ]]; then
+      GITSTATUS_DAEMON_LOG=$(mktemp "${TMPDIR:-/tmp}"/gitstatus.$$.log.XXXXXXXXXX) || return
+      [[ "$log_level" == INFO ]] || daemon_args+=(--log-level="${log_level@Q}")
+    else
+      GITSTATUS_DAEMON_LOG=/dev/null
+    fi
 
     { <&$_GITSTATUS_REQ_FD >&$_GITSTATUS_RESP_FD 2>"$GITSTATUS_DAEMON_LOG" bash -cx "
         trap 'kill %1 &>/dev/null' SIGINT SIGTERM EXIT
