@@ -46,7 +46,7 @@ Printable<T> Print(const T& val) {
 
 template <class T>
 std::ostream& operator<<(std::ostream& strm, const Printable<T>& p) {
-  static_assert(!std::is_pointer<std::decay_t<T>>());
+  static_assert(!std::is_pointer<std::decay_t<T>>(), "");
   return strm << p.value;
 }
 
