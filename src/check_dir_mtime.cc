@@ -28,6 +28,7 @@
 
 #include "check.h"
 #include "logging.h"
+#include "print.h"
 #include "scope_guard.h"
 #include "stat.h"
 
@@ -77,7 +78,7 @@ bool CheckDirMtime(const char* root_dir) {
     VERIFY(!mkdir(a1.c_str(), 0755)) << Errno();
     ON_SCOPE_EXIT(&) { rmdir(a1.c_str()); };
     if (!StatChanged(a_dir.c_str(), a_st)) {
-      LOG(WARN) << "Creating a directory doesn't change mtime of the parent: " << root_dir;
+      LOG(WARN) << "Creating a directory doesn't change mtime of the parent: " << Print(root_dir);
       return false;
     }
 
@@ -85,14 +86,14 @@ bool CheckDirMtime(const char* root_dir) {
     Touch(b1.c_str());
     ON_SCOPE_EXIT(&) { unlink(b1.c_str()); };
     if (!StatChanged(b_dir.c_str(), b_st)) {
-      LOG(WARN) << "Creating a file doesn't change mtime of the parent: " << root_dir;
+      LOG(WARN) << "Creating a file doesn't change mtime of the parent: " << Print(root_dir);
       return false;
     }
 
-    LOG(INFO) << "All mtime checks have passes. Enabling untracked cache: " << root_dir;
+    LOG(INFO) << "All mtime checks have passes. Enabling untracked cache: " << Print(root_dir);
     return true;
   } catch (const Exception&) {
-    LOG(WARN) << "Error while testing for mtime capability: " << root_dir;
+    LOG(WARN) << "Error while testing for mtime capability: " << Print(root_dir);
     return false;
   }
 }

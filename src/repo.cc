@@ -37,6 +37,7 @@
 #include "check_dir_mtime.h"
 #include "dir.h"
 #include "git.h"
+#include "print.h"
 #include "scope_guard.h"
 #include "stat.h"
 #include "string_cmp.h"
@@ -152,7 +153,7 @@ IndexStats Repo::GetIndexStats(const git_oid* head) {
       LOG(INFO) << "Clean repo: no dirty candidates";
     } else {
       LOG(INFO) << "Found " << dirty_candidates.size() << " dirty candidate(s) spanning from "
-                << dirty_candidates.front() << " to " << dirty_candidates.back();
+                << Print(dirty_candidates.front()) << " to " << Print(dirty_candidates.back());
     }
     StartDirtyScan(dirty_candidates);
   }
@@ -183,7 +184,9 @@ void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
     if (delta->status == GIT_DELTA_UNTRACKED) {
       size_t untracked = Inc(repo->untracked_);
       if (!untracked) {
-        LOG(INFO) << "Found untracked file: " << delta->new_file.path;
+        LOG(INFO) << "Found untracked file: " << Print(delta->new_file.path);
+      } else {
+        LOG(DEBUG) << "Found untracked file: " << Print(delta->new_file.path);
       }
       if (untracked + 1 < repo->lim_.max_num_untracked) return GIT_DIFF_DELTA_DO_NOT_INSERT;
       if (Load(repo->unstaged_) < repo->lim_.max_num_unstaged) {
@@ -193,7 +196,9 @@ void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
     } else {
       size_t unstaged = Inc(repo->unstaged_);
       if (!unstaged) {
-        LOG(INFO) << "Found unstaged file: " << delta->new_file.path;
+        LOG(INFO) << "Found unstaged file: " << Print(delta->new_file.path);
+      } else {
+        LOG(DEBUG) << "Found unstaged file: " << Print(delta->new_file.path);
       }
       if (unstaged + 1 < repo->lim_.max_num_unstaged) return GIT_DIFF_DELTA_DO_NOT_INSERT;
       if (Load(repo->untracked_) < repo->lim_.max_num_untracked) {
@@ -217,6 +222,8 @@ void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
     }
     RunAsync([this, opt]() {
       git_diff* diff = nullptr;
+      LOG(DEBUG) << "git_diff_index_to_workdir from " << Print(opt.range_start) << " to "
+                 << Print(opt.range_end);
       switch (git_diff_index_to_workdir(&diff, repo_, git_index_, &opt)) {
         case 0:
           git_diff_free(diff);
@@ -245,7 +252,9 @@ void Repo::StartStagedScan(const git_oid* head) {
     Repo* repo = static_cast<Repo*>(payload);
     size_t staged = Inc(repo->staged_);
     if (!staged) {
-      LOG(INFO) << "Found staged file: " << delta->new_file.path;
+      LOG(INFO) << "Found staged file: " << Print(delta->new_file.path);
+    } else {
+      LOG(DEBUG) << "Found staged file: " << Print(delta->new_file.path);
     }
     return staged + 1 < repo->lim_.max_num_unstaged ? 1 : GIT_EUSER;
   };
@@ -255,6 +264,8 @@ void Repo::StartStagedScan(const git_oid* head) {
       opt.range_start = shard.start.c_str();
       opt.range_end = shard.end.c_str();
       git_diff* diff = nullptr;
+      LOG(DEBUG) << "git_diff_tree_to_index from " << Print(opt.range_start) << " to "
+                 << Print(opt.range_end);
       switch (git_diff_tree_to_index(&diff, repo_, tree, git_index_, &opt)) {
         case 0:
           git_diff_free(diff);

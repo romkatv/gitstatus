@@ -26,6 +26,7 @@
 #include "git.h"
 #include "logging.h"
 #include "options.h"
+#include "print.h"
 #include "repo.h"
 #include "repo_cache.h"
 #include "request.h"
@@ -139,7 +140,7 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
 }
 
 int GitStatus(int argc, char** argv) {
-  for (int i = 0; i != argc; ++i) LOG(INFO) << "argv[" << i << "]: " << argv[i];
+  for (int i = 0; i != argc; ++i) LOG(INFO) << "argv[" << i << "]: " << Print(argv[i]);
 
   Options opts = ParseOptions(argc, argv);
   RequestReader reader(fileno(stdin), opts.lock_fd, opts.parent_pid);

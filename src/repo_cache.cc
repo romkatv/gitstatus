@@ -19,6 +19,7 @@
 
 #include "check.h"
 #include "git.h"
+#include "print.h"
 #include "scope_guard.h"
 
 namespace gitstatus {
@@ -41,7 +42,7 @@ Repo* RepoCache::Open(const std::string& dir) {
       return nullptr;
     }
 
-    LOG(INFO) << "Initializing new repository: " << work_dir;
+    LOG(INFO) << "Initializing new repository: " << Print(work_dir);
 
     // Libgit2 initializes odb and refdb lazily with double-locking. To avoid useless work
     // when multiple threads attempt to initialize the same db at the same time, we trigger
