@@ -13,7 +13,7 @@ readonly GITSTATUS_REPO_URL=https://github.com/romkatv/gitstatus.git
 readonly LIBGIT2_REPO_URL=https://github.com/romkatv/libgit2.git
 
 emulate -L zsh
-setopt err_return err_exit no_unset pipe_fail
+setopt err_return err_return no_unset pipe_fail extended_glob
 
 [[ $# -lt 2 ]] || {
   echo "Usage: build.sh [DIR]" >&2
@@ -30,19 +30,10 @@ case $OS in
   *) CPUS=$(getconf _NPROCESSORS_ONLN);;
 esac
 
-function prepare() {
-  [[ ! -d $DIR ]] || {
-    echo "directory exists: $DIR" >&2
-    echo "remove it with \`rm -rf $DIR\` and retry" >&2
-    return 1
-  }
-  mkdir $DIR
-}
-
 function build_libgit2() {
   cd $DIR
-  git clone --depth 1 $LIBGIT2_REPO_URL
-  mkdir libgit2/build
+  [[ -n libgit2(#qFN) ]] || git clone --depth 1 $LIBGIT2_REPO_URL
+  mkdir -p libgit2/build
   cd libgit2/build
   cmake                        \
     -DCMAKE_BUILD_TYPE=Release \
@@ -61,7 +52,7 @@ function build_libgit2() {
 
 function build_gitstatus() {
   cd $DIR
-  git clone --depth 1 $GITSTATUS_REPO_URL
+  [[ -n gitstatus(#qFN) ]] || git clone --depth 1 $GITSTATUS_REPO_URL
   cd gitstatus
   local cxx=${CXX:-'g++'}
   local cxxflags=${CXXFLAGS:-''}
@@ -106,7 +97,7 @@ function verify_gitstatus() {
 }
 
 echo "Building gitstatus in $DIR ..." >&2
-prepare
+mkdir -p $DIR
 build_libgit2
 build_gitstatus
 verify_gitstatus
