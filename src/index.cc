@@ -33,6 +33,7 @@
 #include "algorithm.h"
 #include "check.h"
 #include "dir.h"
+#include "git.h"
 #include "index.h"
 #include "print.h"
 #include "scope_guard.h"
@@ -67,13 +68,12 @@ bool MTimeEq(const git_index_time& index, const struct timespec& workdir) {
 #endif
 }
 
-bool IsModified(const git_index_entry* entry, const struct stat& st, bool trust_filemode,
-                bool has_symlinks) {
+bool IsModified(const git_index_entry* entry, const struct stat& st, const RepoCaps& caps) {
   mode_t mode = st.st_mode;
   if (S_ISREG(mode)) {
-    if (!has_symlinks && S_ISLNK(entry->mode)) {
+    if (!caps.has_symlinks && S_ISLNK(entry->mode)) {
       mode = entry->mode;
-    } else if (!trust_filemode) {
+    } else if (!caps.trust_filemode) {
       mode = entry->mode;
     } else {
       mode = S_IFREG | (mode & 0111 ? 0755 : 0644);
@@ -146,10 +146,8 @@ void OpenTail(int* fds, size_t nfds, int root_fd, StringView dirname, Arena& are
 }
 
 std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const* begin,
-                                  IndexDir* const* end, Tribool untracked_cache) {
-  const bool trust_filemode = git_index_is_filemode_trustworthy(index);
-  const bool has_symlinks = git_index_supports_symlinks(index);
-  const Str<> str(git_index_is_case_sensitive(index));
+                                  IndexDir* const* end, const RepoCaps& caps) {
+  const Str<> str(caps.case_sensitive);
 
   Arena arena;
   std::vector<const char*> dirty_candidates;
@@ -219,17 +217,17 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       continue;
     }
 
-    if (untracked_cache != Tribool::kFalse) {
+    if (caps.untracked_cache != Tribool::kFalse) {
       struct stat st;
       if (fstat(*dir_fd, &st)) {
         AddUnmached("");
         continue;
       }
-      if (untracked_cache == Tribool::kTrue && StatEq(st, dir.st)) {
+      if (caps.untracked_cache == Tribool::kTrue && StatEq(st, dir.st)) {
         for (const git_index_entry* file : dir.files) {
           if (fstatat(*dir_fd, Basename(file), &st, AT_SYMLINK_NOFOLLOW)) {
             AddCandidate("deleted", file->path);
-          } else if (IsModified(file, st, trust_filemode, has_symlinks)) {
+          } else if (IsModified(file, st, caps)) {
             AddCandidate(nullptr, file->path);
           }
         }
@@ -263,7 +261,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
           struct stat st;
           if (fstatat(*dir_fd, entry, &st, AT_SYMLINK_NOFOLLOW)) {
             AddCandidate("unreadable", (*file)->path);
-          } else if (IsModified(*file, st, trust_filemode, has_symlinks)) {
+          } else if (IsModified(*file, st, caps)) {
             AddCandidate(nullptr, (*file)->path);
           }
           matched = true;
@@ -301,8 +299,28 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
 
 }  // namespace
 
-Index::Index(const char* root_dir, git_index* index)
-    : dirs_(&arena_), splits_(&arena_), git_index_(index), root_dir_(root_dir) {
+RepoCaps::RepoCaps(git_repository* repo, git_index* index) {
+  trust_filemode = git_index_is_filemode_trustworthy(index);
+  has_symlinks = git_index_supports_symlinks(index);
+  case_sensitive = git_index_is_case_sensitive(index);
+  git_config* cfg;
+  VERIFY(!git_repository_config(&cfg, repo)) << GitError();
+  int val;
+  precompose_unicode = !git_config_get_bool(&val, cfg, "core.precomposeunicode") && val;
+  untracked_cache = Tribool::kUnknown;
+  LOG(DEBUG) << "Repository capabilities for " << Print(git_repository_workdir(repo)) << ": "
+             << "is_filemode_trustworthy = " << std::boolalpha << trust_filemode << ", "
+             << "index_supports_symlinks = " << std::boolalpha << has_symlinks << ", "
+             << "index_is_case_sensitive = " << std::boolalpha << case_sensitive << ", "
+             << "core.precomposeunicode = " << std::boolalpha << precompose_unicode;
+}
+
+Index::Index(git_repository* repo, git_index* index)
+    : dirs_(&arena_),
+      splits_(&arena_),
+      git_index_(index),
+      root_dir_(git_repository_workdir(repo)),
+      caps_(repo, index) {
   size_t total_weight = InitDirs(index);
   InitSplits(total_weight);
 }
@@ -389,6 +407,7 @@ std::vector<const char*> Index::GetDirtyCandidates(Tribool untracked_cache) {
   VERIFY(root_fd >= 0);
   ON_SCOPE_EXIT(&) { CHECK(!close(root_fd)) << Errno(); };
 
+  caps_.untracked_cache = untracked_cache;
   CHECK(!splits_.empty());
 
   std::mutex mutex;
@@ -409,7 +428,7 @@ std::vector<const char*> Index::GetDirtyCandidates(Tribool untracked_cache) {
       };
       try {
         std::vector<const char*> candidates =
-            ScanDirs(git_index_, root_fd, dirs_.data() + from, dirs_.data() + to, untracked_cache);
+            ScanDirs(git_index_, root_fd, dirs_.data() + from, dirs_.data() + to, caps_);
         if (!candidates.empty()) {
           std::unique_lock<std::mutex> lock(mutex);
           res.insert(res.end(), candidates.begin(), candidates.end());

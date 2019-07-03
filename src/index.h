@@ -33,6 +33,16 @@ namespace gitstatus {
 
 enum class Tribool : int { kFalse = 0, kTrue = 1, kUnknown = -1 };
 
+struct RepoCaps {
+  RepoCaps(git_repository* repo, git_index* index);
+
+  bool trust_filemode;
+  bool has_symlinks;
+  bool case_sensitive;
+  bool precompose_unicode;
+  Tribool untracked_cache;
+};
+
 struct IndexDir {
   explicit IndexDir(Arena* arena) : files(arena), subdirs(arena) {}
 
@@ -49,7 +59,7 @@ struct IndexDir {
 
 class Index {
  public:
-  Index(const char* root_dir, git_index* index);
+  Index(git_repository* repo, git_index* index);
 
   std::vector<const char*> GetDirtyCandidates(Tribool untracked_cache);
 
@@ -62,6 +72,7 @@ class Index {
   WithArena<std::vector<size_t>> splits_;
   git_index* git_index_;
   const char* root_dir_;
+  RepoCaps caps_;
 };
 
 }  // namespace gitstatus
