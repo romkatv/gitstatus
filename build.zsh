@@ -49,7 +49,6 @@ function build_libgit2() {
     -DTHREADSAFE=ON            \
     -DUSE_BUNDLED_ZLIB=ON      \
     -DREGEX_BACKEND=builtin    \
-    -DUSE_ICONV=OFF            \
     -DBUILD_CLAR=OFF           \
     -DUSE_SSH=OFF              \
     -DUSE_HTTPS=OFF            \
@@ -80,6 +79,9 @@ function build_gitstatus() {
     FreeBSD)
       ldflags+=" -static"
       make=gmake
+      ;;
+    Darwin)
+      ldflags+=" -liconv"
       ;;
     CYGWIN*)
       cxxflags+=" -D_GNU_SOURCE -DGITSTATUS_BOGUS_INO"
