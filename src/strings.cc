@@ -51,9 +51,9 @@ void CEscape(std::ostream& strm, const char* begin, const char* end) {
       continue;
     }
     strm << '\\';
-    strm << '0' + ((c >> 6) & 7);
-    strm << '0' + ((c >> 3) & 7);
-    strm << '0' + ((c >> 0) & 7);
+    strm << static_cast<char>('0' + ((c >> 6) & 7));
+    strm << static_cast<char>('0' + ((c >> 3) & 7));
+    strm << static_cast<char>('0' + ((c >> 0) & 7));
   }
 }
 
