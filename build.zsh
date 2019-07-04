@@ -30,11 +30,32 @@ case $OS in
   *) CPUS=$(getconf _NPROCESSORS_ONLN);;
 esac
 
+function build_iconv() {
+  [[ $OS == Darwin ]] || return 0
+  cd $DIR
+  [[ -n libiconv(#qFN) ]] || {
+    rm -rf iconv libiconv-51.200.6.tar.gz libiconv-51.200.6
+    curl -fsSLO https://opensource.apple.com/tarballs/libiconv/libiconv-51.200.6.tar.gz
+    tar xvzf libiconv-51.200.6.tar.gz
+    mv libiconv-51.200.6/libiconv .
+  }
+  cd libiconv
+  ./configure --enable-static
+  make -j $CPUS
+  cp lib/.libs/libiconv.a .
+}
+
 function build_libgit2() {
   cd $DIR
   [[ -n libgit2(#qFN) ]] || git clone --depth 1 $LIBGIT2_REPO_URL
   mkdir -p libgit2/build
   cd libgit2/build
+  local -a cmakeflags=(${(@Q)${(z)CMAKEFLAGS:-}})
+  case $OS in
+    Darwin)
+      cmakeflags+=-DUSE_ICONV=ON
+      ;;
+  esac
   cmake                        \
     -DCMAKE_BUILD_TYPE=Release \
     -DTHREADSAFE=ON            \
@@ -72,7 +93,8 @@ function build_gitstatus() {
       make=gmake
       ;;
     Darwin)
-      ldflags+=" -liconv"
+      cxxflags+=" -I$DIR/libiconv/include"
+      ldflags+=" -L$DIR/libiconv -liconv"
       ;;
     CYGWIN*)
       cxxflags+=" -D_GNU_SOURCE -DGITSTATUS_BOGUS_INO"
@@ -98,6 +120,7 @@ function verify_gitstatus() {
 
 echo "Building gitstatus in $DIR ..." >&2
 mkdir -p $DIR
+build_iconv
 build_libgit2
 build_gitstatus
 verify_gitstatus
