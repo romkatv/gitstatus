@@ -42,7 +42,8 @@ namespace gitstatus {
 // done at the end with a generic StrSort() call.
 //
 // For best results, reuse the arena and vector for multiple calls to avoid heap allocations.
-bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool case_sensitive);
+bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool precompose_unicode,
+             bool case_sensitive);
 
 }  // namespace gitstatus
 

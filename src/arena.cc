@@ -20,13 +20,12 @@
 #include <algorithm>
 #include <type_traits>
 
+#include "bits.h"
 #include "check.h"
 
 namespace gitstatus {
 
 namespace {
-
-size_t NextPow2(size_t n) { return n < 2 ? 1 : (~size_t{0} >> __builtin_clzll(n - 1)) + 1; }
 
 size_t Clamp(size_t min, size_t val, size_t max) { return std::min(max, std::max(min, val)); }
 
