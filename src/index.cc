@@ -303,16 +303,13 @@ RepoCaps::RepoCaps(git_repository* repo, git_index* index) {
   trust_filemode = git_index_is_filemode_trustworthy(index);
   has_symlinks = git_index_supports_symlinks(index);
   case_sensitive = git_index_is_case_sensitive(index);
-  git_config* cfg;
-  VERIFY(!git_repository_config(&cfg, repo)) << GitError();
-  int val;
-  precompose_unicode = !git_config_get_bool(&val, cfg, "core.precomposeunicode") && val;
+  precompose_unicode = git_index_precompose_unicode(index);
   untracked_cache = Tribool::kUnknown;
   LOG(DEBUG) << "Repository capabilities for " << Print(git_repository_workdir(repo)) << ": "
              << "is_filemode_trustworthy = " << std::boolalpha << trust_filemode << ", "
              << "index_supports_symlinks = " << std::boolalpha << has_symlinks << ", "
              << "index_is_case_sensitive = " << std::boolalpha << case_sensitive << ", "
-             << "core.precomposeunicode = " << std::boolalpha << precompose_unicode;
+             << "precompose_unicode = " << std::boolalpha << precompose_unicode;
 }
 
 Index::Index(git_repository* repo, git_index* index)
