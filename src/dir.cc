@@ -18,6 +18,8 @@
 #include "dir.h"
 
 #include <algorithm>
+#include <atomic>
+#include <cerrno>
 #include <cstring>
 
 #include <dirent.h>
@@ -32,9 +34,15 @@
 #include <sys/syscall.h>
 #endif
 
+#ifdef __APPLE__
+#include <iconv.h>
+#endif
+
+#include "bits.h"
 #include "check.h"
 #include "scope_guard.h"
 #include "string_cmp.h"
+#include "tribool.h"
 
 namespace gitstatus {
 
@@ -87,7 +95,8 @@ void SortEntries<false>(char** begin, char** end) {
   std::sort(begin, end, StrLt<false>());
 }
 
-bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool case_sensitive) {
+bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool precompose_unicode,
+             bool case_sensitive) {
   struct linux_dirent64 {
     ino64_t d_ino;
     off64_t d_off;
@@ -128,9 +137,78 @@ bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool case_se
   return true;
 }
 
-#else
+#else  // __linux__
 
-bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool case_sensitive) {
+namespace {
+
+char* DirentDup(Arena& arena, const struct dirent& ent, size_t len) {
+  char* p = arena.Allocate<char>(len + 2);
+  *p++ = ent.d_type;
+  std::memcpy(p, ent.d_name, len + 1);
+  return p;
+}
+
+#ifdef __APPLE__
+
+std::atomic<bool> g_iconv_error(true);
+
+Tribool IConvTry(char* inp, size_t ins, char* outp, size_t outs) {
+  if (outs == 0) return Tribool::kUnknown;
+  iconv_t ic = iconv_open("UTF-8", "UTF-8-MAC");
+  if (ic == (iconv_t)-1) {
+    if (g_iconv_error.load(std::memory_order_relaxed) &&
+        g_iconv_error.exchange(false, std::memory_order_relaxed)) {
+      LOG(ERROR) << "iconv_open(\"UTF-8\", \"UTF-8-MAC\") failed";
+    }
+    return Tribool::kFalse;
+  }
+  ON_SCOPE_EXIT(&) { CHECK(iconv_close(ic) == 0) << Errno(); };
+  --outs;
+  if (iconv(ic, &inp, &ins, &outp, &outs) >= 0) {
+    *outp = 0;
+    return Tribool::kTrue;
+  }
+  return errno == E2BIG ? Tribool::kUnknown : Tribool::kFalse;
+}
+
+char* DirenvConvert(Arena& arena, struct dirent& ent, bool do_convert) {
+  if (!do_convert) return DirentDup(arena, ent, std::strlen(ent.d_name));
+
+  size_t len = 0;
+  do_convert = false;
+  for (unsigned char c; (c = ent.d_name[len]); ++len) {
+    if (c & 0x80) do_convert = true;
+  }
+  if (!do_convert) return DirentDup(arena, ent, len);
+
+  size_t n = NextPow2(len + 2);
+  while (true) {
+    char* p = arena.Allocate<char>(n);
+    switch (IConvTry(ent.d_name, len, p + 1, n - 1)) {
+      case Tribool::kFalse:
+        return DirentDup(arena, ent, len);
+      case Tribool::kTrue:
+        *p = ent.d_type;
+        return p + 1;
+      case Tribool::kUnknown:
+        break;
+    }
+    n *= 2;
+  }
+}
+
+#else  // __APPLE__
+
+char* DirenvConvert(Arena& arena, struct dirent& ent, bool do_convert) {
+  return DirentDup(arena, ent, std::strlen(ent.d_name));
+}
+
+#endif  // __APPLE__
+
+}  // namespace
+
+bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool precompose_unicode,
+             bool case_sensitive) {
   VERIFY((dir_fd = dup(dir_fd)) >= 0);
   DIR* dir = fdopendir(dir_fd);
   if (!dir) {
@@ -141,11 +219,7 @@ bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool case_se
   entries.clear();
   while (struct dirent* ent = (errno = 0, readdir(dir))) {
     if (Dots(ent->d_name)) continue;
-    size_t len = std::strlen(ent->d_name);
-    char* p = arena.Allocate<char>(len + 2);
-    *p++ = ent->d_type;
-    std::memcpy(p, ent->d_name, len + 1);
-    entries.push_back(p);
+    entries.push_back(DirenvConvert(arena, *ent, precompose_unicode));
   }
   if (errno) {
     entries.clear();
@@ -155,6 +229,6 @@ bool ListDir(int dir_fd, Arena& arena, std::vector<char*>& entries, bool case_se
   return true;
 }
 
-#endif
+#endif  // __linux__
 
 }  // namespace gitstatus

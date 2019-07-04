@@ -109,7 +109,8 @@ bool GetLooseTags(git_repository* repo, Arena& arena, std::vector<char*>& tags) 
     return false;
   }
   ON_SCOPE_EXIT(&) { CHECK(!close(dir_fd)) << Errno(); };
-  return ListDir(dir_fd, arena, tags, /* case_sensitive = */ true);
+  return ListDir(dir_fd, arena, tags, /* precompose_unicode = */ false,
+                 /* case_sensitive = */ true);
 }
 
 }  // namespace

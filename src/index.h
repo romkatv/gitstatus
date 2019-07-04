@@ -28,10 +28,9 @@
 
 #include "arena.h"
 #include "string_view.h"
+#include "tribool.h"
 
 namespace gitstatus {
-
-enum class Tribool : int { kFalse = 0, kTrue = 1, kUnknown = -1 };
 
 struct RepoCaps {
   RepoCaps(git_repository* repo, git_index* index);
