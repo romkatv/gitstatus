@@ -27,6 +27,7 @@ namespace gitstatus {
 struct Request {
   std::string id;
   std::string dir;
+  bool diff = true;
 };
 
 std::ostream& operator<<(std::ostream& strm, const Request& req);

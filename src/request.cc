@@ -37,12 +37,19 @@ namespace gitstatus {
 namespace {
 
 Request ParseRequest(const std::string& s) {
-  auto sep = s.find(kFieldSep);
-  VERIFY(sep != std::string::npos) << "Malformed request: " << s;
-  VERIFY(s.find(kFieldSep, sep + 1) == std::string::npos) << "Malformed request: " << s;
   Request res;
-  res.id.assign(s.begin(), s.begin() + sep);
-  res.dir.assign(s.begin() + sep + 1, s.end());
+  auto begin = s.begin(), end = s.end(), sep = std::find(begin, end, kFieldSep);
+  VERIFY(sep != end) << "Malformed request: " << s;
+  res.id.assign(begin, sep);
+
+  begin = sep + 1;
+  sep = std::find(begin, end, kFieldSep);
+  res.dir.assign(begin, sep);
+  if (sep == end) return res;
+
+  begin = sep + 1;
+  VERIFY(begin + 1 == end && (*begin == '0' || *begin == '1')) << "Malformed request: " << s;
+  res.diff = *begin == 0;
   return res;
 }
 
@@ -58,7 +65,8 @@ bool IsLockedFd(int fd) {
 }  // namespace
 
 std::ostream& operator<<(std::ostream& strm, const Request& req) {
-  strm << Print(req.id) << " [" << Print(req.dir) << "]";
+  strm << Print(req.id) << " for " << Print(req.dir);
+  if (!req.diff) strm << " [no-diff]";
   return strm;
 }
 
