@@ -106,17 +106,24 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   // Repository state, A.K.A. action. For example, "merge".
   resp.Print(RepoState(repo->repo()));
 
-  // Look for staged, unstaged and untracked. This is where most of the time is spent.
-  const IndexStats stats = repo->GetIndexStats(head_target);
+  if (req.diff) {
+    // Look for staged, unstaged and untracked. This is where most of the time is spent.
+    const IndexStats stats = repo->GetIndexStats(head_target);
 
-  // The number of files in the index.
-  resp.Print(stats.index_size);
-  // The number of staged changes. At most opts.max_num_staged.
-  resp.Print(stats.num_staged);
-  // The number of unstaged changes. At most opts.max_num_unstaged. Zero if index is too large.
-  resp.Print(stats.num_unstaged);
-  // The number of untracked changes. At most opts.max_num_untracked. Zero if index is too large.
-  resp.Print(stats.num_untracked);
+    // The number of files in the index.
+    resp.Print(stats.index_size);
+    // The number of staged changes. At most opts.max_num_staged.
+    resp.Print(stats.num_staged);
+    // The number of unstaged changes. At most opts.max_num_unstaged. Zero if index is too large.
+    resp.Print(stats.num_unstaged);
+    // The number of untracked changes. At most opts.max_num_untracked. Zero if index is too large.
+    resp.Print(stats.num_untracked);
+  } else {
+    resp.Print(ssize_t{0});
+    resp.Print(ssize_t{0});
+    resp.Print(ssize_t{0});
+    resp.Print(ssize_t{0});
+  }
 
   if (upstream) {
     // Number of commits we are ahead of upstream. Non-negative integer. If positive, it means
