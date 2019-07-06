@@ -119,14 +119,14 @@ function gitstatus_query() {
   local dir=${${GIT_DIR:-$PWD}:a}
   local callback=''
   local -F timeout=-1
-  local no_diff=''
+  local no_diff=0
   while true; do
     getopts "d:c:t:p" opt || break
     case $opt in
       d) dir=$OPTARG;;
       c) callback=$OPTARG;;
       t) timeout=$OPTARG;;
-      p) no_diff=$'\x1f'1;;
+      p) no_diff=1;;
       ?) return 1;;
       done) break;;
     esac
@@ -143,7 +143,7 @@ function gitstatus_query() {
   local req_fd_var=_GITSTATUS_REQ_FD_${name}
   local -i req_fd=${(P)req_fd_var}
   local -r req_id="$EPOCHREALTIME"
-  echo -nE $req_id' '$callback$'\x1f'$dir$no_diff$'\x1e' >&$req_fd
+  echo -nE $req_id' '$callback$'\x1f'$dir$'\x1f'$no_diff$'\x1e' >&$req_fd
 
   while true; do
     _gitstatus_process_response $name $timeout $req_id
