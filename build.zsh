@@ -22,7 +22,7 @@ setopt err_return err_return no_unset pipe_fail extended_glob
 
 local DIR=${${1:-${TMPDIR:-/tmp}/gitstatus}:a}
 local OS && OS=$(uname -s)
-[[ OS != Linux || $(uname -o) != Android ]] || OS=Android
+[[ $OS != Linux || $(uname -o) != Android ]] || OS=Android
 
 local CPUS
 case $OS in
