@@ -13,7 +13,7 @@ readonly GITSTATUS_REPO_URL=https://github.com/romkatv/gitstatus.git
 readonly LIBGIT2_REPO_URL=https://github.com/romkatv/libgit2.git
 
 emulate -L zsh
-setopt err_return err_return no_unset pipe_fail extended_glob
+setopt err_return err_return no_unset pipe_fail extended_glob typeset_silent
 
 [[ $# -lt 2 ]] || {
   echo "Usage: build.sh [DIR]" >&2
