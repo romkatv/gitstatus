@@ -75,6 +75,23 @@ T Exchange(std::atomic<T>& x, T v) {
   return x.exchange(v, std::memory_order_relaxed);
 }
 
+const char* DeltaStr(git_delta_t t) {
+  switch (t) {
+    case GIT_DELTA_UNMODIFIED: return "unmodified";
+    case GIT_DELTA_ADDED: return "added";
+    case GIT_DELTA_DELETED: return "deleted";
+    case GIT_DELTA_MODIFIED: return "modified";
+    case GIT_DELTA_RENAMED: return "renamed";
+    case GIT_DELTA_COPIED: return "copied";
+    case GIT_DELTA_IGNORED: return "ignored";
+    case GIT_DELTA_UNTRACKED: return "untracked";
+    case GIT_DELTA_TYPECHANGE: return "typechange";
+    case GIT_DELTA_UNREADABLE: return "unreadable";
+    case GIT_DELTA_CONFLICTED: return "conflicted";
+  }
+  return "unknown";
+}
+
 }  // namespace
 
 bool Repo::Shard::Contains(Str<> str, StringView path) const {
@@ -170,14 +187,39 @@ IndexStats Repo::GetIndexStats(const git_oid* head) {
           .num_untracked = std::min(Load(untracked_), lim_.max_num_untracked)};
 }
 
+int Repo::OnDelta(const char* type, const git_diff_delta& d, std::atomic<size_t>& c1, size_t m1,
+                  const std::atomic<size_t>& c2, size_t m2) {
+  auto Msg = [&]() {
+    const char* status = DeltaStr(d.status);
+    std::ostringstream strm;
+    strm << "Found " << type << " file";
+    if (strcmp(status, type)) strm << " (" << status << ")";
+    strm << ": " << Print(d.new_file.path);
+    return strm.str();
+  };
+
+  size_t v = Inc(c1);
+  if (v) {
+    LOG(DEBUG) << Msg();
+  } else {
+    LOG(INFO) << Msg();
+  }
+  if (v + 1 < m1) return GIT_DIFF_DELTA_DO_NOT_INSERT;
+  if (Load(c2) < m2) return GIT_DIFF_DELTA_DO_NOT_INSERT | GIT_DIFF_DELTA_SKIP_TYPE;
+  return GIT_EUSER;
+}
+
 void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
   if (paths.empty()) return;
 
   git_diff_options opt = GIT_DIFF_OPTIONS_INIT;
   opt.payload = this;
-  opt.flags = GIT_DIFF_SKIP_BINARY_CHECK | GIT_DIFF_DISABLE_PATHSPEC_MATCH | GIT_DIFF_EXEMPLARS;
+  opt.flags = GIT_DIFF_INCLUDE_TYPECHANGE_TREES | GIT_DIFF_SKIP_BINARY_CHECK |
+              GIT_DIFF_DISABLE_PATHSPEC_MATCH | GIT_DIFF_EXEMPLARS;
   if (lim_.max_num_untracked) {
-    opt.flags |= GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_RECURSE_UNTRACKED_DIRS;
+    opt.flags |= GIT_DIFF_INCLUDE_UNTRACKED;
+  } else {
+    opt.flags |= GIT_DIFF_ENABLE_FAST_UNTRACKED_DIRS;
   }
   opt.ignore_submodules = GIT_SUBMODULE_IGNORE_DIRTY;
   opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
@@ -186,29 +228,11 @@ void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
     Repo* repo = static_cast<Repo*>(payload);
     if (Load(repo->error_)) return GIT_EUSER;
     if (delta->status == GIT_DELTA_UNTRACKED) {
-      size_t untracked = Inc(repo->untracked_);
-      if (!untracked) {
-        LOG(INFO) << "Found untracked file: " << Print(delta->new_file.path);
-      } else {
-        LOG(DEBUG) << "Found untracked file: " << Print(delta->new_file.path);
-      }
-      if (untracked + 1 < repo->lim_.max_num_untracked) return GIT_DIFF_DELTA_DO_NOT_INSERT;
-      if (Load(repo->unstaged_) < repo->lim_.max_num_unstaged) {
-        return GIT_DIFF_DELTA_DO_NOT_INSERT | GIT_DIFF_DELTA_SKIP_TYPE;
-      }
-      return GIT_EUSER;
+      return repo->OnDelta("untracked", *delta, repo->untracked_, repo->lim_.max_num_untracked,
+                           repo->unstaged_, repo->lim_.max_num_unstaged);
     } else {
-      size_t unstaged = Inc(repo->unstaged_);
-      if (!unstaged) {
-        LOG(INFO) << "Found unstaged file: " << Print(delta->new_file.path);
-      } else {
-        LOG(DEBUG) << "Found unstaged file: " << Print(delta->new_file.path);
-      }
-      if (unstaged + 1 < repo->lim_.max_num_unstaged) return GIT_DIFF_DELTA_DO_NOT_INSERT;
-      if (Load(repo->untracked_) < repo->lim_.max_num_untracked) {
-        return GIT_DIFF_DELTA_DO_NOT_INSERT | GIT_DIFF_DELTA_SKIP_TYPE;
-      }
-      return GIT_EUSER;
+      return repo->OnDelta("unstaged", *delta, repo->unstaged_, repo->lim_.max_num_unstaged,
+                           repo->untracked_, repo->lim_.max_num_untracked);
     }
   };
 
@@ -250,36 +274,18 @@ void Repo::StartStagedScan(const git_oid* head) {
   VERIFY(!git_commit_tree(&tree, commit)) << GitError();
 
   git_diff_options opt = GIT_DIFF_OPTIONS_INIT;
-  opt.flags = GIT_DIFF_EXEMPLARS;
+  opt.flags = GIT_DIFF_EXEMPLARS | GIT_DIFF_INCLUDE_TYPECHANGE_TREES;
   opt.payload = this;
   opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
                       const char* matched_pathspec, void* payload) -> int {
     Repo* repo = static_cast<Repo*>(payload);
     if (Load(repo->error_)) return GIT_EUSER;
     if (delta->status == GIT_DELTA_CONFLICTED) {
-      size_t conflicted = Inc(repo->conflicted_);
-      if (!conflicted) {
-        LOG(INFO) << "Found conflicted file: " << Print(delta->new_file.path);
-      } else {
-        LOG(DEBUG) << "Found conflicted file: " << Print(delta->new_file.path);
-      }
-      if (conflicted + 1 < repo->lim_.max_num_conflicted) return GIT_DIFF_DELTA_DO_NOT_INSERT;
-      if (Load(repo->staged_) < repo->lim_.max_num_staged) {
-        return GIT_DIFF_DELTA_DO_NOT_INSERT | GIT_DIFF_DELTA_SKIP_TYPE;
-      }
-      return GIT_EUSER;
+      return repo->OnDelta("conflicted", *delta, repo->conflicted_, repo->lim_.max_num_conflicted,
+                           repo->staged_, repo->lim_.max_num_staged);
     } else {
-      size_t staged = Inc(repo->staged_);
-      if (!staged) {
-        LOG(INFO) << "Found staged file: " << Print(delta->new_file.path);
-      } else {
-        LOG(DEBUG) << "Found staged file: " << Print(delta->new_file.path);
-      }
-      if (staged + 1 < repo->lim_.max_num_staged) return GIT_DIFF_DELTA_DO_NOT_INSERT;
-      if (Load(repo->conflicted_) < repo->lim_.max_num_conflicted) {
-        return GIT_DIFF_DELTA_DO_NOT_INSERT | GIT_DIFF_DELTA_SKIP_TYPE;
-      }
-      return GIT_EUSER;
+      return repo->OnDelta("staged", *delta, repo->staged_, repo->lim_.max_num_staged,
+                           repo->conflicted_, repo->lim_.max_num_conflicted);
     }
   };
 
