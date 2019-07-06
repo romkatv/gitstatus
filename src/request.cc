@@ -49,7 +49,7 @@ Request ParseRequest(const std::string& s) {
 
   begin = sep + 1;
   VERIFY(begin + 1 == end && (*begin == '0' || *begin == '1')) << "Malformed request: " << s;
-  res.diff = *begin == 0;
+  res.diff = *begin == '0';
   return res;
 }
 
