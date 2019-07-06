@@ -433,7 +433,7 @@ function gitstatus_start() {
       >&2 echo -E ''
       >&2 echo -E '  Run the following command to retry with extra diagnostics:'
       >&2 print -P '%F{green}'
-      >&2 echo -E "    GITSTATUS_ENABLE_LOGGING=1 gitstatus_start ${(@q-)*}"
+      >&2 echo -E "    GITSTATUS_LOG_LEVEL=DEBUG gitstatus_start ${(@q-)*}"
       >&2 print -nP '%f'
     fi
 
