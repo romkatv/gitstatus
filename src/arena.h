@@ -205,7 +205,7 @@ class ArenaAllocator {
   };
   using is_always_equal = std::false_type;
 
-  ArenaAllocator(Arena* arena) : arena_(*arena) {}
+  ArenaAllocator(Arena* arena = nullptr) : arena_(*arena) {}
 
   Arena& arena() const { return arena_; }
 
