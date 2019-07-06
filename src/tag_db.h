@@ -30,7 +30,14 @@
 #include <string>
 #include <vector>
 
+#include "arena.h"
+
 namespace gitstatus {
+
+struct Tag {
+  const char* name;
+  git_oid id;
+};
 
 class TagDb {
  public:
@@ -41,27 +48,30 @@ class TagDb {
   std::string TagForCommit(const git_oid& oid);
 
  private:
-  struct Tag {
-    bool operator<(const Tag& other) const {
-      return std::memcmp(commit.id, other.commit.id, GIT_OID_RAWSZ) < 0;
-    }
-
-    const char* ref = nullptr;
-    git_oid commit = {};
-  };
-
-  bool UpdatePack(const git_oid& commit, std::vector<const char*>& match);
-  std::vector<const char*> ParsePack(const git_oid& commit);
+  void ReadLooseTags();
+  void UpdatePack();
+  void ParsePack();
   void Wait();
 
+  bool IsLooseTag(const char* name) const;
+
+  bool TagHasTarget(const char* name, const git_oid* target) const;
+
   git_repository* const repo_;
+  git_refdb* const refdb_;
+
+  Arena pack_arena_;
   struct stat pack_stat_ = {};
-  std::string pack_;
-  std::vector<Tag> peeled_tags_;
+  WithArena<std::string> pack_;
+  WithArena<std::vector<const Tag*>> name2id_;
+  WithArena<std::vector<const Tag*>> id2name_;
+
+  Arena loose_arena_;
+  std::vector<char*> loose_tags_;
 
   std::mutex mutex_;
   std::condition_variable cv_;
-  bool sorting_ = false;
+  bool id2name_dirty_ = false;
 };
 
 }  // namespace gitstatus
