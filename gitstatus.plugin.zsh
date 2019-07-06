@@ -59,6 +59,9 @@ autoload -Uz add-zsh-hook && zmodload zsh/datetime zsh/system || return
 #   -t FLOAT  Timeout in seconds. Will block for at most this long. If no results are
 #             available by then: if -c isn't specified, will return 1; otherwise will set
 #             VCS_STATUS_RESULT=tout and return 0.
+#   -p        Don't compute anything that requires reading Git index. If this option is used,
+#             the following parameters will be 0: VCS_STATUS_INDEX_SIZE,
+#             VCS_STATUS_{NUM,HAS}_{STAGED,UNSTAGED,UNTRACKED}.
 #
 # On success sets VCS_STATUS_RESULT to one of the following values:
 #
@@ -114,12 +117,14 @@ function gitstatus_query() {
   local dir=${${GIT_DIR:-$PWD}:a}
   local callback=''
   local -F timeout=-1
+  local no_diff=''
   while true; do
-    getopts "d:c:t:" opt || break
+    getopts "d:c:t:p" opt || break
     case $opt in
       d) dir=$OPTARG;;
       c) callback=$OPTARG;;
       t) timeout=$OPTARG;;
+      p) no_diff=$'\x1f'1;;
       ?) return 1;;
       done) break;;
     esac
@@ -136,7 +141,7 @@ function gitstatus_query() {
   local req_fd_var=_GITSTATUS_REQ_FD_${name}
   local -i req_fd=${(P)req_fd_var}
   local -r req_id="$EPOCHREALTIME"
-  echo -nE "${req_id} ${callback}"$'\x1f'"${dir}"$'\x1e' >&$req_fd
+  echo -nE $req_id' '$callback$'\x1f'$dir$no_diff$'\x1e' >&$req_fd
 
   while true; do
     _gitstatus_process_response $name $timeout $req_id
