@@ -240,6 +240,11 @@ struct LazyWithArena<C<T1, A>> {
   using type = C<T1, ArenaAllocator<typename C<T1, A>::value_type>>;
 };
 
+template <template <class, class, class> class C, class T1, class T2, class A>
+struct LazyWithArena<C<T1, T2, A>> {
+  using type = C<T1, T2, ArenaAllocator<typename C<T1, T2, A>::value_type>>;
+};
+
 template <class C>
 using WithArena = typename LazyWithArena<C>::type;
 

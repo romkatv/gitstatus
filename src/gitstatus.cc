@@ -159,6 +159,7 @@ int GitStatus(int argc, char** argv) {
   git_libgit2_opts(GIT_OPT_ENABLE_STRICT_HASH_VERIFICATION, 0);
   git_libgit2_opts(GIT_OPT_DISABLE_INDEX_CHECKSUM_VERIFICATION, 1);
   git_libgit2_opts(GIT_OPT_DISABLE_INDEX_FILEPATH_VALIDATION, 1);
+  git_libgit2_opts(GIT_OPT_DISABLE_READNG_PACKED_TAGS, 1);
   git_libgit2_init();
 
   while (true) {
