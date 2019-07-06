@@ -97,7 +97,7 @@ function build_gitstatus() {
       ldflags+=" -L$DIR/libiconv -liconv"
       ;;
     CYGWIN*)
-      cxxflags+=" -D_GNU_SOURCE -DGITSTATUS_BOGUS_INO"
+      cxxflags+=" -D_GNU_SOURCE"
       ldflags+=" -static"
       ;;
   esac
