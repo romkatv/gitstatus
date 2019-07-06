@@ -134,11 +134,13 @@ IndexStats Repo::GetIndexStats(const git_oid* head) {
 
   if (head) {
     if (git_oid_equal(head, &head_)) {
-      LOG(INFO) << "Index and HEAD unchanged; staged changes: " << Load(staged_);
+      LOG(INFO) << "Index and HEAD unchanged; staged = " << Load(staged_)
+                << ", conflicted = " << Load(conflicted_);
     } else {
       head_ = *head;
       Store(staged_, {});
-      StartStagedScan(head);
+      Store(conflicted_, {});
+      if (lim_.max_num_staged || lim_.max_num_conflicted) StartStagedScan(head);
     }
   } else {
     // An empty repo with non-empty index must have staged changes.
@@ -164,6 +166,7 @@ IndexStats Repo::GetIndexStats(const git_oid* head) {
   return {.index_size = index_size,
           .num_staged = std::min(Load(staged_), lim_.max_num_staged),
           .num_unstaged = std::min(Load(unstaged_), lim_.max_num_unstaged),
+          .num_conflicted = std::min(Load(conflicted_), lim_.max_num_conflicted),
           .num_untracked = std::min(Load(untracked_), lim_.max_num_untracked)};
 }
 
@@ -179,6 +182,7 @@ void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
   opt.ignore_submodules = GIT_SUBMODULE_IGNORE_DIRTY;
   opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
                       const char* matched_pathspec, void* payload) -> int {
+    if (delta->status == GIT_DELTA_CONFLICTED) return GIT_DIFF_DELTA_DO_NOT_INSERT;
     Repo* repo = static_cast<Repo*>(payload);
     if (Load(repo->error_)) return GIT_EUSER;
     if (delta->status == GIT_DELTA_UNTRACKED) {
@@ -246,17 +250,37 @@ void Repo::StartStagedScan(const git_oid* head) {
   VERIFY(!git_commit_tree(&tree, commit)) << GitError();
 
   git_diff_options opt = GIT_DIFF_OPTIONS_INIT;
+  opt.flags = GIT_DIFF_EXEMPLARS;
   opt.payload = this;
   opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
                       const char* matched_pathspec, void* payload) -> int {
     Repo* repo = static_cast<Repo*>(payload);
-    size_t staged = Inc(repo->staged_);
-    if (!staged) {
-      LOG(INFO) << "Found staged file: " << Print(delta->new_file.path);
+    if (Load(repo->error_)) return GIT_EUSER;
+    if (delta->status == GIT_DELTA_CONFLICTED) {
+      size_t conflicted = Inc(repo->conflicted_);
+      if (!conflicted) {
+        LOG(INFO) << "Found conflicted file: " << Print(delta->new_file.path);
+      } else {
+        LOG(DEBUG) << "Found conflicted file: " << Print(delta->new_file.path);
+      }
+      if (conflicted + 1 < repo->lim_.max_num_conflicted) return GIT_DIFF_DELTA_DO_NOT_INSERT;
+      if (Load(repo->staged_) < repo->lim_.max_num_staged) {
+        return GIT_DIFF_DELTA_DO_NOT_INSERT | GIT_DIFF_DELTA_SKIP_TYPE;
+      }
+      return GIT_EUSER;
     } else {
-      LOG(DEBUG) << "Found staged file: " << Print(delta->new_file.path);
+      size_t staged = Inc(repo->staged_);
+      if (!staged) {
+        LOG(INFO) << "Found staged file: " << Print(delta->new_file.path);
+      } else {
+        LOG(DEBUG) << "Found staged file: " << Print(delta->new_file.path);
+      }
+      if (staged + 1 < repo->lim_.max_num_staged) return GIT_DIFF_DELTA_DO_NOT_INSERT;
+      if (Load(repo->conflicted_) < repo->lim_.max_num_conflicted) {
+        return GIT_DIFF_DELTA_DO_NOT_INSERT | GIT_DIFF_DELTA_SKIP_TYPE;
+      }
+      return GIT_EUSER;
     }
-    return staged + 1 < repo->lim_.max_num_unstaged ? 1 : GIT_EUSER;
   };
 
   for (const Shard& shard : shards_) {

@@ -29,6 +29,8 @@ struct Limits {
   size_t max_num_staged = 1;
   // Report at most this many unstaged changes.
   size_t max_num_unstaged = 1;
+  // Report at most this many conflicted changes.
+  size_t max_num_conflicted = 1;
   // Report at most this many untracked files.
   size_t max_num_untracked = 1;
   // If a repo has more files in its index than this, override max_num_unstaged and
