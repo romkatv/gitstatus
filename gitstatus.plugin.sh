@@ -43,7 +43,7 @@ function gitstatus_start() {
   unset OPTIND
   local opt timeout=5 max_dirty=-1
   local max_num_staged=1 max_num_unstaged=1 max_num_conflicted=1 max_num_untracked=1
-  while getopts "t:m:" opt; do
+  while getopts "t:s:u:c:d:m:" opt; do
     case "$opt" in
       t) timeout=$OPTARG;;
       s) max_num_staged=$OPTARG;;
