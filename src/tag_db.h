@@ -57,7 +57,6 @@ class TagDb {
   git_repository* const repo_;
   struct stat pack_stat_ = {};
   std::string pack_;
-  std::vector<const char*> unpeeled_tags_;
   std::vector<Tag> peeled_tags_;
 
   std::mutex mutex_;

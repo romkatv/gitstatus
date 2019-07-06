@@ -171,7 +171,6 @@ bool TagDb::UpdatePack(const git_oid& commit, std::vector<const char*>& match) {
   auto Reset = [&] {
     std::memset(&pack_stat_, 0, sizeof(pack_stat_));
     pack_.clear();
-    unpeeled_tags_.clear();
     peeled_tags_.clear();
   };
 
@@ -212,22 +211,17 @@ bool TagDb::UpdatePack(const git_oid& commit, std::vector<const char*>& match) {
 std::vector<const char*> TagDb::ParsePack(const git_oid& commit) {
   char* p = &pack_[0];
   char* e = p + pack_.size();
-  bool peeled = false;
   std::vector<const char*> res;
 
   if (*p == '#') {
     char* eol = std::strchr(p, '\n');
     if (!eol) return res;
     *eol = 0;
-    peeled = std::strstr(p, " fully-peeled ");
+    if (!std::strstr(p, " fully-peeled ")) return res;
     p = eol + 1;
   }
 
-  if (peeled) {
-    peeled_tags_.reserve(pack_.size() / 128);
-  } else {
-    unpeeled_tags_.reserve(pack_.size() / 128);
-  }
+  peeled_tags_.reserve(pack_.size() / 128);
 
   std::vector<Tag*> idx;
   idx.reserve(pack_.size() / 128);
@@ -251,15 +245,9 @@ std::vector<const char*> TagDb::ParsePack(const git_oid& commit) {
     }
     const char* tag = StripTag(ref);
     if (!tag) continue;
-    if (peeled) {
-      peeled_tags_.push_back({ref, oid});
-      if (!std::memcmp(oid.id, commit.id, GIT_OID_RAWSZ)) res.push_back(tag);
-    } else {
-      unpeeled_tags_.push_back(ref);
-    }
+    peeled_tags_.push_back({ref, oid});
+    if (!std::memcmp(oid.id, commit.id, GIT_OID_RAWSZ)) res.push_back(tag);
   }
-
-  StrSort(unpeeled_tags_.begin(), unpeeled_tags_.end(), /* case_sensitive = */ true);
 
   sorting_ = true;
   GlobalThreadPool()->Schedule([this] {
