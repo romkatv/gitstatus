@@ -178,12 +178,13 @@ Options ParseOptions(int argc, char** argv) {
                                 {"log-level", required_argument, nullptr, 'v'},
                                 {"max-num-staged", required_argument, nullptr, 's'},
                                 {"max-num-unstaged", required_argument, nullptr, 'u'},
+                                {"max-num-conflicted", required_argument, nullptr, 'c'},
                                 {"max-num-untracked", required_argument, nullptr, 'd'},
                                 {"dirty-max-index-size", required_argument, nullptr, 'm'},
                                 {}};
   Options res;
   while (true) {
-    switch (getopt_long(argc, argv, "hl:t:m:", opts, nullptr)) {
+    switch (getopt_long(argc, argv, "hl:p:t:v:s:u:c:d:m:", opts, nullptr)) {
       case -1:
         if (optind != argc) {
           std::cerr << "unexpected positional argument: " << argv[optind] << std::endl;
@@ -219,6 +220,9 @@ Options ParseOptions(int argc, char** argv) {
         break;
       case 'u':
         res.max_num_unstaged = ParseLong(optarg);
+        break;
+      case 'c':
+        res.max_num_conflicted = ParseLong(optarg);
         break;
       case 'd':
         res.max_num_untracked = ParseLong(optarg);

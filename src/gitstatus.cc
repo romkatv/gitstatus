@@ -114,11 +114,14 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
     resp.Print(stats.index_size);
     // The number of staged changes. At most opts.max_num_staged.
     resp.Print(stats.num_staged);
-    // The number of unstaged changes. At most opts.max_num_unstaged. Zero if index is too large.
+    // The number of unstaged changes. At most opts.max_num_unstaged. 0 if index is too large.
     resp.Print(stats.num_unstaged);
-    // The number of untracked changes. At most opts.max_num_untracked. Zero if index is too large.
+    // The number of conflicted changes. At most opts.max_num_conflicted. 0 if index is too large.
+    resp.Print(stats.num_conflicted);
+    // The number of untracked changes. At most opts.max_num_untracked. 0 if index is too large.
     resp.Print(stats.num_untracked);
   } else {
+    resp.Print(ssize_t{0});
     resp.Print(ssize_t{0});
     resp.Print(ssize_t{0});
     resp.Print(ssize_t{0});

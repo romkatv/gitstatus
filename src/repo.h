@@ -50,6 +50,7 @@ struct IndexStats {
   size_t index_size = 0;
   size_t num_staged = 0;
   size_t num_unstaged = 0;
+  size_t num_conflicted = 0;
   size_t num_untracked = 0;
 };
 
@@ -99,6 +100,7 @@ class Repo {
   std::atomic<bool> error_{false};
   std::atomic<size_t> staged_{0};
   std::atomic<size_t> unstaged_{0};
+  std::atomic<size_t> conflicted_{0};
   std::atomic<size_t> untracked_{0};
   std::atomic<Tribool> untracked_cache_{Tribool::kUnknown};
 };

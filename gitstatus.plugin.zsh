@@ -86,9 +86,11 @@ autoload -Uz add-zsh-hook && zmodload zsh/datetime zsh/system || return
 #   VCS_STATUS_ACTION          Repository state, A.K.A. action. Can be empty.
 #   VCS_STATUS_INDEX_SIZE      The number of files in the index.
 #   VCS_STATUS_NUM_STAGED      The number of staged changes.
+#   VCS_STATUS_NUM_CONFLICTED  The number of unstaged changes.
 #   VCS_STATUS_NUM_UNSTAGED    The number of unstaged changes.
 #   VCS_STATUS_NUM_UNTRACKED   The number of untracked files.
 #   VCS_STATUS_HAS_STAGED      1 if there are staged changes, 0 otherwise.
+#   VCS_STATUS_HAS_CONFLICTED  1 if there are conflicted changes, 0 otherwise.
 #   VCS_STATUS_HAS_UNSTAGED    1 if there are unstaged changes, 0 if there aren't, -1 if unknown.
 #   VCS_STATUS_HAS_UNTRACKED   1 if there are untracked files, 0 if there aren't, -1 if unknown.
 #   VCS_STATUS_COMMITS_AHEAD   Number of commits the current branch is ahead of upstream.
@@ -184,17 +186,20 @@ function _gitstatus_process_response() {
     typeset -gi VCS_STATUS_INDEX_SIZE="${resp[10]}"
     typeset -gi VCS_STATUS_NUM_STAGED="${resp[11]}"
     typeset -gi VCS_STATUS_NUM_UNSTAGED="${resp[12]}"
-    typeset -gi VCS_STATUS_NUM_UNTRACKED="${resp[13]}"
-    typeset -gi VCS_STATUS_COMMITS_AHEAD="${resp[14]}"
-    typeset -gi VCS_STATUS_COMMITS_BEHIND="${resp[15]}"
-    typeset -gi VCS_STATUS_STASHES="${resp[16]}"
-    typeset -g  VCS_STATUS_TAG="${resp[17]}"
+    typeset -gi VCS_STATUS_NUM_CONFLICTED="${resp[13]}"
+    typeset -gi VCS_STATUS_NUM_UNTRACKED="${resp[14]}"
+    typeset -gi VCS_STATUS_COMMITS_AHEAD="${resp[15]}"
+    typeset -gi VCS_STATUS_COMMITS_BEHIND="${resp[16]}"
+    typeset -gi VCS_STATUS_STASHES="${resp[17]}"
+    typeset -g  VCS_STATUS_TAG="${resp[18]}"
     typeset -gi VCS_STATUS_HAS_STAGED=$((VCS_STATUS_NUM_STAGED > 0))
     (( dirty_max_index_size >= 0 && VCS_STATUS_INDEX_SIZE > dirty_max_index_size )) && {
       typeset -gi VCS_STATUS_HAS_UNSTAGED=-1
+      typeset -gi VCS_STATUS_HAS_CONFLICTED=-1
       typeset -gi VCS_STATUS_HAS_UNTRACKED=-1
     } || {
       typeset -gi VCS_STATUS_HAS_UNSTAGED=$((VCS_STATUS_NUM_UNSTAGED > 0))
+      typeset -gi VCS_STATUS_HAS_CONFLICTED=$((VCS_STATUS_NUM_CONFLICTED > 0))
       typeset -gi VCS_STATUS_HAS_UNTRACKED=$((VCS_STATUS_NUM_UNTRACKED > 0))
     }
   } || {
@@ -209,9 +214,11 @@ function _gitstatus_process_response() {
     unset VCS_STATUS_INDEX_SIZE
     unset VCS_STATUS_NUM_STAGED
     unset VCS_STATUS_NUM_UNSTAGED
+    unset VCS_STATUS_NUM_CONFLICTED
     unset VCS_STATUS_NUM_UNTRACKED
     unset VCS_STATUS_HAS_STAGED
     unset VCS_STATUS_HAS_UNSTAGED
+    unset VCS_STATUS_HAS_CONFLICTED
     unset VCS_STATUS_HAS_UNTRACKED
     unset VCS_STATUS_COMMITS_AHEAD
     unset VCS_STATUS_COMMITS_BEHIND
@@ -235,6 +242,9 @@ function _gitstatus_process_response() {
 #   -u INT    Report at most this many unstaged changes; negative value means infinity.
 #             Defaults to 1.
 #
+#   -c INT    Report at most this many conflicted changes; negative value means infinity.
+#             Defaults to 1.
+#
 #   -d INT    Report at most this many untracked files; negative value means infinity.
 #             Defaults to 1.
 #
@@ -248,6 +258,7 @@ function gitstatus_start() {
   local -F timeout=5
   local -i max_num_staged=1
   local -i max_num_unstaged=1
+  local -i max_num_conflicted=1
   local -i max_num_untracked=1
   local -i dirty_max_index_size=-1
   while true; do
@@ -256,6 +267,7 @@ function gitstatus_start() {
       t) timeout=$OPTARG;;
       s) max_num_staged=$OPTARG;;
       u) max_num_unstaged=$OPTARG;;
+      c) max_num_conflicted=$OPTARG;;
       d) max_num_untracked=$OPTARG;;
       m) dirty_max_index_size=$OPTARG;;
       ?) return 1;;
@@ -320,6 +332,7 @@ function gitstatus_start() {
       --num-threads=${(q)threads}
       --max-num-staged=${(q)max_num_staged}
       --max-num-unstaged=${(q)max_num_unstaged}
+      --max-num-conflicted=${(q)max_num_conflicted}
       --max-num-untracked=${(q)max_num_untracked}
       --dirty-max-index-size=${(q)dirty_max_index_size}
       ${${log_level:#INFO}:+--log-level=$log_level})

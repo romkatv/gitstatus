@@ -31,6 +31,9 @@
 #   -u INT    Report at most this many unstaged changes; negative value means infinity.
 #             Defaults to 1.
 #
+#   -c INT    Report at most this many conflicted changes; negative value means infinity.
+#             Defaults to 1.
+#
 #   -d INT    Report at most this many untracked files; negative value means infinity.
 #             Defaults to 1.
 #
@@ -38,12 +41,14 @@
 #             in the index. Negative value means infinity. Defaults to -1.
 function gitstatus_start() {
   unset OPTIND
-  local opt timeout=5 max_num_staged=1 max_num_unstaged=1 max_num_untracked=1 max_dirty=-1
+  local opt timeout=5 max_dirty=-1
+  local max_num_staged=1 max_num_unstaged=1 max_num_conflicted=1 max_num_untracked=1
   while getopts "t:m:" opt; do
     case "$opt" in
       t) timeout=$OPTARG;;
       s) max_num_staged=$OPTARG;;
       u) max_num_unstaged=$OPTARG;;
+      c) max_num_conflicted=$OPTARG;;
       d) max_num_untracked=$OPTARG;;
       m) max_dirty=$OPTARG;;
       *) return 1;;
@@ -92,6 +97,7 @@ function gitstatus_start() {
       --num-threads="${threads@Q}"
       --max-num-staged="${max_num_staged@Q}"
       --max-num-unstaged="${max_num_unstaged@Q}"
+      --max-num-conflicted="${max_num_conflicted@Q}"
       --max-num-untracked="${max_num_untracked@Q}"
       --dirty-max-index-size="${max_dirty@Q}")
 
@@ -202,9 +208,11 @@ function gitstatus_stop() {
 #   VCS_STATUS_ACTION          Repository state, A.K.A. action. Can be empty.
 #   VCS_STATUS_INDEX_SIZE      The number of files in the index.
 #   VCS_STATUS_NUM_STAGED      The number of staged changes.
+#   VCS_STATUS_NUM_CONFLICTED  The number of conflicted changes.
 #   VCS_STATUS_NUM_UNSTAGED    The number of unstaged changes.
 #   VCS_STATUS_NUM_UNTRACKED   The number of untracked files.
 #   VCS_STATUS_HAS_STAGED      1 if there are staged changes, 0 otherwise.
+#   VCS_STATUS_HAS_CONFLICTED  1 if there are conflicted changes, , 0 otherwise.
 #   VCS_STATUS_HAS_UNSTAGED    1 if there are unstaged changes, 0 if there aren't, -1 if
 #                              unknown.
 #   VCS_STATUS_HAS_UNTRACKED   1 if there are untracked files, 0 if there aren't, -1 if
@@ -258,18 +266,21 @@ function gitstatus_query() {
     VCS_STATUS_INDEX_SIZE="${resp[9]}"
     VCS_STATUS_NUM_STAGED="${resp[10]}"
     VCS_STATUS_NUM_UNSTAGED="${resp[11]}"
-    VCS_STATUS_NUM_UNTRACKED="${resp[12]}"
-    VCS_STATUS_COMMITS_AHEAD="${resp[13]}"
-    VCS_STATUS_COMMITS_BEHIND="${resp[14]}"
-    VCS_STATUS_STASHES="${resp[15]}"
-    VCS_STATUS_TAG="${resp[16]:-}"
+    VCS_STATUS_NUM_CONFLICTED="${resp[12]}"
+    VCS_STATUS_NUM_UNTRACKED="${resp[13]}"
+    VCS_STATUS_COMMITS_AHEAD="${resp[14]}"
+    VCS_STATUS_COMMITS_BEHIND="${resp[15]}"
+    VCS_STATUS_STASHES="${resp[16]}"
+    VCS_STATUS_TAG="${resp[17]:-}"
     VCS_STATUS_HAS_STAGED=$((VCS_STATUS_NUM_STAGED > 0))
     if (( _GITSTATUS_DIRTY_MAX_INDEX_SIZE >= 0 &&
           VCS_STATUS_INDEX_SIZE > _GITSTATUS_DIRTY_MAX_INDEX_SIZE_ )); then
       VCS_STATUS_HAS_UNSTAGED=-1
+      VCS_STATUS_HAS_CONFLICTED=-1
       VCS_STATUS_HAS_UNTRACKED=-1
     else
       VCS_STATUS_HAS_UNSTAGED=$((VCS_STATUS_NUM_UNSTAGED > 0))
+      VCS_STATUS_HAS_CONFLICTED=$((VCS_STATUS_NUM_CONFLICTED > 0))
       VCS_STATUS_HAS_UNTRACKED=$((VCS_STATUS_NUM_UNTRACKED > 0))
     fi
   else
@@ -284,9 +295,11 @@ function gitstatus_query() {
     unset VCS_STATUS_INDEX_SIZE
     unset VCS_STATUS_NUM_STAGED
     unset VCS_STATUS_NUM_UNSTAGED
+    unset VCS_STATUS_NUM_CONFLICTED
     unset VCS_STATUS_NUM_UNTRACKED
     unset VCS_STATUS_HAS_STAGED
     unset VCS_STATUS_HAS_UNSTAGED
+    unset VCS_STATUS_HAS_CONFLICTED
     unset VCS_STATUS_HAS_UNTRACKED
     unset VCS_STATUS_COMMITS_AHEAD
     unset VCS_STATUS_COMMITS_BEHIND

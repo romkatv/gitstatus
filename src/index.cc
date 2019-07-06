@@ -444,6 +444,8 @@ std::vector<const char*> Index::GetDirtyCandidates(Tribool untracked_cache) {
 
   VERIFY(!error);
   StrSort(res.begin(), res.end(), git_index_is_case_sensitive(git_index_));
+  auto StrEq = [](const char* a, const char* b) { return !strcmp(a, b); };
+  res.erase(std::unique(res.begin(), res.end(), StrEq), res.end());
   return res;
 }
 
