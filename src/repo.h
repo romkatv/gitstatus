@@ -78,6 +78,9 @@ class Repo {
 
   void UpdateShards();
 
+  int OnDelta(const char* type, const git_diff_delta& d, std::atomic<size_t>& c1, size_t m1,
+              const std::atomic<size_t>& c2, size_t m2);
+
   void StartStagedScan(const git_oid* head);
   void StartDirtyScan(const std::vector<const char*>& paths);
 
