@@ -24,7 +24,7 @@ The easiest way to take advantage of gitstatus from ZSH is to use a theme that's
 with it. For example, [Powerlevel10k](https://github.com/romkatv/powerlevel10k) is a flexible and
 fast theme with first-class gitstatus integration.
 
-![Pure Power ZSH Theme](https://raw.githubusercontent.com/romkatv/gitstatus/master/docs/purepower.png)
+![Powerlevel10k ZSH Theme](https://raw.githubusercontent.com/romkatv/powerlevel10k/master/config/p10k-lean.png)
 
 For those who wish to use gitstatus without a theme, there is
 [gitstatus.prompt.zsh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.prompt.zsh).
