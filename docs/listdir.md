@@ -9,7 +9,7 @@ common operation, many other projects can benefit from applying these optimizati
 ## v1
 
 Given a path to a directory, `ListDir()` must produce the list of files in that directory. Moreover,
-the list must be sorted lexicographically to enable fast comparison with the index.
+the list must be sorted lexicographically to enable fast comparison with Git index.
 
 The following C++ implementation gets the job done. For simplicity, it returns an empty list on
 error.
