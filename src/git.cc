@@ -159,7 +159,8 @@ git_reference* Upstream(git_reference* local) {
     case GIT_ENOTFOUND:
       return nullptr;
     default:
-      VERIFY(git_error_last()->klass == GIT_ERROR_INVALID) << "git_branch_upstream: " << GitError();
+      // If a repo is semi-broken, GIT_ERROR_INVALID and GIT_ERROR_CONFIG can happen here.
+      LOG(WARN) << "git_branch_upstream: error " << git_error_last()->klass << ": " << GitError();
       return nullptr;
   }
 }
