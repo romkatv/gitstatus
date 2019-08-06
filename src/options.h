@@ -18,9 +18,11 @@
 #ifndef ROMKATV_GITSTATUS_OPTIONS_H_
 #define ROMKATV_GITSTATUS_OPTIONS_H_
 
+#include <chrono>
 #include <string>
 
 #include "logging.h"
+#include "time.h"
 
 namespace gitstatus {
 
@@ -50,6 +52,10 @@ struct Options : Limits {
   // Don't write entires to log whose log level is below this. Log levels in increasing order:
   // DEBUG, INFO, WARN, ERROR, FATAL.
   LogLevel log_level = INFO;
+  // Close git repositories that haven't been used for this long. This is meant to release resources
+  // such as memory and file descriptors. The next request for a repo that's been closed is much
+  // slower than for a repo that hasn't been. Negative value means infinity.
+  Duration repo_ttl = std::chrono::seconds(3600);
 };
 
 Options ParseOptions(int argc, char** argv);

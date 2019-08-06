@@ -75,12 +75,13 @@ RequestReader::RequestReader(int fd, int lock_fd, int parent_pid)
   CHECK(fd != lock_fd);
 }
 
-Request RequestReader::ReadRequest() {
+bool RequestReader::ReadRequest(Request& req) {
   auto eol = std::find(read_.begin(), read_.end(), kMsgSep);
   if (eol != read_.end()) {
     std::string msg(read_.begin(), eol);
     read_.erase(read_.begin(), eol + 1);
-    return ParseRequest(msg);
+    req = ParseRequest(msg);
+    return true;
   }
 
   char buf[256];
@@ -88,11 +89,10 @@ Request RequestReader::ReadRequest() {
     fd_set fds;
     FD_ZERO(&fds);
     FD_SET(fd_, &fds);
-    struct timeval second = {.tv_sec = 1};
-    struct timeval* timeout = lock_fd_ >= 0 || parent_pid_ >= 0 ? &second : nullptr;
+    struct timeval timeout = {.tv_sec = 1};
 
     int n;
-    CHECK((n = select(fd_ + 1, &fds, NULL, NULL, timeout)) >= 0) << Errno();
+    CHECK((n = select(fd_ + 1, &fds, NULL, NULL, &timeout)) >= 0) << Errno();
     if (n == 0) {
       if (lock_fd_ >= 0 && !IsLockedFd(lock_fd_)) {
         LOG(INFO) << "Lock on fd " << lock_fd_ << " is gone. Exiting.";
@@ -102,7 +102,8 @@ Request RequestReader::ReadRequest() {
         LOG(INFO) << "Unable to send signal 0 to " << parent_pid_ << ". Exiting.";
         std::exit(0);
       }
-      continue;
+      req = {};
+      return false;
     }
 
     CHECK((n = read(fd_, buf, sizeof(buf))) >= 0) << Errno();
@@ -115,7 +116,8 @@ Request RequestReader::ReadRequest() {
     if (eol != n) {
       std::string msg(read_.begin(), read_.end() - (n - eol));
       read_.erase(read_.begin(), read_.begin() + msg.size() + 1);
-      return ParseRequest(msg);
+      req = ParseRequest(msg);
+      return true;
     }
   }
 }

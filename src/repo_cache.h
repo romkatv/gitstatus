@@ -18,6 +18,7 @@
 #ifndef ROMKATV_GITSTATUS_REPO_CACHE_H_
 #define ROMKATV_GITSTATUS_REPO_CACHE_H_
 
+#include <map>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -27,6 +28,7 @@
 
 #include "options.h"
 #include "repo.h"
+#include "time.h"
 
 namespace gitstatus {
 
@@ -34,10 +36,23 @@ class RepoCache {
  public:
   explicit RepoCache(Limits lim) : lim_(std::move(lim)) {}
   Repo* Open(const std::string& dir);
+  void Free(Time cutoff);
 
  private:
+  struct Entry;
+  using Cache = std::unordered_map<std::string, std::unique_ptr<Entry>>;
+  using LRU = std::multimap<Time, Cache::iterator>;
+
+  void Erase(Cache::iterator it);
+
   Limits lim_;
-  std::unordered_map<std::string, std::unique_ptr<Repo>> cache_;
+  Cache cache_;
+  LRU lru_;
+
+  struct Entry : Repo {
+    using Repo::Repo;
+    LRU::iterator lru;
+  };
 };
 
 }  // namespace gitstatus

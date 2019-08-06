@@ -167,13 +167,17 @@ int GitStatus(int argc, char** argv) {
 
   while (true) {
     try {
-      Request req = reader.ReadRequest();
-      LOG(INFO) << "Processing request: " << req;
-      try {
-        ProcessRequest(opts, cache, req);
-        LOG(INFO) << "Successfully processed request: " << req;
-      } catch (const Exception&) {
-        LOG(ERROR) << "Error processing request: " << req;
+      Request req;
+      if (reader.ReadRequest(req)) {
+        LOG(INFO) << "Processing request: " << req;
+        try {
+          ProcessRequest(opts, cache, req);
+          LOG(INFO) << "Successfully processed request: " << req;
+        } catch (const Exception&) {
+          LOG(ERROR) << "Error processing request: " << req;
+        }
+      } else if (opts.repo_ttl >= Duration()) {
+        cache.Free(Clock::now() - opts.repo_ttl);
       }
     } catch (const Exception&) {
     }

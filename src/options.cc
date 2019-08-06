@@ -71,6 +71,12 @@ void PrintUsage() {
             << "   Don't write entires to log whose log level is below this. Log levels in\n"
             << "   increasing order: DEBUG, INFO, WARN, ERROR, FATAL.\n"
             << "\n"
+            << "  -r, --repo-ttl-seconds=NUM [default=3600]\n"
+            << "   Close git repositories that haven't been used for this long. This is meant to\n"
+            << "   release resources such as memory and file descriptors. The next request for a\n"
+            << "   repo that's been closed is much slower than for a repo that hasn't been.\n"
+            << "   Negative value means infinity.\n"
+            << "\n"
             << "  -s, --max-num-staged=NUM [default=1]\n"
             << "   Report at most this many staged changes; negative value means infinity.\n"
             << "\n"
@@ -176,6 +182,7 @@ Options ParseOptions(int argc, char** argv) {
                                 {"parent-pid", required_argument, nullptr, 'p'},
                                 {"num-threads", required_argument, nullptr, 't'},
                                 {"log-level", required_argument, nullptr, 'v'},
+                                {"repo-ttl-seconds", required_argument, nullptr, 'r'},
                                 {"max-num-staged", required_argument, nullptr, 's'},
                                 {"max-num-unstaged", required_argument, nullptr, 'u'},
                                 {"max-num-conflicted", required_argument, nullptr, 'c'},
@@ -184,7 +191,7 @@ Options ParseOptions(int argc, char** argv) {
                                 {}};
   Options res;
   while (true) {
-    switch (getopt_long(argc, argv, "hl:p:t:v:s:u:c:d:m:", opts, nullptr)) {
+    switch (getopt_long(argc, argv, "hl:p:t:v:r:s:u:c:d:m:", opts, nullptr)) {
       case -1:
         if (optind != argc) {
           std::cerr << "unexpected positional argument: " << argv[optind] << std::endl;
@@ -205,6 +212,9 @@ Options ParseOptions(int argc, char** argv) {
           std::cerr << "invalid log level: " << optarg << std::endl;
           std::exit(10);
         }
+        break;
+      case 'r':
+        res.repo_ttl = std::chrono::seconds(ParseLong(optarg));
         break;
       case 't': {
         long n = ParseLong(optarg);
