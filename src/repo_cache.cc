@@ -27,21 +27,21 @@ namespace gitstatus {
 Repo* RepoCache::Open(const std::string& dir) {
   git_repository* repo = OpenRepo(dir);
   if (!repo) {
-    cache_.erase(dir + '/') || cache_.erase(dir);
+    Erase(cache_.find(dir + '/'));
+    Erase(cache_.find(dir));
     return nullptr;
   }
   ON_SCOPE_EXIT(&) {
     if (repo) git_repository_free(repo);
   };
+  if (git_repository_is_bare(repo)) return nullptr;
   const char* work_dir = git_repository_workdir(repo);
   if (!work_dir) return nullptr;
   auto x = cache_.emplace(work_dir, nullptr);
-  if (x.first->second == nullptr) {
-    if (git_repository_is_bare(repo)) {
-      LOG(INFO) << "Bare repository";
-      return nullptr;
-    }
-
+  std::unique_ptr<Entry>& elem = x.first->second;
+  if (elem) {
+    lru_.erase(elem->lru);
+  } else {
     LOG(INFO) << "Initializing new repository: " << Print(work_dir);
 
     // Libgit2 initializes odb and refdb lazily with double-locking. To avoid useless work
@@ -55,9 +55,26 @@ Repo* RepoCache::Open(const std::string& dir) {
     VERIFY(!git_repository_refdb(&refdb, repo)) << GitError();
     git_refdb_free(refdb);
 
-    x.first->second = std::make_unique<Repo>(std::exchange(repo, nullptr), lim_);
+    elem = std::make_unique<Entry>(std::exchange(repo, nullptr), lim_);
   }
-  return x.first->second.get();
+  elem->lru = lru_.insert({Clock::now(), x.first});
+  return elem.get();
+}
+
+void RepoCache::Free(Time cutoff) {
+  while (true) {
+    if (lru_.empty()) break;
+    auto it = lru_.begin();
+    if (it->first > cutoff) break;
+    Erase(it->second);
+  }
+}
+
+void RepoCache::Erase(Cache::iterator it) {
+  if (it == cache_.end()) return;
+  LOG(INFO) << "Closing repository: " << Print(git_repository_workdir(it->second->repo()));
+  lru_.erase(it->second->lru);
+  cache_.erase(it);
 }
 
 }  // namespace gitstatus

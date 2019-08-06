@@ -35,7 +35,7 @@ std::ostream& operator<<(std::ostream& strm, const Request& req);
 class RequestReader {
  public:
   RequestReader(int fd, int lock_fd, int parent_pid);
-  Request ReadRequest();
+  bool ReadRequest(Request& req);
 
  private:
   int fd_;
