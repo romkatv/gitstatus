@@ -232,7 +232,7 @@ function gitstatus_stop() {
 # shell or the call had failed.
 function gitstatus_query() {
   unset OPTIND
-  local opt dir="${GIT_DIR:-$PWD}" timeout=()
+  local opt dir="${GIT_DIR:-}" timeout=()
   while getopts "d:c:t:" opt "$@"; do
     case "$opt" in
       d) dir=$OPTARG;;
@@ -245,7 +245,7 @@ function gitstatus_query() {
   [[ -n "$GITSTATUS_DAEMON_PID" ]] || return  # not started
 
   local req_id="$RANDOM.$RANDOM.$RANDOM.$RANDOM"
-  [[ "$dir" == /* ]] || dir="$PWD/$dir"
+  [[ "$dir" == /* ]] || dir="$(pwd -P)/$dir" || return
   echo -nE "$req_id"$'\x1f'"$dir"$'\x1e' >&$_GITSTATUS_REQ_FD || return
 
   local -a resp
