@@ -91,6 +91,9 @@ void PrintUsage() {
             << "   and --max-num-untracked (but not --max-num-staged) with zeros; negative value\n"
             << "   means infinity.\n"
             << "\n"
+            << "  -e, --recurse-untracked-dirs\n"
+            << "   Count files within untracked directories like `git status --untracked-files`.\n"
+            << "\n"
             << "  -h, --help\n"
             << "  Display this help and exit.\n"
             << "\n"
@@ -188,10 +191,11 @@ Options ParseOptions(int argc, char** argv) {
                                 {"max-num-conflicted", required_argument, nullptr, 'c'},
                                 {"max-num-untracked", required_argument, nullptr, 'd'},
                                 {"dirty-max-index-size", required_argument, nullptr, 'm'},
+                                {"recurse-untracked-dirs", no_argument, nullptr, 'e'},
                                 {}};
   Options res;
   while (true) {
-    switch (getopt_long(argc, argv, "hl:p:t:v:r:s:u:c:d:m:", opts, nullptr)) {
+    switch (getopt_long(argc, argv, "hl:p:t:v:r:s:u:c:d:m:e", opts, nullptr)) {
       case -1:
         if (optind != argc) {
           std::cerr << "unexpected positional argument: " << argv[optind] << std::endl;
@@ -239,6 +243,9 @@ Options ParseOptions(int argc, char** argv) {
         break;
       case 'm':
         res.dirty_max_index_size = ParseLong(optarg);
+        break;
+      case 'e':
+        res.recurse_untracked_dirs = true;
         break;
       default:
         std::exit(10);

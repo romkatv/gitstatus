@@ -39,11 +39,13 @@
 #
 #   -m INT    Report -1 unstaged and untracked if there are more than this many files
 #             in the index. Negative value means infinity. Defaults to -1.
+#
+#   -e        Count files within untracked directories like `git status --untracked-files`.
 function gitstatus_start() {
   unset OPTIND
-  local opt timeout=5 max_dirty=-1
+  local opt timeout=5 max_dirty=-1 recurse_untracked_dirs
   local max_num_staged=1 max_num_unstaged=1 max_num_conflicted=1 max_num_untracked=1
-  while getopts "t:s:u:c:d:m:" opt; do
+  while getopts "t:s:u:c:d:m:e" opt; do
     case "$opt" in
       t) timeout=$OPTARG;;
       s) max_num_staged=$OPTARG;;
@@ -51,6 +53,7 @@ function gitstatus_start() {
       c) max_num_conflicted=$OPTARG;;
       d) max_num_untracked=$OPTARG;;
       m) max_dirty=$OPTARG;;
+      e) recurse_untracked_dirs='--recurse-untracked-dirs';;
       *) return 1;;
     esac
   done
@@ -99,7 +102,8 @@ function gitstatus_start() {
       --max-num-unstaged="${max_num_unstaged@Q}"
       --max-num-conflicted="${max_num_conflicted@Q}"
       --max-num-untracked="${max_num_untracked@Q}"
-      --dirty-max-index-size="${max_dirty@Q}")
+      --dirty-max-index-size="${max_dirty@Q}"
+      $recurse_untracked_dirs)
 
     if [[ -n "$log_level" ]]; then
       GITSTATUS_DAEMON_LOG=$(mktemp "${TMPDIR:-/tmp}"/gitstatus.$$.log.XXXXXXXXXX) || return

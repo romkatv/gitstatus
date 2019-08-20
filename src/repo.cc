@@ -223,6 +223,7 @@ void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
               GIT_DIFF_DISABLE_PATHSPEC_MATCH | GIT_DIFF_EXEMPLARS;
   if (lim_.max_num_untracked) {
     opt.flags |= GIT_DIFF_INCLUDE_UNTRACKED;
+    if (lim_.recurse_untracked_dirs) opt.flags |= GIT_DIFF_RECURSE_UNTRACKED_DIRS;
   } else {
     opt.flags |= GIT_DIFF_ENABLE_FAST_UNTRACKED_DIRS;
   }
