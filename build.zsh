@@ -66,6 +66,7 @@ function build_libgit2() {
     -DUSE_HTTPS=OFF            \
     -DBUILD_SHARED_LIBS=OFF    \
     -DUSE_EXT_HTTP_PARSER=OFF  \
+    -DZERO_NSEC=ON             \
     ${(@Q)${(z)CMAKEFLAGS:-}}  \
     ..
   make -j $CPUS
@@ -79,7 +80,7 @@ function build_gitstatus() {
   local cxxflags=${CXXFLAGS:-''}
   local ldflags=${LDFLAGS:-''}
   local make=make
-  cxxflags+=" -I$DIR/libgit2/include"
+  cxxflags+=" -I$DIR/libgit2/include -DGITSTATUS_ZERO_NSEC"
   ldflags+=" -L$DIR/libgit2/build"
   case $OS in
     Android)
