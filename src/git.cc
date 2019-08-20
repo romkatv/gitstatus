@@ -152,6 +152,7 @@ git_reference* Head(git_repository* repo) {
 }
 
 git_reference* Upstream(git_reference* local) {
+  if (git_reference_type(local) != GIT_REFERENCE_DIRECT) return nullptr;
   git_reference* upstream = nullptr;
   switch (git_branch_upstream(&upstream, local)) {
     case 0:
