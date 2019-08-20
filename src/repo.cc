@@ -160,8 +160,13 @@ IndexStats Repo::GetIndexStats(const git_oid* head) {
       if (lim_.max_num_staged || lim_.max_num_conflicted) StartStagedScan(head);
     }
   } else {
-    // An empty repo with non-empty index must have staged changes.
-    Store(staged_, index_size);
+    size_t staged = 0;
+    for (size_t i = 0; i != index_size; ++i) {
+      if (!(git_index_get_byindex(git_index_, i)->flags_extended & GIT_INDEX_ENTRY_INTENT_TO_ADD)) {
+        ++staged;
+      }
+    }
+    Store(staged_, staged);
   }
 
   if (index_size <= lim_.dirty_max_index_size &&
