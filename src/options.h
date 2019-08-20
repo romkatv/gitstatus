@@ -38,6 +38,8 @@ struct Limits {
   // If a repo has more files in its index than this, override max_num_unstaged and
   // max_num_untracked (but not max_num_staged) with zeros.
   size_t dirty_max_index_size = -1;
+  // If true, report untracked files like `git status --untracked-files`.
+  bool recurse_untracked_dirs = false;
 };
 
 struct Options : Limits {
