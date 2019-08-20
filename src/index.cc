@@ -90,13 +90,11 @@ bool IsModified(const git_index_entry* entry, const struct stat& st, const RepoC
     res = true,              \
     LOG(DEBUG) << "Dirty candidate (modified): " << Print(entry->path) << ": " #field " "
 
-#ifndef GITSTATUS_BOGUS_INO
-  COND(ino, entry->ino == static_cast<std::uint32_t>(st.st_ino))
+  COND(ino, !entry->ino || entry->ino == static_cast<std::uint32_t>(st.st_ino))
       << entry->ino << " => " << static_cast<std::uint32_t>(st.st_ino);
-#endif
+  COND(gid, !entry->gid || entry->gid == st.st_gid) << entry->gid << " => " << st.st_gid;
 
   COND(stage, GIT_INDEX_ENTRY_STAGE(entry) == 0) << "=> " << GIT_INDEX_ENTRY_STAGE(entry);
-  COND(gid, entry->gid == st.st_gid) << entry->gid << " => " << st.st_gid;
   COND(fsize, int64_t{entry->file_size} == st.st_size) << entry->file_size << " => " << st.st_size;
   COND(mtime, MTimeEq(entry->mtime, MTim(st))) << Print(entry->mtime) << " => " << Print(MTim(st));
   COND(mode, entry->mode == mode) << std::oct << entry->mode << " => " << std::oct << mode;
