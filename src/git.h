@@ -21,6 +21,7 @@
 #include <git2.h>
 
 #include <cstddef>
+#include <memory>
 #include <string>
 
 namespace gitstatus {
@@ -47,23 +48,35 @@ std::string RemoteUrl(git_repository* repo, const git_reference* ref);
 // and direct otherwise.
 git_reference* Head(git_repository* repo);
 
-// Returns reference to the upstream branch or null if there isn't one.
-git_reference* Upstream(git_reference* local);
-
 // Returns the name of the local branch, or an empty string.
 const char* LocalBranchName(const git_reference* ref);
 
 struct Remote {
+  // Tip of the remote branch.
+  git_reference* ref;
+
   // Name of the tracking remote. For example, "origin".
-  // Empty if there is no tracking remote.
   std::string name;
 
   // Name of the tracking remote branch. For example, "master".
-  // Empty if there is no tracking remote.
   std::string branch;
+
+  // URL of the tracking remote. For example, "https://foo.com/repo.git".
+  std::string url;
+
+  struct Free {
+    void operator()(const Remote* p) const {
+      if (p) {
+        if (p->ref) git_reference_free(p->ref);
+        delete p;
+      }
+    }
+  };
 };
 
-Remote GetRemote(git_repository* repo, const git_reference* ref);
+using RemotePtr = std::unique_ptr<Remote, Remote::Free>;
+
+RemotePtr GetRemote(git_repository* repo, const git_reference* local);
 
 }  // namespace gitstatus
 
