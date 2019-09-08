@@ -108,28 +108,6 @@ size_t NumStashes(git_repository* repo) {
   return res;
 }
 
-std::string RemoteUrl(git_repository* repo, const git_reference* ref) {
-  git_buf remote_name = {};
-  if (git_branch_remote_name(&remote_name, repo, git_reference_name(ref))) return "";
-  ON_SCOPE_EXIT(&) { git_buf_free(&remote_name); };
-
-  git_remote* remote = nullptr;
-  switch (git_remote_lookup(&remote, repo, remote_name.ptr)) {
-    case 0:
-      break;
-    case GIT_ENOTFOUND:
-    case GIT_EINVALIDSPEC:
-      return "";
-    default:
-      LOG(ERROR) << "git_remote_lookup: " << GitError();
-      throw Exception();
-  }
-
-  std::string res = git_remote_url(remote) ?: "";
-  git_remote_free(remote);
-  return res;
-}
-
 git_reference* Head(git_repository* repo) {
   git_reference* symbolic = nullptr;
   switch (git_reference_lookup(&symbolic, repo, "HEAD")) {
@@ -149,21 +127,6 @@ git_reference* Head(git_repository* repo) {
   }
   git_reference_free(symbolic);
   return direct;
-}
-
-git_reference* Upstream(git_reference* local) {
-  if (git_reference_type(local) != GIT_REFERENCE_DIRECT) return nullptr;
-  git_reference* upstream = nullptr;
-  switch (git_branch_upstream(&upstream, local)) {
-    case 0:
-      return upstream;
-    case GIT_ENOTFOUND:
-      return nullptr;
-    default:
-      // If a repo is semi-broken, GIT_ERROR_INVALID and GIT_ERROR_CONFIG can happen here.
-      LOG(WARN) << "git_branch_upstream: error " << git_error_last()->klass << ": " << GitError();
-      return nullptr;
-  }
 }
 
 const char* LocalBranchName(const git_reference* ref) {
@@ -190,15 +153,35 @@ const char* LocalBranchName(const git_reference* ref) {
   throw Exception();
 }
 
-Remote GetRemote(git_repository* repo, const git_reference* ref) {
+RemotePtr GetRemote(git_repository* repo, const git_reference* local) {
+  git_remote* remote;
+  git_buf symref = {};
+  if (git_branch_remote(&remote, &symref, repo, git_reference_name(local))) return nullptr;
+  ON_SCOPE_EXIT(&) {
+    git_remote_free(remote);
+    git_buf_free(&symref);
+  };
+
+  git_reference* ref;
+  if (git_reference_lookup(&ref, repo, symref.ptr)) return nullptr;
+  ON_SCOPE_EXIT(&) { if (ref) git_reference_free(ref); };
+
   const char* branch = nullptr;
-  if (git_branch_name(&branch, ref)) return {};
-  git_buf remote = {};
-  if (git_branch_remote_name(&remote, repo, git_reference_name(ref))) return {};
-  ON_SCOPE_EXIT(&) { git_buf_free(&remote); };
-  VERIFY(std::strstr(branch, remote.ptr) == branch);
-  VERIFY(branch[remote.size] == '/');
-  return {remote.ptr, branch + remote.size + 1};
+  std::string name = git_remote_name(remote);
+  if (git_branch_name(&branch, ref)) {
+    branch = "";
+  } else {
+    VERIFY(std::strstr(branch, name.c_str()) == branch);
+    VERIFY(branch[name.size()] == '/');
+    branch += name.size() + 1;
+  }
+
+  auto res = std::make_unique<Remote>();
+  res->name = std::move(name);
+  res->branch = branch;
+  res->url = git_remote_url(remote) ?: "";
+  res->ref = std::exchange(ref, nullptr);
+  return RemotePtr(res.release());
 }
 
 }  // namespace gitstatus

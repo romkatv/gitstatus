@@ -17,6 +17,8 @@
 
 #include "repo_cache.h"
 
+#include <cstring>
+
 #include "check.h"
 #include "git.h"
 #include "print.h"
@@ -25,6 +27,19 @@
 namespace gitstatus {
 
 Repo* RepoCache::Open(const std::string& dir) {
+  git_buf git_dir = {};
+  if (!git_repository_discover(&git_dir, dir.c_str(), 0, nullptr)) {
+    ON_SCOPE_EXIT(&) { git_buf_free(&git_dir); };
+    if (StringView(git_dir.ptr, git_dir.size).EndsWith("/.git/")) {
+      std::string work_dir(git_dir.ptr, git_dir.size - std::strlen(".git/"));
+      auto it = cache_.find(work_dir);
+      if (it != cache_.end()) {
+        lru_.erase(it->second->lru);
+        it->second->lru = lru_.insert({Clock::now(), it});
+        return it->second.get();
+      }
+    }
+  }
   git_repository* repo = OpenRepo(dir);
   if (!repo) {
     Erase(cache_.find(dir + '/'));

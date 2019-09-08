@@ -59,6 +59,10 @@ struct StringView {
     return len >= prefix.len && !std::memcmp(ptr, prefix.ptr, prefix.len);
   }
 
+  bool EndsWith(StringView suffix) const {
+    return len >= suffix.len && !std::memcmp(ptr + (len - suffix.len), suffix.ptr, suffix.len);
+  }
+
   const char* ptr;
   size_t len;
 };

@@ -49,6 +49,11 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   Repo* repo = cache.Open(req.dir);
   if (!repo) return;
 
+  git_config* cfg;
+  VERIFY(!git_repository_config(&cfg, repo->repo())) << GitError();
+  ON_SCOPE_EXIT(=) { git_config_free(cfg); };
+  VERIFY(!git_config_refresh(cfg)) << GitError();
+
   // Symbolic reference if and only if the repo is empty.
   git_reference* head = Head(repo->repo());
   if (!head) return;
@@ -82,26 +87,17 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   // Local branch name (e.g., "master") or empty string if not on a branch.
   resp.Print(LocalBranchName(head));
 
-  // TODO: I'm not sure but it might be possible to specify different tracking remotes for `push`
-  // and `pull`. Figure out if this is true and whether handling of tracking remote in gitstatus is
-  // broken in this case.
-
-  // Tip of the tracking remote or null.
-  git_reference* upstream = Upstream(head);
-  ON_SCOPE_EXIT(=) {
-    if (upstream) git_reference_free(upstream);
-  };
-
-  const Remote remote = upstream ? GetRemote(repo->repo(), upstream) : Remote();
+  // Remote tracking branch or null.
+  RemotePtr remote = GetRemote(repo->repo(), head);
 
   // Tracking remote branch name (e.g., "master") or empty string if there is no tracking remote.
-  resp.Print(remote.branch);
+  resp.Print(remote ? remote->branch : "");
 
   // Tracking remote name (e.g., "origin") or empty string if there is no tracking remote.
-  resp.Print(remote.name);
+  resp.Print(remote ? remote->name : "");
 
   // Tracking remote URL or empty string if there is no tracking remote.
-  resp.Print(upstream ? RemoteUrl(repo->repo(), upstream) : "");
+  resp.Print(remote ? remote->url : "");
 
   // Repository state, A.K.A. action. For example, "merge".
   resp.Print(RepoState(repo->repo()));
@@ -128,13 +124,14 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
     resp.Print(ssize_t{0});
   }
 
-  if (upstream) {
+  if (remote && remote->ref) {
+    const char* ref = git_reference_shorthand(remote->ref);
     // Number of commits we are ahead of upstream. Non-negative integer. If positive, it means
     // running `git push` will push this many commits.
-    resp.Print(CountRange(repo->repo(), git_reference_shorthand(upstream) + "..HEAD"s));
+    resp.Print(CountRange(repo->repo(), ref + "..HEAD"s));
     // Number of commits we are behind upstream. Non-negative integer. If positive, it means
     // running `git merge FETCH_HEAD` will merge this many commits.
-    resp.Print(CountRange(repo->repo(), "HEAD.."s + git_reference_shorthand(upstream)));
+    resp.Print(CountRange(repo->repo(), "HEAD.."s + ref));
   } else {
     resp.Print("0");
     resp.Print("0");
