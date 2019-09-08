@@ -72,7 +72,7 @@ zmodload zsh/datetime zsh/system
 #             VCS_STATUS_RESULT=tout and return 0.
 #   -p        Don't compute anything that requires reading Git index. If this option is used,
 #             the following parameters will be 0: VCS_STATUS_INDEX_SIZE,
-#             VCS_STATUS_{NUM,HAS}_{STAGED,UNSTAGED,UNTRACKED}.
+#             VCS_STATUS_{NUM,HAS}_{STAGED,UNSTAGED,UNTRACKED,CONFLICTED}.
 #
 # On success sets VCS_STATUS_RESULT to one of the following values:
 #
