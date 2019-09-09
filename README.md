@@ -73,7 +73,7 @@ instead of sourcing the script. Your `~/.zshrc` might look something like this:
 source ~/gitstatus/gitstatus.plugin.zsh
 
 function my_set_prompt() {
-  PROMPT='%~# '
+  PROMPT='%~%# '
   RPROMPT=''
 
   if gitstatus_query MY && [[ $VCS_STATUS_RESULT == ok-sync ]]; then
