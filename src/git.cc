@@ -104,8 +104,11 @@ size_t NumStashes(git_repository* repo) {
     ++*static_cast<size_t*>(payload);
     return 0;
   };
-  VERIFY(!git_stash_foreach(repo, cb, &res)) << GitError();
-  return res;
+  if (!git_stash_foreach(repo, cb, &res)) return res;
+  // Example error: failed to parse signature - malformed e-mail.
+  // See https://github.com/romkatv/powerlevel10k/issues/216.
+  LOG(WARN) << "git_stash_foreach: " << GitError();
+  return 0;
 }
 
 git_reference* Head(git_repository* repo) {
