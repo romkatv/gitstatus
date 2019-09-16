@@ -112,7 +112,7 @@ setopt nopromptbang prompt{percent,subst}
 #   % █
 #
 # The current directory gets truncated from the left if the whole prompt doesn't fit on the line.
-PROMPT='%F{002}%n@%m%f '                                  # green user@host
-PROMPT+='%F{039}%$((-GITSTATUS_PROMPT_LEN-1))<…<%~%<<%f'  # bright blue current working directory
-PROMPT+='${GITSTATUS_PROMPT:+ $GITSTATUS_PROMPT}'         # git status (requires promptsubst option)
-PROMPT+=$'\n%F{%(?.076.196)}%#%f '                        # green/red (ok/error) %/# (normal/root)
+PROMPT='%70F%n@%m%f '                                  # green user@host
+PROMPT+='%39F%$((-GITSTATUS_PROMPT_LEN-1))<…<%~%<<%f'  # blue current working directory
+PROMPT+='${GITSTATUS_PROMPT:+ $GITSTATUS_PROMPT}'      # git status
+PROMPT+=$'\n%F{%(?.76.196)}%#%f '                      # %/# (normal/root); green/red (ok/error)
