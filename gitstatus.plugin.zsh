@@ -19,32 +19,34 @@
 #
 # Example: Start gitstatusd, send it a request, wait for response and print it.
 #
-#   source gitstatus.plugin.zsh
+#   source ~/gitstatus/gitstatus.plugin.zsh
 #   gitstatus_start MY
 #   gitstatus_query -d $PWD MY
-#   set | egrep '^VCS_STATUS'
+#   typeset -m 'VCS_STATUS_*'
 #
 # Output:
 #
 #   VCS_STATUS_ACTION=''
-#   VCS_STATUS_COMMIT=6e86ec135bf77875e222463cbac8ef72a7e8d823
+#   VCS_STATUS_COMMIT=c000eddcff0fb38df2d0137efe24d9d2d900f209
 #   VCS_STATUS_COMMITS_AHEAD=0
 #   VCS_STATUS_COMMITS_BEHIND=0
-#   VCS_STATUS_INDEX_SIZE=42
-#   VCS_STATUS_NUM_STAGED=0
-#   VCS_STATUS_NUM_UNSTAGED=2
-#   VCS_STATUS_NUM_UNTRACKED=3
+#   VCS_STATUS_HAS_CONFLICTED=0
 #   VCS_STATUS_HAS_STAGED=0
 #   VCS_STATUS_HAS_UNSTAGED=1
 #   VCS_STATUS_HAS_UNTRACKED=1
+#   VCS_STATUS_INDEX_SIZE=33
 #   VCS_STATUS_LOCAL_BRANCH=master
+#   VCS_STATUS_NUM_CONFLICTED=0
+#   VCS_STATUS_NUM_STAGED=0
+#   VCS_STATUS_NUM_UNSTAGED=1
+#   VCS_STATUS_NUM_UNTRACKED=1
 #   VCS_STATUS_REMOTE_BRANCH=master
 #   VCS_STATUS_REMOTE_NAME=origin
 #   VCS_STATUS_REMOTE_URL=git@github.com:romkatv/powerlevel10k.git
 #   VCS_STATUS_RESULT=ok-sync
 #   VCS_STATUS_STASHES=0
 #   VCS_STATUS_TAG=''
-#   VCS_STATUS_WORKDIR=/home/romka/.oh-my-zsh/custom/themes/powerlevel10k
+#   VCS_STATUS_WORKDIR=/home/romka/powerlevel10k
 
 [[ -o 'interactive' ]] || 'return'
 
