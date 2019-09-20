@@ -17,7 +17,7 @@
 
 # Source gitstatus.plugin.zsh from $GITSTATUS_DIR or from the same directory
 # in which the current script resides if the variable isn't set.
-source ${GITSTATUS_DIR:-${${(%):-%x}:h}}/gitstatus.plugin.zsh || return
+source "${GITSTATUS_DIR:-${${(%):-%x}:h}}/gitstatus.plugin.zsh" || return
 
 # Sets GITSTATUS_PROMPT to reflect the state of the current git repository. Empty if not
 # in a git repository. In addition, sets GITSTATUS_PROMPT_LEN to the number of columns
@@ -101,8 +101,8 @@ gitstatus_stop 'MY' && gitstatus_start -s -1 -u -1 -c -1 -d -1 'MY'
 autoload -Uz add-zsh-hook
 add-zsh-hook precmd gitstatus_prompt_update
 
-# Enable/disable the right prompt expansions.
-setopt nopromptbang prompt{percent,subst}
+# Enable/disable the right prompt options.
+setopt no_prompt_bang prompt_percent prompt_subst
 
 # Customize prompt. Put $GITSTATUS_PROMPT in it to reflect git status.
 #
@@ -115,4 +115,5 @@ setopt nopromptbang prompt{percent,subst}
 PROMPT='%70F%n@%m%f '                                  # green user@host
 PROMPT+='%39F%$((-GITSTATUS_PROMPT_LEN-1))<…<%~%<<%f'  # blue current working directory
 PROMPT+='${GITSTATUS_PROMPT:+ $GITSTATUS_PROMPT}'      # git status
-PROMPT+=$'\n%F{%(?.76.196)}%#%f '                      # %/# (normal/root); green/red (ok/error)
+PROMPT+=$'\n'                                          # new line
+PROMPT+='%F{%(?.76.196)}%#%f '                         # %/# (normal/root); green/red (ok/error)
