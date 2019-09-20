@@ -49,7 +49,7 @@
 [[ -o 'interactive' ]] || 'return'
 
 # Temporarily change options.
-'local' '-a' '_gitstatus_opts'
+'builtin' 'local' '-a' '_gitstatus_opts'
 [[ ! -o 'aliases'         ]] || _gitstatus_opts+=('aliases')
 [[ ! -o 'sh_glob'         ]] || _gitstatus_opts+=('sh_glob')
 [[ ! -o 'no_brace_expand' ]] || _gitstatus_opts+=('no_brace_expand')
