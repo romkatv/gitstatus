@@ -59,6 +59,7 @@
 
 autoload -Uz add-zsh-hook
 zmodload zsh/datetime zsh/system
+zmodload -F zsh/files b:zf_rm
 
 # Retrives status of a git repo from a directory under its working tree.
 #
@@ -306,115 +307,83 @@ function gitstatus_start() {
 
   function gitstatus_start_impl() {
     local log_level=${GITSTATUS_LOG_LEVEL:-}
-    local os arch daemon cmd setsid
-    local -i threads
-    local -a daemon_args
+    [[ -n $log_level || ${GITSTATUS_ENABLE_LOGGING:-0} != 1 ]] || log_level=INFO
 
-    function $0-logging() {
-      [[ -n $log_level || ${GITSTATUS_ENABLE_LOGGING:-0} != 1 ]] || log_level=INFO
-
-      [[ -z $log_level ]] || {
-        xtrace_file=${TMPDIR:-/tmp}/gitstatus.$$.xtrace.$EPOCHREALTIME
-        typeset -g GITSTATUS_XTRACE_${name}=$xtrace_file
-        exec {stderr_fd}>&2 2>$xtrace_file
-        setopt xtrace
-      }
+    [[ -z $log_level ]] || {
+      xtrace_file=${TMPDIR:-/tmp}/gitstatus.$$.xtrace.$EPOCHREALTIME.$RANDOM
+      typeset -g GITSTATUS_XTRACE_${name}=$xtrace_file
+      exec {stderr_fd}>&2 2>$xtrace_file
+      setopt xtrace
     }
-    $0-logging
 
-    function $0-bin() {
-      [[ -n ${daemon::=${GITSTATUS_DAEMON:-}} ]] || {
-        os=$(uname -s) && [[ -n $os ]]
-        [[ $os != Linux || $(uname -o) != Android ]] || os=Android
-        arch=$(uname -m) && [[ -n $arch ]]
-        daemon=${GITSTATUS_DAEMON:-$dir/bin/gitstatusd-${os:l}-${arch:l}}
-      }
-      [[ -x $daemon ]]
+    local daemon=${GITSTATUS_DAEMON:-}
+    [[ -n $daemon ]] || {
+      local os arch
+      os="$(uname -s)"
+      [[ -n $os ]]
+      [[ $os != Linux || "$(uname -o)" != Android ]] || os=Android
+      arch="$(uname -m)"
+      [[ -n $arch ]]
+      daemon=$dir/bin/gitstatusd-${os:l}-${arch:l}
     }
-    $0-bin
+    [[ -x $daemon ]]
 
-    function $0-touch() {
-      lock_file=${TMPDIR:-/tmp}/gitstatus.$$.lock.$EPOCHREALTIME
-      echo -n >$lock_file
+    lock_file=${TMPDIR:-/tmp}/gitstatus.$$.lock.$EPOCHREALTIME.$RANDOM
+    echo -n >$lock_file
+    zsystem flock -f lock_fd $lock_file
+
+    req_fifo=${TMPDIR:-/tmp}/gitstatus.$$.req.$EPOCHREALTIME.$RANDOM
+    resp_fifo=${TMPDIR:-/tmp}/gitstatus.$$.resp.$EPOCHREALTIME.$RANDOM
+    mkfifo $req_fifo $resp_fifo
+
+    [[ -n $log_level ]] &&
+      log_file=${TMPDIR:-/tmp}/gitstatus.$$.daemon-log.$EPOCHREALTIME.$RANDOM ||
+      log_file=/dev/null
+    typeset -g GITSTATUS_DAEMON_LOG_${name}=$log_file
+
+    local -i threads=${GITSTATUS_NUM_THREADS:-0}
+    (( threads > 0)) || {
+      threads=8
+      case $os in
+        FreeBSD) (( ! $+commands[sysctl] )) || threads=$(( 2 * $(sysctl -n hw.ncpu) ));;
+        *) (( ! $+commands[getconf] )) || threads=$(( 2 * $(getconf _NPROCESSORS_ONLN) ));;
+      esac
+      (( threads <= 32 )) || threads=32
     }
-    $0-touch
 
-    function $0-flock() {
-      zsystem flock -f lock_fd $lock_file
-    }
-    $0-flock
+    local -a daemon_args=(
+      --lock-fd=3
+      --parent-pid=${(q)$}
+      --num-threads=${(q)threads}
+      --max-num-staged=${(q)max_num_staged}
+      --max-num-unstaged=${(q)max_num_unstaged}
+      --max-num-conflicted=${(q)max_num_conflicted}
+      --max-num-untracked=${(q)max_num_untracked}
+      --dirty-max-index-size=${(q)dirty_max_index_size}
+      --log-level=${(q)log_level:-INFO}
+      $recurse_untracked_dirs)
 
-    function $0-files() {
-      req_fifo=${TMPDIR:-/tmp}/gitstatus.$$.req.$EPOCHREALTIME
-      resp_fifo=${TMPDIR:-/tmp}/gitstatus.$$.resp.$EPOCHREALTIME
-      mkfifo $req_fifo $resp_fifo
+    local cmd="
+      echo \$\$
+      ${(q)daemon} $daemon_args
+      if [[ \$? != (0|10) && \$? -le 128 && -f ${(q)daemon}-static ]]; then
+        ${(q)daemon}-static $daemon_args
+      fi
+      echo -nE $'bye\x1f0\x1e'"
+    local setsid=${commands[setsid]:-/usr/local/opt/util-linux/bin/setsid}
+    [[ -x $setsid ]] && setsid=${(q)setsid} || setsid=
+    cmd="cd /; $setsid zsh -dfxc ${(q)cmd} &!"
+    # We use `zsh -c` instead of plain {} or () to work around bugs in zplug (it hangs on startup).
+    # Double fork is to daemonize, and so is `setsid`. Note that on macOS `setsid` has to
+    # be installed manually by running  `brew install util-linux`.
+    zsh -dfmxc $cmd <$req_fifo >$resp_fifo 2>$log_file 3<$lock_file &!
 
-      [[ -n $log_level ]] &&
-        log_file=${TMPDIR:-/tmp}/gitstatus.$$.daemon-log.$EPOCHREALTIME ||
-        log_file=/dev/null
-      typeset -g GITSTATUS_DAEMON_LOG_${name}=$log_file
-    }
-    $0-files
+    sysopen -w -o cloexec,sync -u req_fd $req_fifo
+    sysopen -r -o cloexec -u resp_fd $resp_fifo
 
-    function $0-threads() {
-      threads=${GITSTATUS_NUM_THREADS:-0}
-      (( threads > 0)) || {
-        threads=8
-        case $os in
-          FreeBSD) (( ! $+commands[sysctl] )) || threads=$(( 2 * $(sysctl -n hw.ncpu) ));;
-          *) (( ! $+commands[getconf] )) || threads=$(( 2 * $(getconf _NPROCESSORS_ONLN) ));;
-        esac
-        (( threads <= 32 )) || threads=32
-      }
-    }
-    $0-threads
+    read -u $resp_fd daemon_pid
 
-    function $0-daemon() {
-      daemon_args=(
-        --lock-fd=3
-        --parent-pid=${(q)$}
-        --num-threads=${(q)threads}
-        --max-num-staged=${(q)max_num_staged}
-        --max-num-unstaged=${(q)max_num_unstaged}
-        --max-num-conflicted=${(q)max_num_conflicted}
-        --max-num-untracked=${(q)max_num_untracked}
-        --dirty-max-index-size=${(q)dirty_max_index_size}
-        --log-level=${(q)log_level:-INFO}
-        $recurse_untracked_dirs)
-
-      cmd="
-        echo \$\$
-        ${(q)daemon} $daemon_args
-        if [[ \$? != (0|10) && \$? -le 128 &&
-              -f ${(q)daemon}-static ]]; then
-          ${(q)daemon}-static $daemon_args
-        fi
-        echo -nE $'bye\x1f0\x1e'"
-      setsid=${commands[setsid]:-/usr/local/opt/util-linux/bin/setsid}
-      [[ -x $setsid ]] && setsid=${(q)setsid} || setsid=
-      cmd="cd /; $setsid zsh -dfxc ${(q)cmd} &!"
-      # We use `zsh -c` instead of plain {} or () to work around bugs in zplug (it hangs on startup).
-      # Double fork is to daemonize, and so is `setsid`. Note that on macOS `setsid` has to
-      # be installed manually by running  `brew install util-linux`.
-      zsh -dfmxc $cmd <$req_fifo >$resp_fifo 2>$log_file 3<$lock_file &!
-    }
-    $0-daemon
-
-    function $0-fds() {
-      sysopen -w -o cloexec,sync -u req_fd $req_fifo
-      sysopen -r -o cloexec -u resp_fd $resp_fifo
-    }
-    $0-fds
-
-    function $0-pid() {
-      read -u $resp_fd daemon_pid
-    }
-    $0-pid
-
-    function $0-rm() {
-      rm -f $req_fifo $resp_fifo $lock_file &!
-    }
-    $0-rm
+    zf_rm -f $req_fifo $resp_fifo $lock_file
 
     function _gitstatus_process_response_${name}() {
       local name=${${(%):-%N}#_gitstatus_process_response_}
@@ -427,13 +396,10 @@ function gitstatus_start() {
     }
     zle -F $resp_fd _gitstatus_process_response_${name}
 
-    function $0-hello() {
-      local reply IFS=''
-      echo -nE $'hello\x1f\x1e' >&$req_fd
-      read -r -d $'\x1e' -u $resp_fd -t $timeout reply
-      [[ $reply == $'hello\x1f0' ]]
-    }
-    $0-hello
+    local reply IFS=''
+    echo -nE $'hello\x1f\x1e' >&$req_fd
+    read -r -d $'\x1e' -u $resp_fd -t $timeout reply
+    [[ $reply == $'hello\x1f0' ]]
 
     function _gitstatus_cleanup_$$_${ZSH_SUBSHELL}_${daemon_pid}() {
       emulate -L zsh
@@ -446,14 +412,11 @@ function gitstatus_start() {
     }
     add-zsh-hook zshexit _gitstatus_cleanup_$$_${ZSH_SUBSHELL}_${daemon_pid}
 
-    function $0-cleanup() {
-      [[ $stderr_fd == -1 ]] || {
-        unsetopt xtrace
-        exec 2>&$stderr_fd {stderr_fd}>&-
-        stderr_fd=-1
-      }
+    [[ $stderr_fd == -1 ]] || {
+      unsetopt xtrace
+      exec 2>&$stderr_fd {stderr_fd}>&-
+      stderr_fd=-1
     }
-    $0-cleanup
   }
 
   gitstatus_start_impl && {
@@ -463,7 +426,7 @@ function gitstatus_start() {
     typeset -gi _GITSTATUS_LOCK_FD_${name}=$lock_fd
     typeset -gi _GITSTATUS_CLIENT_PID_${name}=$$
     typeset -gi _GITSTATUS_DIRTY_MAX_INDEX_SIZE_${name}=$dirty_max_index_size
-    unset -fm 'gitstatus_start_impl*'
+    unset -f gitstatus_start_impl
   } || {
     unsetopt err_return
     add-zsh-hook -d zshexit _gitstatus_cleanup_$$_${ZSH_SUBSHELL}_${daemon_pid}
@@ -474,7 +437,7 @@ function gitstatus_start() {
     [[ $daemon_pid -gt 0 ]] && kill -- -$daemon_pid &>/dev/null
 
     rm -f $lock_file $req_fifo $resp_fifo
-    unset -fm 'gitstatus_start_impl*'
+    unset -f gitstatus_start_impl
 
     >&2 print -P '[%F{red}ERROR%f]: gitstatus failed to initialize.'
     >&2 echo -E ''
