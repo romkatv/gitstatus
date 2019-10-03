@@ -1,3 +1,4 @@
+*.zwc
 obj/
 /core
 /gitstatusd
