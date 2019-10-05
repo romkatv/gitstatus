@@ -24,9 +24,14 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <cerrno>
+#include <cstring>
+#include <ctime>
 #include <string>
+#include <vector>
 
 #include "check.h"
+#include "dir.h"
 #include "logging.h"
 #include "print.h"
 #include "scope_guard.h"
@@ -36,7 +41,7 @@ namespace gitstatus {
 
 namespace {
 
-using namespace std::string_literals;
+constexpr char kDirPrefix[] = ".gitstatus.";
 
 void Touch(const char* path) {
   int fd = creat(path, 0444);
@@ -50,11 +55,62 @@ bool StatChanged(const char* path, const struct stat& prev) {
   return !StatEq(prev, cur);
 }
 
+void RemoveStaleDirs(const char* root_dir) {
+  int dir_fd = open(root_dir, O_DIRECTORY | O_CLOEXEC);
+  if (dir_fd < 0) return;
+  ON_SCOPE_EXIT(&) { CHECK(!close(dir_fd)) << Errno(); };
+
+  Arena arena;
+  std::vector<char*> entries;
+  const std::time_t now = std::time(nullptr);
+  if (!ListDir(dir_fd, arena, entries,
+               /* precompose_unicode = */ false,
+               /* case_sensitive = */ true)) {
+    return;
+  }
+
+  std::string path = root_dir;
+  const size_t root_dir_len = path.size();
+
+  for (const char* entry : entries) {
+    if (std::strlen(entry) < std::strlen(kDirPrefix)) continue;
+    if (std::memcmp(entry, kDirPrefix, std::strlen(kDirPrefix))) continue;
+
+    struct stat st;
+    if (fstatat(dir_fd, entry, &st, AT_SYMLINK_NOFOLLOW)) {
+      LOG(WARN) << "Cannot stat " << Print(entry) << " in " << Print(root_dir) << ": " << Errno();
+      continue;
+    }
+    if (MTim(st).tv_sec + 10 > now) continue;
+
+    path.resize(root_dir_len);
+    path += entry;
+    size_t dir_len = path.size();
+
+    path += "/b/1";
+    if (unlink(path.c_str()) && errno != ENOENT) {
+      LOG(WARN) << "Cannot unlink " << Print(path) << ": " << Errno();
+      continue;
+    }
+
+    for (const char* d : {"/a/1", "/a", "/b", ""}) {
+      path.resize(dir_len);
+      path += d;
+      if (rmdir(path.c_str()) && errno != ENOENT) {
+        LOG(WARN) << "Cannot remove " << Print(path) << ": " << Errno();
+        break;
+      }
+    }
+  }
+}
+
 }  // namespace
 
 bool CheckDirMtime(const char* root_dir) {
   try {
-    std::string tmp = root_dir + ".gitstatus.XXXXXX"s;
+    RemoveStaleDirs(root_dir);
+
+    std::string tmp = std::string() + root_dir + kDirPrefix + "XXXXXX";
     VERIFY(mkdtemp(&tmp[0])) << Errno();
     ON_SCOPE_EXIT(&) { rmdir(tmp.c_str()); };
 
