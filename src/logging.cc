@@ -17,10 +17,10 @@
 
 #include "logging.h"
 
-#include <errno.h>
 #include <pthread.h>
 #include <time.h>
 
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
