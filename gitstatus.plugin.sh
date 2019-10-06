@@ -96,31 +96,36 @@ function gitstatus_start() {
 
     local d="${GITSTATUS_DAEMON:-}"
     local daemon_args=(
-      --parent-pid="${$@Q}"
-      --num-threads="${threads@Q}"
-      --max-num-staged="${max_num_staged@Q}"
-      --max-num-unstaged="${max_num_unstaged@Q}"
-      --max-num-conflicted="${max_num_conflicted@Q}"
-      --max-num-untracked="${max_num_untracked@Q}"
-      --dirty-max-index-size="${max_dirty@Q}"
+      --parent-pid="$$"
+      --num-threads="$threads"
+      --max-num-staged="$max_num_staged"
+      --max-num-unstaged="$max_num_unstaged"
+      --max-num-conflicted="$max_num_conflicted"
+      --max-num-untracked="$max_num_untracked"
+      --dirty-max-index-size="$max_dirty"
       $recurse_untracked_dirs)
 
     if [[ -n "$log_level" ]]; then
       GITSTATUS_DAEMON_LOG=$(mktemp "${TMPDIR:-/tmp}"/gitstatus.$$.log.XXXXXXXXXX) || return
-      [[ "$log_level" == INFO ]] || daemon_args+=(--log-level="${log_level@Q}")
+      [[ "$log_level" == INFO ]] || daemon_args+=(--log-level="$log_level")
     else
       GITSTATUS_DAEMON_LOG=/dev/null
     fi
 
-    { <&$_GITSTATUS_REQ_FD >&$_GITSTATUS_RESP_FD 2>"$GITSTATUS_DAEMON_LOG" bash -cx "
-        trap 'kill %1 &>/dev/null' SIGINT SIGTERM EXIT
-        ${daemon@Q} ${daemon_args[*]} 0<&0 1>&1 2>&2 &
-        wait %1
-        if [[ \$? != 0 && \$? != 10 && \$? -le 128 && -z ${d@Q} && -f ${daemon@Q}-static ]]; then
-          ${daemon@Q}-static ${daemon_args[*]} 0<&0 1>&1 2>&2 &
+    local IFS=
+    [[ "${daemon_args[*]}" =~ [a-z0-9-]* ]] || return
+    IFS=' '
+
+    { <&$_GITSTATUS_REQ_FD >&$_GITSTATUS_RESP_FD 2>"$GITSTATUS_DAEMON_LOG" \
+        _gitstatus_daemon="$daemon" bash -cx "
+          trap 'kill %1 &>/dev/null' SIGINT SIGTERM EXIT
+          \"\$_gitstatus_daemon\" ${daemon_args[*]} 0<&0 1>&1 2>&2 &
           wait %1
-        fi
-        echo -nE $'bye\x1f0\x1e'" & } 2>/dev/null
+          if [[ \$? != 0 && \$? != 10 && \$? -le 128 && -f \"\$_gitstatus_daemon\"-static ]]; then
+            \"\$_gitstatus_daemon\"-static ${daemon_args[*]} 0<&0 1>&1 2>&2 &
+            wait %1
+          fi
+          echo -nE $'bye\x1f0\x1e'" & } 2>/dev/null
     disown
     GITSTATUS_DAEMON_PID=$!
 
