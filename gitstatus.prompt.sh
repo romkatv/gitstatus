@@ -58,7 +58,7 @@ function gitstatus_prompt_update() {
     where="$VCS_STATUS_TAG"
   else
     p+="${reset}@"
-    where="${VCS_STATUS_COMMIT:0:10}"
+    where="${VCS_STATUS_COMMIT:0:8}"
   fi
 
   (( ${#where} > 32 )) && where="${where:0:12}…${where: -12}"  # truncate long branch names and tags
