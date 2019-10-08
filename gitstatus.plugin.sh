@@ -234,6 +234,11 @@ function gitstatus_stop() {
 #   VCS_STATUS_TAG             The last tag (in lexicographical order) that points to the
 #                              same commit as HEAD.
 #
+# Experimental variables. May disappear or have their semantics changed without notice:
+#
+#   VCS_STATUS_NUM_UNSTAGED_DELETED The number of unstaged deleted files. Note that renamed files
+#                                   are reported as deleted plus added.
+#
 # The point of reporting -1 as unstaged and untracked is to allow the command to skip
 # scanning files in large repos. See -m flag of gitstatus_start.
 #
@@ -281,6 +286,7 @@ function gitstatus_query() {
     VCS_STATUS_COMMITS_BEHIND="${resp[15]}"
     VCS_STATUS_STASHES="${resp[16]}"
     VCS_STATUS_TAG="${resp[17]:-}"
+    VCS_STATUS_NUM_UNSTAGED_DELETED="${resp[18]:-0}"
     VCS_STATUS_HAS_STAGED=$((VCS_STATUS_NUM_STAGED > 0))
     if (( _GITSTATUS_DIRTY_MAX_INDEX_SIZE >= 0 &&
           VCS_STATUS_INDEX_SIZE > _GITSTATUS_DIRTY_MAX_INDEX_SIZE_ )); then
@@ -314,6 +320,7 @@ function gitstatus_query() {
     unset VCS_STATUS_COMMITS_BEHIND
     unset VCS_STATUS_STASHES
     unset VCS_STATUS_TAG
+    unset VCS_STATUS_NUM_UNSTAGED_DELETED
   fi
 }
 
