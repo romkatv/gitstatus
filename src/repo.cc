@@ -145,6 +145,7 @@ IndexStats Repo::GetIndexStats(const git_oid* head) {
   Store(error_, false);
   Store(unstaged_, {});
   Store(untracked_, {});
+  Store(unstaged_deleted_, {});
 
   std::vector<const char*> dirty_candidates;
   const size_t index_size = git_index_entrycount(git_index_);
@@ -185,11 +186,13 @@ IndexStats Repo::GetIndexStats(const git_oid* head) {
   Wait();
   VERIFY(!Load(error_));
 
+  size_t num_unstaged = std::min(Load(unstaged_), lim_.max_num_unstaged);
   return {.index_size = index_size,
           .num_staged = std::min(Load(staged_), lim_.max_num_staged),
-          .num_unstaged = std::min(Load(unstaged_), lim_.max_num_unstaged),
+          .num_unstaged = num_unstaged,
           .num_conflicted = std::min(Load(conflicted_), lim_.max_num_conflicted),
-          .num_untracked = std::min(Load(untracked_), lim_.max_num_untracked)};
+          .num_untracked = std::min(Load(untracked_), lim_.max_num_untracked),
+          .num_unstaged_deleted = std::min(Load(unstaged_deleted_), num_unstaged)};
 }
 
 int Repo::OnDelta(const char* type, const git_diff_delta& d, std::atomic<size_t>& c1, size_t m1,
@@ -237,6 +240,7 @@ void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
       return repo->OnDelta("untracked", *delta, repo->untracked_, repo->lim_.max_num_untracked,
                            repo->unstaged_, repo->lim_.max_num_unstaged);
     } else {
+      if (delta->status == GIT_DELTA_DELETED) Inc(repo->unstaged_deleted_);
       return repo->OnDelta("unstaged", *delta, repo->unstaged_, repo->lim_.max_num_unstaged,
                            repo->untracked_, repo->lim_.max_num_untracked);
     }
