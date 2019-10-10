@@ -113,7 +113,7 @@ function gitstatus_start() {
     fi
 
     local IFS=
-    [[ "${daemon_args[*]}" =~ [a-z0-9-]* ]] || return
+    [[ "${daemon_args[*]}" =~ ^[a-z0-9=-]*$ ]] || return
     IFS=' '
 
     { <&$_GITSTATUS_REQ_FD >&$_GITSTATUS_RESP_FD 2>"$GITSTATUS_DAEMON_LOG" \
