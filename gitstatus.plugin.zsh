@@ -467,6 +467,13 @@ function gitstatus_start() {
     rm -f $lock_file $req_fifo $resp_fifo
     unset -f gitstatus_start_impl
 
+    unset GITSTATUS_DAEMON_PID_${name}
+    unset _GITSTATUS_REQ_FD_${name}
+    unset _GITSTATUS_RESP_FD_${name}
+    unset _GITSTATUS_LOCK_FD_${name}
+    unset _GITSTATUS_CLIENT_PID_${name}
+    unset _GITSTATUS_DIRTY_MAX_INDEX_SIZE_${name}
+
     >&2 print -P '[%F{red}ERROR%f]: gitstatus failed to initialize.'
     >&2 echo -E ''
     >&2 echo -E '  Your git prompt may disappear or become slow.'
