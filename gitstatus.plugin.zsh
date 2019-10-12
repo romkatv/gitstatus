@@ -383,6 +383,7 @@ function gitstatus_start() {
         $recurse_untracked_dirs)
 
       local cmd="
+        exec >&4
         echo \$\$
         ${(q)daemon} $daemon_args
         if [[ \$? != (0|10) && \$? -le 128 && -f ${(q)daemon}-static ]]; then
@@ -395,7 +396,7 @@ function gitstatus_start() {
       # We use `zsh -c` instead of plain {} or () to work around bugs in zplug (it hangs on
       # startup). Double fork is to daemonize, and so is `setsid`. Note that on macOS `setsid` has
       # to be installed manually by running  `brew install util-linux`.
-      zsh -dfmxc $cmd <$req_fifo >$resp_fifo 2>$log_file 3<$lock_file &!
+      zsh -dfmxc $cmd <$req_fifo >$log_file 2>&1 3<$lock_file 4>$resp_fifo &!
 
       sysopen -w -o cloexec,sync -u req_fd $req_fifo
       sysopen -r -o cloexec -u resp_fd $resp_fifo
