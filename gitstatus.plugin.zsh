@@ -405,7 +405,10 @@ function gitstatus_start() {
     (( async )) && {
       daemon_pid=-1
     } || {
-      read -u $resp_fd daemon_pid
+      local reply IFS=''
+      read -ru $resp_fd reply
+      [[ $reply == <1-> ]]
+      daemon_pid=reply
 
       function _gitstatus_process_response_${name}() {
         local name=${${(%):-%N}#_gitstatus_process_response_}
@@ -418,7 +421,6 @@ function gitstatus_start() {
       }
       zle -F $resp_fd _gitstatus_process_response_${name}
 
-      local reply IFS=''
       read -r -d $'\x1e' -u $resp_fd -t $timeout reply
       [[ $reply == $'hello\x1f0' ]]
 
