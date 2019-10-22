@@ -170,10 +170,10 @@ RemotePtr GetRemote(git_repository* repo, const git_reference* local) {
   ON_SCOPE_EXIT(&) { if (ref) git_reference_free(ref); };
 
   const char* branch = nullptr;
-  std::string name = git_remote_name(remote);
+  std::string name = remote ? git_remote_name(remote) : ".";
   if (git_branch_name(&branch, ref)) {
     branch = "";
-  } else {
+  } else if (remote) {
     VERIFY(std::strstr(branch, name.c_str()) == branch);
     VERIFY(branch[name.size()] == '/');
     branch += name.size() + 1;
@@ -182,7 +182,7 @@ RemotePtr GetRemote(git_repository* repo, const git_reference* local) {
   auto res = std::make_unique<Remote>();
   res->name = std::move(name);
   res->branch = branch;
-  res->url = git_remote_url(remote) ?: "";
+  res->url = remote ? (git_remote_url(remote) ?: "") : "";
   res->ref = std::exchange(ref, nullptr);
   return RemotePtr(res.release());
 }
