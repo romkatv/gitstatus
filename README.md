@@ -451,7 +451,7 @@ zsh -c "$(curl -fsSL https://raw.githubusercontent.com/romkatv/gitstatus/master/
 If everything goes well, the path to your newly built binary will be printed at the end.
 
 If something breaks due to a missing dependency (e.g., `cmake` not found), install the dependency,
-remove `/tmp/gitstatus` and retry.
+remove `${TMPDIR:-/tmp}/gitstatus` and retry.
 
 To build from locally modified sources, read
 [build.zsh](https://github.com/romkatv/gitstatus/tree/master/build.zsh) and improvise. This is a
