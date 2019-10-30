@@ -113,7 +113,7 @@ function gitstatus_start() {
     fi
 
     local IFS=
-    [[ "${daemon_args[*]}" =~ ^[a-z0-9=-]*$ ]] || return
+    [[ "${daemon_args[*]}" =~ ^[a-zA-Z0-9=-]*$ ]] || return
     IFS=' '
 
     { <&$_GITSTATUS_REQ_FD >&$_GITSTATUS_RESP_FD 2>"$GITSTATUS_DAEMON_LOG" \
@@ -199,6 +199,9 @@ function gitstatus_stop() {
 #   -d STR    Directory to query. Defaults to ${GIT_DIR:-$PWD}.
 #   -t FLOAT  Timeout in seconds. Will block for at most this long. If no results
 #             are available by then, will return error.
+#   -p        Don't compute anything that requires reading Git index. If this option is used,
+#             the following parameters will be 0: VCS_STATUS_INDEX_SIZE,
+#             VCS_STATUS_{NUM,HAS}_{STAGED,UNSTAGED,UNTRACKED,CONFLICTED}.
 #
 # On success sets VCS_STATUS_RESULT to one of the following values:
 #
@@ -243,11 +246,12 @@ function gitstatus_stop() {
 # shell or the call had failed.
 function gitstatus_query() {
   unset OPTIND
-  local opt dir="${GIT_DIR:-}" timeout=()
-  while getopts "d:c:t:" opt "$@"; do
+  local opt dir="${GIT_DIR:-}" timeout=() no_diff=0
+  while getopts "d:c:t:p" opt "$@"; do
     case "$opt" in
       d) dir=$OPTARG;;
       t) timeout=(-t "$OPTARG");;
+      p) no_diff=1;;
       *) return 1;;
     esac
   done
@@ -257,7 +261,7 @@ function gitstatus_query() {
 
   local req_id="$RANDOM.$RANDOM.$RANDOM.$RANDOM"
   [[ "$dir" == /* ]] || dir="$(pwd -P)/$dir" || return
-  echo -nE "$req_id"$'\x1f'"$dir"$'\x1e' >&$_GITSTATUS_REQ_FD || return
+  echo -nE "$req_id"$'\x1f'"$dir"$'\x1f'"$no_diff"$'\x1e' >&$_GITSTATUS_REQ_FD || return
 
   local -a resp
   while true; do
