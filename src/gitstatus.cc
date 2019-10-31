@@ -104,7 +104,7 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
 
   IndexStats stats;
   // Look for staged, unstaged and untracked. This is where most of the time is spent.
-  if (req.diff) stats = repo->GetIndexStats(head_target);
+  if (req.diff) stats = repo->GetIndexStats(head_target, cfg);
 
   // The number of files in the index.
   resp.Print(stats.index_size);

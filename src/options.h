@@ -40,6 +40,15 @@ struct Limits {
   size_t dirty_max_index_size = -1;
   // If true, report untracked files like `git status --untracked-files`.
   bool recurse_untracked_dirs = false;
+  // Unless true, report zero untracked files for repositories with
+  // status.showUntrackedFiles = false.
+  bool ignore_status_show_untracked_files = false;
+  // Unless true, report zero untracked files for repositories with
+  // bash.showUntrackedFiles = false.
+  bool ignore_bash_show_untracked_files = false;
+  // Unless true, report zero staged, unstaged and conflicted changes for repositories with
+  // bash.showDirtyState = false.
+  bool ignore_bash_show_dirty_state = false;
 };
 
 struct Options : Limits {

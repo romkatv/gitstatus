@@ -112,7 +112,6 @@ Repo::Repo(git_repository* repo, Limits lim) : lim_(std::move(lim)), repo_(repo)
 }
 
 Repo::~Repo() {
-  Wait();
   {
     std::unique_lock<std::mutex> lock(mutex_);
     while (untracked_cache_ == Tribool::kUnknown) cv_.wait(lock);
@@ -121,8 +120,25 @@ Repo::~Repo() {
   git_repository_free(repo_);
 }
 
-IndexStats Repo::GetIndexStats(const git_oid* head) {
-  Wait();
+IndexStats Repo::GetIndexStats(const git_oid* head, git_config* cfg) {
+  ON_SCOPE_EXIT(this, orig_lim = lim_) { lim_ = orig_lim; };
+  auto Off = [&](const char* name) {
+    int val;
+    if (git_config_get_bool(&val, cfg, name) || val) return false;
+    LOG(INFO) << "Honoring git config option: " << name << " = false";
+    return true;
+  };
+  if (!lim_.ignore_status_show_untracked_files && Off("status.showUntrackedFiles")) {
+    lim_.max_num_untracked = 0;
+  }
+  if (!lim_.ignore_bash_show_untracked_files && Off("bash.showUntrackedFiles")) {
+    lim_.max_num_untracked = 0;
+  }
+  if (!lim_.ignore_bash_show_dirty_state && Off("bash.showDirtyState")) {
+    lim_.max_num_staged = 0;
+    lim_.max_num_unstaged = 0;
+    lim_.max_num_conflicted = 0;
+  }
 
   if (git_index_) {
     int new_index;
@@ -150,7 +166,11 @@ IndexStats Repo::GetIndexStats(const git_oid* head) {
   std::vector<const char*> dirty_candidates;
   const size_t index_size = git_index_entrycount(git_index_);
 
-  if (head) {
+  if (!lim_.max_num_staged && !lim_.max_num_conflicted) {
+    head_ = {};
+    Store(staged_, {});
+    Store(conflicted_, {});
+  } else if (head) {
     if (git_oid_equal(head, &head_)) {
       LOG(INFO) << "Index and HEAD unchanged; staged = " << Load(staged_)
                 << ", conflicted = " << Load(conflicted_);
@@ -158,9 +178,10 @@ IndexStats Repo::GetIndexStats(const git_oid* head) {
       head_ = *head;
       Store(staged_, {});
       Store(conflicted_, {});
-      if (lim_.max_num_staged || lim_.max_num_conflicted) StartStagedScan(head);
+      StartStagedScan(head);
     }
   } else {
+    head_ = {};
     size_t staged = 0;
     for (size_t i = 0; i != index_size; ++i) {
       if (!(git_index_get_byindex(git_index_, i)->flags_extended & GIT_INDEX_ENTRY_INTENT_TO_ADD)) {
@@ -173,7 +194,8 @@ IndexStats Repo::GetIndexStats(const git_oid* head) {
   if (index_size <= lim_.dirty_max_index_size &&
       (lim_.max_num_unstaged || lim_.max_num_untracked)) {
     if (!index_) index_ = std::make_unique<Index>(repo_, git_index_);
-    dirty_candidates = index_->GetDirtyCandidates(Load(untracked_cache_));
+    dirty_candidates = index_->GetDirtyCandidates(
+        {.include_untracked = lim_.max_num_untracked, .untracked_cache = Load(untracked_cache_)});
     if (dirty_candidates.empty()) {
       LOG(INFO) << "Clean repo: no dirty candidates";
     } else {

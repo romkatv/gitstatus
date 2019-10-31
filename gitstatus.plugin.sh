@@ -41,11 +41,21 @@
 #             in the index. Negative value means infinity. Defaults to -1.
 #
 #   -e        Count files within untracked directories like `git status --untracked-files`.
+#
+#   -U        Unless this option is specified, report zero untracked files for repositories
+#             with status.showUntrackedFiles = false.
+#
+#   -W        Unless this option is specified, report zero untracked files for repositories
+#             with bash.showUntrackedFiles = false.
+#
+#   -D        Unless this option is specified, report zero staged, unstaged and conflicted
+#             changes for repositories with bash.showDirtyState = false.
 function gitstatus_start() {
   unset OPTIND
-  local opt timeout=5 max_dirty=-1 recurse_untracked_dirs
+  local opt timeout=5 max_dirty=-1 extra_flags
   local max_num_staged=1 max_num_unstaged=1 max_num_conflicted=1 max_num_untracked=1
-  while getopts "t:s:u:c:d:m:e" opt; do
+  local ignore_status_show_untracked_files
+  while getopts "t:s:u:c:d:m:eUWD" opt; do
     case "$opt" in
       t) timeout=$OPTARG;;
       s) max_num_staged=$OPTARG;;
@@ -53,7 +63,10 @@ function gitstatus_start() {
       c) max_num_conflicted=$OPTARG;;
       d) max_num_untracked=$OPTARG;;
       m) max_dirty=$OPTARG;;
-      e) recurse_untracked_dirs='--recurse-untracked-dirs';;
+      e) extra_flags+='--recurse-untracked-dirs ';;
+      U) extra_flags+='--ignore-status-show-untracked-files ';;
+      W) extra_flags+='--ignore-bash-show-untracked-files ';;
+      D) extra_flags+='--ignore-bash-show-dirty-state ';;
       *) return 1;;
     esac
   done
@@ -103,7 +116,7 @@ function gitstatus_start() {
       --max-num-conflicted="$max_num_conflicted"
       --max-num-untracked="$max_num_untracked"
       --dirty-max-index-size="$max_dirty"
-      $recurse_untracked_dirs)
+      $extra_flags)
 
     if [[ -n "$log_level" ]]; then
       GITSTATUS_DAEMON_LOG=$(mktemp "${TMPDIR:-/tmp}"/gitstatus.$$.log.XXXXXXXXXX) || return
