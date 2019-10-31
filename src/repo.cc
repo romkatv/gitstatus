@@ -194,8 +194,8 @@ IndexStats Repo::GetIndexStats(const git_oid* head, git_config* cfg) {
   if (index_size <= lim_.dirty_max_index_size &&
       (lim_.max_num_unstaged || lim_.max_num_untracked)) {
     if (!index_) index_ = std::make_unique<Index>(repo_, git_index_);
-    dirty_candidates = index_->GetDirtyCandidates(
-        {.include_untracked = lim_.max_num_untracked, .untracked_cache = Load(untracked_cache_)});
+    dirty_candidates = index_->GetDirtyCandidates({.include_untracked = lim_.max_num_untracked > 0,
+                                                   .untracked_cache = Load(untracked_cache_)});
     if (dirty_candidates.empty()) {
       LOG(INFO) << "Clean repo: no dirty candidates";
     } else {
