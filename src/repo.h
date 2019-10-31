@@ -64,7 +64,7 @@ class Repo {
   git_repository* repo() const { return repo_; }
 
   // Head can be null, in which case has_staged will be false.
-  IndexStats GetIndexStats(const git_oid* head);
+  IndexStats GetIndexStats(const git_oid* head, git_config* cfg);
 
   // Returns the last tag in lexicographical order whose target is equal to the given, or an
   // empty string. Target can be null, in which case the tag is empty.
@@ -89,7 +89,7 @@ class Repo {
   void RunAsync(std::function<void()> f);
   void Wait();
 
-  const Limits lim_;
+  Limits lim_;
   git_repository* const repo_;
   git_index* git_index_ = nullptr;
   std::vector<Shard> shards_;

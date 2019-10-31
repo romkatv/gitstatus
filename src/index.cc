@@ -144,7 +144,8 @@ void OpenTail(int* fds, size_t nfds, int root_fd, StringView dirname, Arena& are
 }
 
 std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const* begin,
-                                  IndexDir* const* end, const RepoCaps& caps) {
+                                  IndexDir* const* end, const RepoCaps& caps,
+                                  const ScanOpts& opts) {
   const Str<> str(caps.case_sensitive);
 
   Arena arena;
@@ -191,6 +192,17 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       AddCandidate(basename.len ? "new" : "unreadable", path);
     };
 
+    auto StatFiles = [&]() {
+      struct stat st;
+      for (const git_index_entry* file : dir.files) {
+        if (fstatat(*dir_fd, Basename(file), &st, AT_SYMLINK_NOFOLLOW)) {
+          AddCandidate(errno == ENOENT ? "deleted" : "unreadable", file->path);
+        } else if (IsModified(file, st, caps)) {
+          AddCandidate(nullptr, file->path);
+        }
+      }
+    };
+
     ssize_t d = 0;
     if ((it == begin || (d = it[-1]->depth + 1 - dir.depth) < kDirStackSize) && dir_fd[d] >= 0) {
       CHECK(d >= 0);
@@ -215,20 +227,19 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       continue;
     }
 
-    if (caps.untracked_cache != Tribool::kFalse) {
+    if (!opts.include_untracked) {
+      StatFiles();
+      continue;
+    }
+
+    if (opts.untracked_cache != Tribool::kFalse) {
       struct stat st;
       if (fstat(*dir_fd, &st)) {
         AddUnmached("");
         continue;
       }
-      if (caps.untracked_cache == Tribool::kTrue && StatEq(st, dir.st)) {
-        for (const git_index_entry* file : dir.files) {
-          if (fstatat(*dir_fd, Basename(file), &st, AT_SYMLINK_NOFOLLOW)) {
-            AddCandidate("deleted", file->path);
-          } else if (IsModified(file, st, caps)) {
-            AddCandidate(nullptr, file->path);
-          }
-        }
+      if (opts.untracked_cache == Tribool::kTrue && StatEq(st, dir.st)) {
+        StatFiles();
         for (const char* path : dir.unmatched) AddCandidate("new", path);
         continue;
       }
@@ -302,7 +313,6 @@ RepoCaps::RepoCaps(git_repository* repo, git_index* index) {
   has_symlinks = git_index_supports_symlinks(index);
   case_sensitive = git_index_is_case_sensitive(index);
   precompose_unicode = git_index_precompose_unicode(index);
-  untracked_cache = Tribool::kUnknown;
   LOG(DEBUG) << "Repository capabilities for " << Print(git_repository_workdir(repo)) << ": "
              << "is_filemode_trustworthy = " << std::boolalpha << trust_filemode << ", "
              << "index_supports_symlinks = " << std::boolalpha << has_symlinks << ", "
@@ -397,12 +407,11 @@ void Index::InitSplits(size_t total_weight) {
   CHECK(std::adjacent_find(splits_.begin(), splits_.end()) == splits_.end());
 }
 
-std::vector<const char*> Index::GetDirtyCandidates(Tribool untracked_cache) {
+std::vector<const char*> Index::GetDirtyCandidates(const ScanOpts& opts) {
   int root_fd = open(root_dir_, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
   VERIFY(root_fd >= 0);
   ON_SCOPE_EXIT(&) { CHECK(!close(root_fd)) << Errno(); };
 
-  caps_.untracked_cache = untracked_cache;
   CHECK(!splits_.empty());
 
   std::mutex mutex;
@@ -423,7 +432,7 @@ std::vector<const char*> Index::GetDirtyCandidates(Tribool untracked_cache) {
       };
       try {
         std::vector<const char*> candidates =
-            ScanDirs(git_index_, root_fd, dirs_.data() + from, dirs_.data() + to, caps_);
+            ScanDirs(git_index_, root_fd, dirs_.data() + from, dirs_.data() + to, caps_, opts);
         if (!candidates.empty()) {
           std::unique_lock<std::mutex> lock(mutex);
           res.insert(res.end(), candidates.begin(), candidates.end());

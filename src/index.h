@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "arena.h"
+#include "options.h"
 #include "string_view.h"
 #include "tribool.h"
 
@@ -39,6 +40,10 @@ struct RepoCaps {
   bool has_symlinks;
   bool case_sensitive;
   bool precompose_unicode;
+};
+
+struct ScanOpts {
+  bool include_untracked;
   Tribool untracked_cache;
 };
 
@@ -60,7 +65,7 @@ class Index {
  public:
   Index(git_repository* repo, git_index* index);
 
-  std::vector<const char*> GetDirtyCandidates(Tribool untracked_cache);
+  std::vector<const char*> GetDirtyCandidates(const ScanOpts& opts);
 
  private:
   size_t InitDirs(git_index* index);

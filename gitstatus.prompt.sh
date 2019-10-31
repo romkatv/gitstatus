@@ -86,7 +86,7 @@ function gitstatus_prompt_update() {
 }
 
 # Start gitstatusd in the background.
-gitstatus_stop && gitstatus_start
+gitstatus_stop && gitstatus_start -s -1 -u -1 -c -1 -d -1
 
 # On every prompt, fetch git status and set GITSTATUS_PROMPT.
 PROMPT_COMMAND=gitstatus_prompt_update

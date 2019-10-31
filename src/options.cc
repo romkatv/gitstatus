@@ -94,6 +94,18 @@ void PrintUsage() {
             << "  -e, --recurse-untracked-dirs\n"
             << "   Count files within untracked directories like `git status --untracked-files`.\n"
             << "\n"
+            << "  -U, --ignore-status-show-untracked-files\n"
+            << "   Unless this option is specified, report zero untracked files for repositories\n"
+            << "   with status.showUntrackedFiles = false.\n"
+            << "\n"
+            << "  -W, --ignore-bash-show-untracked-files\n"
+            << "   Unless this option is specified, report zero untracked files for repositories\n"
+            << "   with bash.showUntrackedFiles = false.\n"
+            << "\n"
+            << "  -D, --ignore-bash-show-dirty-state\n"
+            << "   Unless this option is specified, report zero staged, unstaged and conflicted\n"
+            << "   changes for repositories with bash.showDirtyState = false.\n"
+            << "\n"
             << "  -h, --help\n"
             << "  Display this help and exit.\n"
             << "\n"
@@ -194,10 +206,13 @@ Options ParseOptions(int argc, char** argv) {
                                 {"max-num-untracked", required_argument, nullptr, 'd'},
                                 {"dirty-max-index-size", required_argument, nullptr, 'm'},
                                 {"recurse-untracked-dirs", no_argument, nullptr, 'e'},
+                                {"ignore-status-show-untracked-files", no_argument, nullptr, 'U'},
+                                {"ignore-bash-show-untracked-files", no_argument, nullptr, 'W'},
+                                {"ignore-bash-show-dirty-state", no_argument, nullptr, 'D'},
                                 {}};
   Options res;
   while (true) {
-    switch (getopt_long(argc, argv, "hl:p:t:v:r:s:u:c:d:m:e", opts, nullptr)) {
+    switch (getopt_long(argc, argv, "hl:p:t:v:r:s:u:c:d:m:eUWD", opts, nullptr)) {
       case -1:
         if (optind != argc) {
           std::cerr << "unexpected positional argument: " << argv[optind] << std::endl;
@@ -248,6 +263,15 @@ Options ParseOptions(int argc, char** argv) {
         break;
       case 'e':
         res.recurse_untracked_dirs = true;
+        break;
+      case 'U':
+        res.ignore_status_show_untracked_files = true;
+        break;
+      case 'W':
+        res.ignore_bash_show_untracked_files = true;
+        break;
+      case 'D':
+        res.ignore_bash_show_dirty_state = true;
         break;
       default:
         std::exit(10);
