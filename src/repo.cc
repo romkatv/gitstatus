@@ -102,13 +102,17 @@ bool Repo::Shard::Contains(Str<> str, StringView path) const {
 }
 
 Repo::Repo(git_repository* repo, Limits lim) : lim_(std::move(lim)), repo_(repo), tag_db_(repo) {
-  GlobalThreadPool()->Schedule([this] {
-    bool check = CheckDirMtime(git_repository_path(repo_));
-    std::unique_lock<std::mutex> lock(mutex_);
-    CHECK(Load(untracked_cache_) == Tribool::kUnknown);
-    Store(untracked_cache_, check ? Tribool::kTrue : Tribool::kFalse);
-    cv_.notify_one();
-  });
+  if (lim_.max_num_untracked) {
+    GlobalThreadPool()->Schedule([this] {
+      bool check = CheckDirMtime(git_repository_path(repo_));
+      std::unique_lock<std::mutex> lock(mutex_);
+      CHECK(Load(untracked_cache_) == Tribool::kUnknown);
+      Store(untracked_cache_, check ? Tribool::kTrue : Tribool::kFalse);
+      cv_.notify_one();
+    });
+  } else {
+    untracked_cache_ = Tribool::kFalse;
+  }
 }
 
 Repo::~Repo() {
