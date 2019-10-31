@@ -273,8 +273,8 @@ function _gitstatus_process_response() {
 #   -d INT    Report at most this many untracked files; negative value means infinity.
 #             Defaults to 1.
 #
-#   -m INT    If a repo has more files in its index than this, override -u and -d (but not -s)
-#             with zeros. Negative value means infinity. Defaults to -1.
+#   -m INT    Report -1 unstaged, untracked and conflicted if there are more than this many
+#             files in the index. Negative value means infinity. Defaults to -1.
 #
 #   -e        Count files within untracked directories like `git status --untracked-files`.
 #
