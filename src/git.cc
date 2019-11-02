@@ -87,7 +87,7 @@ size_t CountRange(git_repository* repo, const std::string& range) {
 
 git_repository* OpenRepo(const std::string& dir) {
   git_repository* repo = nullptr;
-  switch (git_repository_open_ext(&repo, dir.c_str(), GIT_REPOSITORY_OPEN_FROM_ENV, nullptr)) {
+  switch (git_repository_open_ext(&repo, dir.c_str(), 0, nullptr)) {
     case 0:
       return repo;
     case GIT_ENOTFOUND:
