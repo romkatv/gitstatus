@@ -81,18 +81,19 @@ function gitstatus_start() {
     local log_level="${GITSTATUS_LOG_LEVEL:-}"
     [[ -n "$log_level" || "${GITSTATUS_ENABLE_LOGGING:-0}" != 1 ]] || log_level=INFO
 
-    local daemon="${GITSTATUS_DAEMON:-}"
+    local daemon="${GITSTATUS_DAEMON:-}" os
     if [[ -z "$daemon" ]]; then
-      local os   &&   os=$(uname -s)                    || return
+      os=$(uname -s)                                    || return
       local arch && arch=$(uname -m)                    || return
       local dir  &&  dir=$(dirname "${BASH_SOURCE[0]}") || return
       [[ "$os" != Linux || "$(uname -o)" != Android ]]  || os=Android
+      [[ "$os" != MSYS_NT-10.0-* ]]                     || os=MSYS_NT-10.0
       daemon="$dir/bin/gitstatusd-${os,,}-${arch,,}"
     fi
 
     local threads="${GITSTATUS_NUM_THREADS:-0}"
     if (( threads <= 0 )); then
-      case "$(uname -s)" in
+      case "${os:-$(uname -s)}" in
         FreeBSD) threads=$(sysctl -n hw.ncpu)         || return;;
         *)       threads=$(getconf _NPROCESSORS_ONLN) || return;;
       esac
