@@ -105,8 +105,6 @@ function gitstatus_start() {
     req_fifo=$(mktemp -u "${TMPDIR:-/tmp}"/gitstatus.$$.pipe.req.XXXXXXXXXX)   || return
     resp_fifo=$(mktemp -u "${TMPDIR:-/tmp}"/gitstatus.$$.pipe.resp.XXXXXXXXXX) || return
     mkfifo "$req_fifo" "$resp_fifo"                                            || return
-    exec {_GITSTATUS_REQ_FD}<>"$req_fifo" {_GITSTATUS_RESP_FD}<>"$resp_fifo"   || return
-    command rm "$req_fifo" "$resp_fifo"                                        || return
 
     local d="${GITSTATUS_DAEMON:-}"
     local daemon_args=(
@@ -130,7 +128,7 @@ function gitstatus_start() {
     [[ "${daemon_args[*]}" =~ ^[a-zA-Z0-9=-]*$ ]] || return
     IFS=' '
 
-    { <&$_GITSTATUS_REQ_FD >&$_GITSTATUS_RESP_FD 2>"$GITSTATUS_DAEMON_LOG" \
+    { <$req_fifo >$resp_fifo 2>"$GITSTATUS_DAEMON_LOG" \
         _gitstatus_daemon="$daemon" bash -cx "
           trap 'kill %1 &>/dev/null' SIGINT SIGTERM EXIT
           \"\$_gitstatus_daemon\" ${daemon_args[*]} 0<&0 1>&1 2>&2 &
@@ -142,6 +140,9 @@ function gitstatus_start() {
           echo -nE $'bye\x1f0\x1e'" & } 2>/dev/null
     disown
     GITSTATUS_DAEMON_PID=$!
+
+    exec {_GITSTATUS_REQ_FD}>"$req_fifo" {_GITSTATUS_RESP_FD}<"$resp_fifo" || return
+    command rm "$req_fifo" "$resp_fifo"                                    || return
 
     local reply
     echo -nE $'hello\x1f\x1e' >&$_GITSTATUS_REQ_FD                     || return
