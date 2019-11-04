@@ -97,7 +97,7 @@ function build_gitstatus() {
       cxxflags+=" -I$DIR/libiconv/include"
       ldflags+=" -L$DIR/libiconv -liconv"
       ;;
-    CYGWIN*)
+    CYGWIN*|MSYS*)
       cxxflags+=" -D_GNU_SOURCE"
       ldflags+=" -static"
       ;;
