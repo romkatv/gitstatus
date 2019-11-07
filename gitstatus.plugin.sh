@@ -150,6 +150,7 @@ function gitstatus_start() {
     [[ "$reply" == $'hello\x1f0' ]]                                    || return
 
     _GITSTATUS_DIRTY_MAX_INDEX_SIZE=$max_dirty
+    _GITSTATUS_CLIENT_PID="$BASHPID"
   }
 
   if ! gitstatus_start_impl; then
@@ -195,6 +196,7 @@ function gitstatus_start() {
 
 # Stops gitstatusd if it's running.
 function gitstatus_stop() {
+  [[ "${_GITSTATUS_CLIENT_PID:-$BASHPID}" == "$BASHPID" ]]                         || return 0
   [[ -z "${_GITSTATUS_REQ_FD:-}"    ]] || exec {_GITSTATUS_REQ_FD}>&-              || true
   [[ -z "${_GITSTATUS_RESP_FD:-}"   ]] || exec {_GITSTATUS_RESP_FD}>&-             || true
   [[ -z "${GITSTATUS_DAEMON_PID:-}" ]] || kill "$GITSTATUS_DAEMON_PID" &>/dev/null || true
@@ -204,7 +206,7 @@ function gitstatus_stop() {
     function _gitstatus_builtin_wrapper() { _gitstatus_builtin "$@"; }
   fi
   unset _GITSTATUS_REQ_FD _GITSTATUS_RESP_FD GITSTATUS_DAEMON_PID _GITSTATUS_EXEC_HOOK
-  unset _GITSTATUS_DIRTY_MAX_INDEX_SIZE
+  unset _GITSTATUS_DIRTY_MAX_INDEX_SIZE _GITSTATUS_CLIENT_PID
 }
 
 # Retrives status of a git repository from a directory under its working tree.
