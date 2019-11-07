@@ -128,16 +128,16 @@ function gitstatus_start() {
     [[ "${daemon_args[*]}" =~ ^[a-zA-Z0-9=-]*$ ]] || return
     IFS=' '
 
-    { <$req_fifo >$resp_fifo 2>"$GITSTATUS_DAEMON_LOG" \
+    { <$req_fifo >"$GITSTATUS_DAEMON_LOG" 2>&1 3>$resp_fifo \
         _gitstatus_daemon="$daemon" bash -cx "
           trap 'kill %1 &>/dev/null' SIGINT SIGTERM EXIT
-          \"\$_gitstatus_daemon\" ${daemon_args[*]} 0<&0 1>&1 2>&2 &
+          \"\$_gitstatus_daemon\" ${daemon_args[*]} 0<&0 1>&3 2>&2 &
           wait %1
           if [[ \$? != 0 && \$? != 10 && \$? -le 128 && -f \"\$_gitstatus_daemon\"-static ]]; then
-            \"\$_gitstatus_daemon\"-static ${daemon_args[*]} 0<&0 1>&1 2>&2 &
+            \"\$_gitstatus_daemon\"-static ${daemon_args[*]} 0<&0 1>&3 2>&2 &
             wait %1
           fi
-          echo -nE $'bye\x1f0\x1e'" & } 2>/dev/null
+          echo -nE $'bye\x1f0\x1e' >&3" & } 2>/dev/null
     disown
     GITSTATUS_DAEMON_PID=$!
 
