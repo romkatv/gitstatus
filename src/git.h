@@ -35,9 +35,6 @@ const char* RepoState(git_repository* repo);
 // Returns the number of commits in the range.
 size_t CountRange(git_repository* repo, const std::string& range);
 
-// Finds and opens a repo from the specified directory. Returns null if not found.
-git_repository* OpenRepo(const std::string& dir);
-
 // How many stashes are there?
 size_t NumStashes(git_repository* repo);
 

@@ -213,7 +213,7 @@ function gitstatus_stop() {
 #
 # Usage: gitstatus_query [OPTION]...
 #
-#   -d STR    Directory to query. Defaults to ${GIT_DIR:-$PWD}.
+#   -d STR    Directory to query. Defaults to $PWD. Has no effect if GIT_DIR is set.
 #   -t FLOAT  Timeout in seconds. Will block for at most this long. If no results
 #             are available by then, will return error.
 #   -p        Don't compute anything that requires reading Git index. If this option is used,
@@ -263,7 +263,7 @@ function gitstatus_stop() {
 # shell or the call had failed.
 function gitstatus_query() {
   unset OPTIND
-  local opt dir="${GIT_DIR:-}" timeout=() no_diff=0
+  local opt dir timeout=() no_diff=0
   while getopts "d:c:t:p" opt "$@"; do
     case "$opt" in
       d) dir=$OPTARG;;
@@ -277,7 +277,13 @@ function gitstatus_query() {
   [[ -n "$GITSTATUS_DAEMON_PID" ]] || return  # not started
 
   local req_id="$RANDOM.$RANDOM.$RANDOM.$RANDOM"
-  [[ "$dir" == /* ]] || dir="$(pwd -P)/$dir" || return
+  if [[ -z "${GIT_DIR:-}" ]]; then
+    [[ "$dir" == /* ]] || dir="$(pwd -P)/$dir" || return
+  elif [[ "$GIT_DIR" == /* ]]; then
+    dir=:"$GIT_DIR"
+  else
+    dir=:"$(pwd -P)/$GIT_DIR" || return
+  fi
   echo -nE "$req_id"$'\x1f'"$dir"$'\x1f'"$no_diff"$'\x1e' >&$_GITSTATUS_REQ_FD || return
 
   local -a resp

@@ -85,19 +85,6 @@ size_t CountRange(git_repository* repo, const std::string& range) {
   }
 }
 
-git_repository* OpenRepo(const std::string& dir) {
-  git_repository* repo = nullptr;
-  switch (git_repository_open_ext(&repo, dir.c_str(), 0, nullptr)) {
-    case 0:
-      return repo;
-    case GIT_ENOTFOUND:
-      return nullptr;
-    default:
-      LOG(ERROR) << "git_repository_open_ext: " << Print(dir) << ": " << GitError();
-      throw Exception();
-  }
-}
-
 size_t NumStashes(git_repository* repo) {
   size_t res = 0;
   auto* cb = +[](size_t index, const char* message, const git_oid* stash_id, void* payload) {
