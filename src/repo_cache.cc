@@ -26,38 +26,90 @@
 
 namespace gitstatus {
 
-Repo* RepoCache::Open(const std::string& dir) {
-  git_buf git_dir = {};
-  if (!git_repository_discover(&git_dir, dir.c_str(), 0, nullptr)) {
-    ON_SCOPE_EXIT(&) { git_buf_free(&git_dir); };
-    if (StringView(git_dir.ptr, git_dir.size).EndsWith("/.git/")) {
-      std::string work_dir(git_dir.ptr, git_dir.size - std::strlen(".git/"));
-      auto it = cache_.find(work_dir);
-      if (it != cache_.end()) {
-        lru_.erase(it->second->lru);
-        it->second->lru = lru_.insert({Clock::now(), it});
-        return it->second.get();
-      }
+namespace {
+
+std::string DotGitDir(const std::string& dir, bool from_dotgit) {
+  git_buf gitdir = {};
+  int flags = from_dotgit ? GIT_REPOSITORY_OPEN_NO_SEARCH | GIT_REPOSITORY_OPEN_NO_DOTGIT : 0;
+  switch (git_repository_discover_ex(&gitdir, dir.c_str(), flags, nullptr)) {
+    case 0: {
+      LOG(INFO) << "git_repository_discover(" << dir << ", " << flags << ")";
+      std::string res(gitdir.ptr, gitdir.size);
+      git_buf_free(&gitdir);
+      return res;
     }
+    case GIT_ENOTFOUND:
+      return "";
+    default:
+      LOG(ERROR) << "git_repository_open_ext: " << Print(dir) << ": " << GitError();
+      throw Exception();
   }
-  git_repository* repo = OpenRepo(dir);
-  if (!repo) {
-    Erase(cache_.find(dir + '/'));
-    Erase(cache_.find(dir));
+}
+
+git_repository* OpenRepo(const std::string& dotgit) {
+  git_repository* repo = nullptr;
+  int flags = GIT_REPOSITORY_OPEN_NO_SEARCH | GIT_REPOSITORY_OPEN_NO_DOTGIT;
+  switch (git_repository_open_ext(&repo, dotgit.c_str(), flags, nullptr)) {
+    case 0:
+      return repo;
+    case GIT_ENOTFOUND:
+      return nullptr;
+    default:
+      LOG(ERROR) << "git_repository_open_ext: " << Print(dotgit) << ": " << GitError();
+      throw Exception();
+  }
+}
+
+std::string DirName(std::string path) {
+  if (path.empty()) return "";
+  while (path.back() == '/') {
+    path.pop_back();
+    if (path.empty()) return "";
+  }
+  do {
+    path.pop_back();
+    if (path.empty()) return "";
+  } while (path.back() != '/');
+  return path;
+}
+
+}  // namespace
+
+Repo* RepoCache::Open(const std::string& dir, bool from_dotgit) {
+  if (dir.empty() || dir.front() != '/') return nullptr;
+
+  std::string gitdir = DotGitDir(dir, from_dotgit);
+  std::string workdir = DirName(gitdir);
+  if (gitdir.empty() || workdir.empty()) {
+    Erase(cache_.find(dir.back() == '/' ? dir : dir + '/'));
     return nullptr;
   }
+
+  VERIFY(gitdir.front() == '/' && gitdir.back() == '/') << Print(gitdir);
+  VERIFY(workdir.front() == '/' && workdir.back() == '/') << Print(workdir);
+  auto it = cache_.find(workdir);
+  if (it != cache_.end()) {
+    lru_.erase(it->second->lru);
+    it->second->lru = lru_.insert({Clock::now(), it});
+    return it->second.get();
+  }
+
+  git_repository* repo = OpenRepo(gitdir);
+  if (!repo) return nullptr;
   ON_SCOPE_EXIT(&) {
     if (repo) git_repository_free(repo);
   };
   if (git_repository_is_bare(repo)) return nullptr;
-  const char* work_dir = git_repository_workdir(repo);
-  if (!work_dir) return nullptr;
-  auto x = cache_.emplace(work_dir, nullptr);
+  workdir = git_repository_workdir(repo) ?: "";
+  if (workdir.empty()) return nullptr;
+  VERIFY(workdir.front() == '/' && workdir.back() == '/') << Print(workdir);
+
+  auto x = cache_.emplace(workdir, nullptr);
   std::unique_ptr<Entry>& elem = x.first->second;
   if (elem) {
     lru_.erase(elem->lru);
   } else {
-    LOG(INFO) << "Initializing new repository: " << Print(work_dir);
+    LOG(INFO) << "Initializing new repository: " << Print(workdir);
 
     // Libgit2 initializes odb and refdb lazily with double-locking. To avoid useless work
     // when multiple threads attempt to initialize the same db at the same time, we trigger

@@ -44,7 +44,9 @@ Request ParseRequest(const std::string& s) {
 
   begin = sep + 1;
   sep = std::find(begin, end, kFieldSep);
-  res.dir.assign(begin, sep);
+  auto colon = std::find(begin, sep, ':');
+  res.dir.assign(begin, colon);
+  res.gitdir.assign(colon + (colon != sep), sep);
   if (sep == end) return res;
 
   begin = sep + 1;
@@ -65,7 +67,7 @@ bool IsLockedFd(int fd) {
 }  // namespace
 
 std::ostream& operator<<(std::ostream& strm, const Request& req) {
-  strm << Print(req.id) << " for " << Print(req.dir);
+  strm << Print(req.id) << " for " << Print(req.dir) << ':' << Print(req.gitdir);
   if (!req.diff) strm << " [no-diff]";
   return strm;
 }

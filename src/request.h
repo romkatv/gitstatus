@@ -27,6 +27,7 @@ namespace gitstatus {
 struct Request {
   std::string id;
   std::string dir;
+  std::string gitdir;
   bool diff = true;
 };
 

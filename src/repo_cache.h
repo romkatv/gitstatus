@@ -35,7 +35,7 @@ namespace gitstatus {
 class RepoCache {
  public:
   explicit RepoCache(Limits lim) : lim_(std::move(lim)) {}
-  Repo* Open(const std::string& dir);
+  Repo* Open(const std::string& dir, bool from_dotgit);
   void Free(Time cutoff);
 
  private:
