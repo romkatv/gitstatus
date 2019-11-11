@@ -92,7 +92,6 @@ bool IsModified(const git_index_entry* entry, const struct stat& st, const RepoC
 
   COND(ino, !entry->ino || entry->ino == static_cast<std::uint32_t>(st.st_ino))
       << entry->ino << " => " << static_cast<std::uint32_t>(st.st_ino);
-  COND(gid, !entry->gid || entry->gid == st.st_gid) << entry->gid << " => " << st.st_gid;
 
   COND(stage, GIT_INDEX_ENTRY_STAGE(entry) == 0) << "=> " << GIT_INDEX_ENTRY_STAGE(entry);
   COND(fsize, int64_t{entry->file_size} == st.st_size) << entry->file_size << " => " << st.st_size;
