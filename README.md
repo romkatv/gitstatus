@@ -434,7 +434,7 @@ _WARNING: Changes to libgit2 are extensive but the testing they underwent isn't.
 ## Requirements
 
 * To compile: C++14 compiler, GNU make, cmake.
-* To run: Linux, macOS, FreeBSD, WSL or Cygwin.
+* To run: Linux, macOS, FreeBSD, Android, WSL, Cygwin, MinGW or MSYS.
 
 ## Compiling
 
@@ -456,7 +456,7 @@ remove `${TMPDIR:-/tmp}/gitstatus` and retry.
 To build from locally modified sources, read
 [build.zsh](https://github.com/romkatv/gitstatus/tree/master/build.zsh) and improvise. This is a
 release script from which you'll have to devise a local build script. Expect painful experience if
-you aren't familiar with ZSH, C++, GCC, CMake or GNU make.
+you aren't familiar with ZSH, C++, CMake or GNU make.
 
 ## License
 
