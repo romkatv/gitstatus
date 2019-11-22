@@ -31,7 +31,7 @@ For those who wish to use gitstatus without a theme, there is
 Install it as follows:
 
 ```zsh
-git clone https://github.com/romkatv/gitstatus.git ~/gitstatus
+git clone --depth=1 https://github.com/romkatv/gitstatus.git ~/gitstatus
 echo 'source ~/gitstatus/gitstatus.prompt.zsh' >>! ~/.zshrc
 ```
 
@@ -117,7 +117,7 @@ The easiest way to take advantage of gitstatus from Bash is via
 Install it as follows:
 
 ```bash
-git clone https://github.com/romkatv/gitstatus.git ~/gitstatus
+git clone --depth=1 https://github.com/romkatv/gitstatus.git ~/gitstatus
 echo 'source ~/gitstatus/gitstatus.prompt.sh' >> ~/.bashrc
 ```
 
