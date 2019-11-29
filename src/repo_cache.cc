@@ -33,7 +33,6 @@ std::string DotGitDir(const std::string& dir, bool from_dotgit) {
   int flags = from_dotgit ? GIT_REPOSITORY_OPEN_NO_SEARCH | GIT_REPOSITORY_OPEN_NO_DOTGIT : 0;
   switch (git_repository_discover_ex(&gitdir, dir.c_str(), flags, nullptr)) {
     case 0: {
-      LOG(INFO) << "git_repository_discover(" << dir << ", " << flags << ")";
       std::string res(gitdir.ptr, gitdir.size);
       git_buf_free(&gitdir);
       return res;
