@@ -78,15 +78,28 @@ Repo* RepoCache::Open(const std::string& dir, bool from_dotgit) {
   if (dir.empty() || dir.front() != '/') return nullptr;
 
   std::string gitdir = DotGitDir(dir, from_dotgit);
+  if (gitdir.empty()) {
+    if (from_dotgit) {
+      Erase(cache_.find(dir.back() == '/' ? dir : dir + '/'));
+    } else {
+      std::string path = dir;
+      if (path.back() != '/') path += '/';
+      do {
+        Erase(cache_.find(path + ".git/"));
+        path = DirName(path);
+      } while (!path.empty());
+    }
+    return nullptr;
+  }
   std::string workdir = DirName(gitdir);
-  if (gitdir.empty() || workdir.empty()) {
-    Erase(cache_.find(dir.back() == '/' ? dir : dir + '/'));
+  if (workdir.empty()) {
+    Erase(cache_.find(gitdir));
     return nullptr;
   }
 
   VERIFY(gitdir.front() == '/' && gitdir.back() == '/') << Print(gitdir);
   VERIFY(workdir.front() == '/' && workdir.back() == '/') << Print(workdir);
-  auto it = cache_.find(workdir);
+  auto it = cache_.find(gitdir);
   if (it != cache_.end()) {
     lru_.erase(it->second->lru);
     it->second->lru = lru_.insert({Clock::now(), it});
@@ -103,12 +116,12 @@ Repo* RepoCache::Open(const std::string& dir, bool from_dotgit) {
   if (workdir.empty()) return nullptr;
   VERIFY(workdir.front() == '/' && workdir.back() == '/') << Print(workdir);
 
-  auto x = cache_.emplace(workdir, nullptr);
+  auto x = cache_.emplace(gitdir, nullptr);
   std::unique_ptr<Entry>& elem = x.first->second;
   if (elem) {
     lru_.erase(elem->lru);
   } else {
-    LOG(INFO) << "Initializing new repository: " << Print(workdir);
+    LOG(INFO) << "Initializing new repository: " << Print(gitdir);
 
     // Libgit2 initializes odb and refdb lazily with double-locking. To avoid useless work
     // when multiple threads attempt to initialize the same db at the same time, we trigger
@@ -138,7 +151,7 @@ void RepoCache::Free(Time cutoff) {
 
 void RepoCache::Erase(Cache::iterator it) {
   if (it == cache_.end()) return;
-  LOG(INFO) << "Closing repository: " << Print(git_repository_workdir(it->second->repo()));
+  LOG(INFO) << "Closing repository: " << Print(it->first);
   lru_.erase(it->second->lru);
   cache_.erase(it);
 }
