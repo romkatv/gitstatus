@@ -76,7 +76,7 @@ bool IsModified(const git_index_entry* entry, const struct stat& st, const RepoC
     } else if (!caps.trust_filemode) {
       mode = entry->mode;
     } else {
-      mode = S_IFREG | (mode & 0111 ? 0755 : 0644);
+      mode = S_IFREG | (mode & 0100 ? 0755 : 0644);
     }
   } else {
     mode &= S_IFMT;
