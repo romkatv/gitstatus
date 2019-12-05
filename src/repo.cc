@@ -174,6 +174,8 @@ IndexStats Repo::GetIndexStats(const git_oid* head, git_config* cfg) {
     head_ = {};
     Store(staged_, {});
     Store(conflicted_, {});
+    Store(staged_new_, {});
+    Store(staged_deleted_, {});
   } else if (head) {
     if (git_oid_equal(head, &head_)) {
       LOG(INFO) << "Index and HEAD unchanged; staged = " << Load(staged_)
@@ -182,6 +184,8 @@ IndexStats Repo::GetIndexStats(const git_oid* head, git_config* cfg) {
       head_ = *head;
       Store(staged_, {});
       Store(conflicted_, {});
+      Store(staged_new_, {});
+      Store(staged_deleted_, {});
       StartStagedScan(head);
     }
   } else {
@@ -193,6 +197,9 @@ IndexStats Repo::GetIndexStats(const git_oid* head, git_config* cfg) {
       }
     }
     Store(staged_, staged);
+    Store(conflicted_, {});
+    Store(staged_new_, staged);
+    Store(staged_deleted_, {});
   }
 
   if (index_size <= lim_.dirty_max_index_size &&
@@ -212,12 +219,15 @@ IndexStats Repo::GetIndexStats(const git_oid* head, git_config* cfg) {
   Wait();
   VERIFY(!Load(error_));
 
+  size_t num_staged = std::min(Load(staged_), lim_.max_num_staged);
   size_t num_unstaged = std::min(Load(unstaged_), lim_.max_num_unstaged);
   return {.index_size = index_size,
-          .num_staged = std::min(Load(staged_), lim_.max_num_staged),
+          .num_staged = num_staged,
           .num_unstaged = num_unstaged,
           .num_conflicted = std::min(Load(conflicted_), lim_.max_num_conflicted),
           .num_untracked = std::min(Load(untracked_), lim_.max_num_untracked),
+          .num_staged_new = std::min(Load(staged_new_), num_staged),
+          .num_staged_deleted = std::min(Load(staged_deleted_), num_staged),
           .num_unstaged_deleted = std::min(Load(unstaged_deleted_), num_unstaged)};
 }
 
@@ -320,6 +330,8 @@ void Repo::StartStagedScan(const git_oid* head) {
       return repo->OnDelta("conflicted", *delta, repo->conflicted_, repo->lim_.max_num_conflicted,
                            repo->staged_, repo->lim_.max_num_staged);
     } else {
+      if (delta->status == GIT_DELTA_ADDED) Inc(repo->staged_new_);
+      if (delta->status == GIT_DELTA_DELETED) Inc(repo->staged_deleted_);
       return repo->OnDelta("staged", *delta, repo->staged_, repo->lim_.max_num_staged,
                            repo->conflicted_, repo->lim_.max_num_conflicted);
     }
