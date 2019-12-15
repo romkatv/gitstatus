@@ -26,7 +26,7 @@ local OS && OS=$(uname -s)
 
 local CPUS
 case $OS in
-  FreeBSD) CPUS=$(sysctl -n hw.ncpu);;
+  *BSD) CPUS=$(sysctl -n hw.ncpu);;
   *) CPUS=$(getconf _NPROCESSORS_ONLN);;
 esac
 
@@ -89,7 +89,7 @@ function build_gitstatus() {
     Linux)
       ldflags+=" -static-libstdc++ -static-libgcc"
       ;;
-    FreeBSD)
+    *BSD)
       ldflags+=" -static"
       make=gmake
       ;;
