@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 #
 # How to build:
 #
@@ -89,7 +89,12 @@ function build_gitstatus() {
     Linux)
       ldflags+=" -static-libstdc++ -static-libgcc"
       ;;
-    *BSD)
+    FreeBSD)
+      ldflags+=" -static"
+      make=gmake
+      ;;
+    OpenBSD)
+      cxx=${CXX:-'eg++'}
       ldflags+=" -static"
       make=gmake
       ;;
