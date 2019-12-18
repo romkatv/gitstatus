@@ -1,3 +1,5 @@
+.RECIPEPREFIX = >
+
 APPNAME ?= gitstatusd
 
 CXX ?= g++
@@ -12,16 +14,16 @@ OBJS := $(patsubst src/%.cc, obj/%.o, $(SRCS))
 all: $(APPNAME)
 
 $(APPNAME): $(OBJS)
-	$(CXX) $(OBJS) $(LDFLAGS) $(LDLIBS) -o $(APPNAME)
+> $(CXX) $(OBJS) $(LDFLAGS) $(LDLIBS) -o $(APPNAME)
 
 obj:
-	mkdir -p obj
+> mkdir -p obj
 
 obj/%.o: src/%.cc Makefile | obj
-	$(CXX) $(CXXFLAGS) -MM -MT $@ src/$*.cc >obj/$*.dep
-	$(CXX) $(CXXFLAGS) -Wall -c -o $@ src/$*.cc
+> $(CXX) $(CXXFLAGS) -MM -MT $@ src/$*.cc >obj/$*.dep
+> $(CXX) $(CXXFLAGS) -Wall -c -o $@ src/$*.cc
 
 clean:
-	rm -rf obj
+> rm -rf obj
 
 -include $(OBJS:.o=.dep)
