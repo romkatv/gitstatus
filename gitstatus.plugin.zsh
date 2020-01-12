@@ -371,7 +371,8 @@ function gitstatus_start() {
     }
 
     (( daemon_pid == -1 )) || {
-      local daemon=${GITSTATUS_DAEMON:-} os
+      local os
+      local daemon=${GITSTATUS_DAEMON:-}
       [[ -n $daemon ]] || {
         os="$(uname -s)" && [[ -n $os ]]
         [[ $os != Linux || "$(uname -o)" != Android ]] || os=Android
