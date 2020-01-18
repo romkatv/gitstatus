@@ -85,6 +85,7 @@ function build_gitstatus() {
   case $OS in
     Android)
       cxx=${CXX:-'clang++'}
+      ldflags=" -latomic"
       ;;
     Linux)
       ldflags+=" -static-libstdc++ -static-libgcc"
