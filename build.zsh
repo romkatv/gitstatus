@@ -76,6 +76,7 @@ function build_gitstatus() {
   cd $DIR
   [[ -n gitstatus(#qFN) ]] || git clone --depth 1 $GITSTATUS_REPO_URL
   cd gitstatus
+  local arch && arch=$(uname -m)
   local cxx=${CXX:-'g++'}
   local cxxflags=${CXXFLAGS:-''}
   local ldflags=${LDFLAGS:-''}
@@ -85,7 +86,7 @@ function build_gitstatus() {
   case $OS in
     Android)
       cxx=${CXX:-'clang++'}
-      ldflags=" -latomic"
+      [[ $arch != 'armv7l' ]] || ldflags+=" -latomic"
       ;;
     Linux)
       ldflags+=" -static-libstdc++ -static-libgcc"
@@ -110,7 +111,6 @@ function build_gitstatus() {
   esac
   CXX=$cxx CXXFLAGS=$cxxflags LDFLAGS=$ldflags $make -j $CPUS
   strip gitstatusd
-  local arch && arch=$(uname -m)
   local target=$PWD/bin/gitstatusd-${OS:l}-${arch:l}
   cp -f gitstatusd $target
   echo "built: $target" >&2
