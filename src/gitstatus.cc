@@ -119,11 +119,9 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
 
   if (remote && remote->ref) {
     const char* ref = git_reference_shorthand(remote->ref);
-    // Number of commits we are ahead of upstream. Non-negative integer. If positive, it means
-    // running `git push` will push this many commits.
+    // Number of commits we are ahead of upstream. Non-negative integer.
     resp.Print(CountRange(repo->repo(), ref + "..HEAD"s));
-    // Number of commits we are behind upstream. Non-negative integer. If positive, it means
-    // running `git merge FETCH_HEAD` will merge this many commits.
+    // Number of commits we are behind upstream. Non-negative integer.
     resp.Print(CountRange(repo->repo(), "HEAD.."s + ref));
   } else {
     resp.Print("0");
@@ -143,6 +141,26 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   resp.Print(stats.num_staged_new);
   // The number of staged deleted files. At most stats.num_staged.
   resp.Print(stats.num_staged_deleted);
+
+  // Push remote or null.
+  PushRemotePtr push_remote = GetPushRemote(repo->repo(), head);
+
+  // Push remote name (e.g., "origin") or empty string if there is no push remote.
+  resp.Print(push_remote ? push_remote->name : "");
+
+  // Push remote URL or empty string if there is no push remote.
+  resp.Print(push_remote ? push_remote->url : "");
+
+  if (push_remote && push_remote->ref) {
+    const char* ref = git_reference_shorthand(push_remote->ref);
+    // Number of commits we are ahead of push remote. Non-negative integer.
+    resp.Print(CountRange(repo->repo(), ref + "..HEAD"s));
+    // Number of commits we are behind upstream. Non-negative integer.
+    resp.Print(CountRange(repo->repo(), "HEAD.."s + ref));
+  } else {
+    resp.Print("0");
+    resp.Print("0");
+  }
 
   resp.Dump("with git status");
 }

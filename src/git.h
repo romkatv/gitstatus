@@ -61,6 +61,8 @@ struct Remote {
   // URL of the tracking remote. For example, "https://foo.com/repo.git".
   std::string url;
 
+  // Note: pushurl is not exposed (but could be).
+
   struct Free {
     void operator()(const Remote* p) const {
       if (p) {
@@ -71,9 +73,33 @@ struct Remote {
   };
 };
 
+struct PushRemote {
+  // Tip of the remote branch.
+  git_reference* ref;
+
+  // Name of the tracking remote. For example, "origin".
+  std::string name;
+
+  // URL of the tracking remote. For example, "https://foo.com/repo.git".
+  std::string url;
+
+  // Note: pushurl is not exposed (but could be).
+
+  struct Free {
+    void operator()(const PushRemote* p) const {
+      if (p) {
+        if (p->ref) git_reference_free(p->ref);
+        delete p;
+      }
+    }
+  };
+};
+
 using RemotePtr = std::unique_ptr<Remote, Remote::Free>;
+using PushRemotePtr = std::unique_ptr<PushRemote, PushRemote::Free>;
 
 RemotePtr GetRemote(git_repository* repo, const git_reference* local);
+PushRemotePtr GetPushRemote(git_repository* repo, const git_reference* local);
 
 }  // namespace gitstatus
 

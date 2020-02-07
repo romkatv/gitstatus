@@ -259,6 +259,12 @@ function gitstatus_stop() {
 #   VCS_STATUS_STASHES              Number of stashes. Non-negative integer.
 #   VCS_STATUS_TAG                  The last tag (in lexicographical order) that points to the same
 #                                   commit as HEAD.
+#   VCS_STATUS_PUSH_REMOTE_NAME     The push remote name, e.g. "upstream" or "origin".
+#   VCS_STATUS_PUSH_REMOTE_URL      Push remote URL. Can be empty.
+#   VCS_STATUS_PUSH_COMMITS_AHEAD   Number of commits the current branch is ahead of push remote.
+#                                   Non-negative integer.
+#   VCS_STATUS_PUSH_COMMITS_BEHIND  Number of commits the current branch is behind push remote.
+#                                   Non-negative integer.
 #
 # The point of reporting -1 via VCS_STATUS_HAS_* is to allow the command to skip scanning files in
 # large repos. See -m flag of gitstatus_start.
@@ -317,6 +323,10 @@ function gitstatus_query() {
     VCS_STATUS_NUM_UNSTAGED_DELETED="${resp[18]}"
     VCS_STATUS_NUM_STAGED_NEW="${resp[19]:-0}"
     VCS_STATUS_NUM_STAGED_DELETED="${resp[20]:-0}"
+    VCS_STATUS_PUSH_REMOTE_NAME="${resp[21]:-}"
+    VCS_STATUS_PUSH_REMOTE_URL="${resp[22]:-}"
+    VCS_STATUS_PUSH_COMMITS_AHEAD="${resp[23]:-0}"
+    VCS_STATUS_PUSH_COMMITS_BEHIND="${resp[24]:-0}"
     VCS_STATUS_HAS_STAGED=$((VCS_STATUS_NUM_STAGED > 0))
     if (( _GITSTATUS_DIRTY_MAX_INDEX_SIZE >= 0 &&
           VCS_STATUS_INDEX_SIZE > _GITSTATUS_DIRTY_MAX_INDEX_SIZE_ )); then
@@ -353,6 +363,10 @@ function gitstatus_query() {
     unset VCS_STATUS_NUM_UNSTAGED_DELETED
     unset VCS_STATUS_NUM_STAGED_NEW
     unset VCS_STATUS_NUM_STAGED_DELETED
+    unset VCS_STATUS_PUSH_REMOTE_NAME
+    unset VCS_STATUS_PUSH_REMOTE_URL
+    unset VCS_STATUS_PUSH_COMMITS_AHEAD
+    unset VCS_STATUS_PUSH_COMMITS_BEHIND
   fi
 }
 

@@ -174,4 +174,26 @@ RemotePtr GetRemote(git_repository* repo, const git_reference* local) {
   return RemotePtr(res.release());
 }
 
+PushRemotePtr GetPushRemote(git_repository* repo, const git_reference* local) {
+  git_remote* remote;
+  git_buf symref = {};
+  if (git_branch_push_remote(&remote, &symref, repo, git_reference_name(local))) return nullptr;
+  ON_SCOPE_EXIT(&) {
+    git_remote_free(remote);
+    git_buf_free(&symref);
+  };
+
+  git_reference* ref;
+  if (git_reference_lookup(&ref, repo, symref.ptr)) return nullptr;
+  ON_SCOPE_EXIT(&) { if (ref) git_reference_free(ref); };
+
+  std::string name = remote ? git_remote_name(remote) : ".";
+
+  auto res = std::make_unique<PushRemote>();
+  res->name = std::move(name);
+  res->url = remote ? (git_remote_url(remote) ?: "") : "";
+  res->ref = std::exchange(ref, nullptr);
+  return PushRemotePtr(res.release());
+}
+
 }  // namespace gitstatus
