@@ -57,6 +57,13 @@
     "cstdarg": "cpp",
     "charconv": "cpp",
     "algorithm": "cpp",
-    "cinttypes": "cpp"
+    "cinttypes": "cpp",
+    "iterator": "cpp",
+    "map": "cpp",
+    "memory_resource": "cpp",
+    "random": "cpp",
+    "string": "cpp",
+    "bit": "cpp",
+    "netfwd": "cpp"
   }
 }
