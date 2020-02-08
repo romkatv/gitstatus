@@ -43,10 +43,12 @@ Request ParseRequest(const std::string& s) {
   res.id.assign(begin, sep);
 
   begin = sep + 1;
+  if (*begin == ':') {
+    res.from_dotgit = true;
+    ++begin;
+  }
   sep = std::find(begin, end, kFieldSep);
-  auto colon = std::find(begin, sep, ':');
-  res.dir.assign(begin, colon);
-  res.gitdir.assign(colon + (colon != sep), sep);
+  res.dir.assign(begin, sep);
   if (sep == end) return res;
 
   begin = sep + 1;
@@ -67,7 +69,8 @@ bool IsLockedFd(int fd) {
 }  // namespace
 
 std::ostream& operator<<(std::ostream& strm, const Request& req) {
-  strm << Print(req.id) << " for " << Print(req.dir) << ':' << Print(req.gitdir);
+  strm << Print(req.id) << " for " << Print(req.dir);
+  if (req.from_dotgit) strm << " [from-dotgit]";
   if (!req.diff) strm << " [no-diff]";
   return strm;
 }
