@@ -61,8 +61,8 @@ void Store(std::atomic<T>& x, T v) {
 }
 
 template <class T>
-T Inc(std::atomic<T>& x) {
-  return x.fetch_add(1, std::memory_order_relaxed);
+T Inc(std::atomic<T>& x, T by = 1) {
+  return x.fetch_add(by, std::memory_order_relaxed);
 }
 
 template <class T>
@@ -95,10 +95,10 @@ const char* DeltaStr(git_delta_t t) {
 }  // namespace
 
 bool Repo::Shard::Contains(Str<> str, StringView path) const {
-  if (str.Lt(path, start)) return false;
-  if (end.empty()) return true;
-  path.len = std::min(path.len, end.size());
-  return !str.Lt(end, path);
+  if (str.Lt(path, start_s)) return false;
+  if (end_s.empty()) return true;
+  path.len = std::min(path.len, end_s.size());
+  return !str.Lt(end_s, path);
 }
 
 Repo::Repo(git_repository* repo, Limits lim) : lim_(std::move(lim)), repo_(repo), tag_db_(repo) {
@@ -176,6 +176,8 @@ IndexStats Repo::GetIndexStats(const git_oid* head, git_config* cfg) {
     Store(conflicted_, {});
     Store(staged_new_, {});
     Store(staged_deleted_, {});
+    Store(skip_worktree_, {});
+    Store(assume_unchanged_, {});
   } else if (head) {
     if (git_oid_equal(head, &head_)) {
       LOG(INFO) << "Index and HEAD unchanged; staged = " << Load(staged_)
@@ -186,20 +188,27 @@ IndexStats Repo::GetIndexStats(const git_oid* head, git_config* cfg) {
       Store(conflicted_, {});
       Store(staged_new_, {});
       Store(staged_deleted_, {});
+      Store(skip_worktree_, {});
+      Store(assume_unchanged_, {});
       StartStagedScan(head);
     }
   } else {
     head_ = {};
     size_t staged = 0;
+    size_t skip_worktree = 0;
+    size_t assume_unchanged = 0;
     for (size_t i = 0; i != index_size; ++i) {
-      if (!(git_index_get_byindex(git_index_, i)->flags_extended & GIT_INDEX_ENTRY_INTENT_TO_ADD)) {
-        ++staged;
-      }
+      const git_index_entry* entry = git_index_get_byindex_no_sort(git_index_, i);
+      if (!(entry->flags_extended & GIT_INDEX_ENTRY_INTENT_TO_ADD)) ++staged;
+      if (entry->flags_extended & GIT_INDEX_ENTRY_SKIP_WORKTREE) ++skip_worktree;
+      if (entry->flags & GIT_INDEX_ENTRY_VALID) ++assume_unchanged;
     }
     Store(staged_, staged);
     Store(conflicted_, {});
     Store(staged_new_, staged);
     Store(staged_deleted_, {});
+    Store(skip_worktree_, skip_worktree);
+    Store(assume_unchanged_, assume_unchanged);
   }
 
   if (index_size <= lim_.dirty_max_index_size &&
@@ -228,7 +237,9 @@ IndexStats Repo::GetIndexStats(const git_oid* head, git_config* cfg) {
           .num_untracked = std::min(Load(untracked_), lim_.max_num_untracked),
           .num_staged_new = std::min(Load(staged_new_), num_staged),
           .num_staged_deleted = std::min(Load(staged_deleted_), num_staged),
-          .num_unstaged_deleted = std::min(Load(unstaged_deleted_), num_unstaged)};
+          .num_unstaged_deleted = std::min(Load(unstaged_deleted_), num_unstaged),
+          .num_skip_worktree = Load(skip_worktree_),
+          .num_assume_unchanged = Load(assume_unchanged_)};
 }
 
 int Repo::OnDelta(const char* type, const git_diff_delta& d, std::atomic<size_t>& c1, size_t m1,
@@ -339,8 +350,17 @@ void Repo::StartStagedScan(const git_oid* head) {
 
   for (const Shard& shard : shards_) {
     RunAsync([this, tree, opt, shard]() mutable {
-      opt.range_start = shard.start.c_str();
-      opt.range_end = shard.end.c_str();
+      size_t skip_worktree = 0;
+      size_t assume_unchanged = 0;
+      for (size_t i = shard.start_i; i != shard.end_i; ++i) {
+        const git_index_entry* entry = git_index_get_byindex_no_sort(git_index_, i);
+        if (entry->flags_extended & GIT_INDEX_ENTRY_SKIP_WORKTREE) ++skip_worktree;
+        if (entry->flags & GIT_INDEX_ENTRY_VALID) ++assume_unchanged;
+      }
+      Inc(skip_worktree_, skip_worktree);
+      Inc(assume_unchanged_, assume_unchanged);
+      opt.range_start = shard.start_s.c_str();
+      opt.range_end = shard.end_s.c_str();
       git_diff* diff = nullptr;
       LOG(DEBUG) << "git_diff_tree_to_index from " << Print(opt.range_start) << " to "
                  << Print(opt.range_end);
@@ -368,7 +388,11 @@ void Repo::UpdateShards() {
   };
 
   if (index_size <= kEntriesPerShard || GlobalThreadPool()->num_threads() < 2) {
-    shards_ = {{""s, ""s}};
+    shards_ = {{
+      .start_s = "",
+      .end_s = "",
+      .start_i = 0,
+      .end_i = index_size}};
     return;
   }
 
@@ -376,30 +400,49 @@ void Repo::UpdateShards() {
       std::min(index_size / kEntriesPerShard + 1, 2 * GlobalThreadPool()->num_threads());
   shards_.clear();
   shards_.reserve(shards);
-  std::string last;
+  std::string last_s;
+  size_t last_i = 0;
 
   for (size_t i = 0; i != shards - 1; ++i) {
-    std::string split = git_index_get_byindex(git_index_, (i + 1) * index_size / shards)->path;
+    size_t idx = (i + 1) * index_size / shards;
+    std::string split = git_index_get_byindex_no_sort(git_index_, idx)->path;
     auto pos = split.find_last_of('/');
     if (pos == std::string::npos) continue;
     split = split.substr(0, pos + 1);
     Shard shard;
-    shard.end = split;
-    --shard.end.back();
-    if (!str.Lt(last, shard.end)) continue;
-    shard.start = std::move(last);
-    last = std::move(split);
+    shard.end_s = split;
+    --shard.end_s.back();
+    if (!str.Lt(last_s, shard.end_s)) continue;
+    shard.start_s = std::move(last_s);
+    last_s = std::move(split);
+    shard.start_i = last_i;
+    shard.end_i = idx;
+    last_i = idx;
     shards_.push_back(std::move(shard));
   }
-  shards_.push_back({std::move(last), ""});
+  shards_.push_back({
+    .start_s = std::move(last_s),
+    .end_s = "",
+    .start_i = last_i,
+    .end_i = index_size});
 
   CHECK(!shards_.empty());
   CHECK(shards_.size() <= shards);
-  CHECK(shards_.front().start.empty());
-  CHECK(shards_.back().end.empty());
+  CHECK(shards_.front().start_s.empty());
+  CHECK(shards_.front().start_i == 0);
+  CHECK(shards_.back().end_s.empty());
+  CHECK(shards_.back().end_i == index_size);
   for (size_t i = 0; i != shards_.size(); ++i) {
-    if (i) CHECK(str.Lt(shards_[i - 1].end, shards_[i].start));
-    if (i != shards_.size() - 1) CHECK(str.Lt(shards_[i].start, shards_[i].end));
+    if (i) {
+      const git_index_entry* entry = git_index_get_byindex_no_sort(git_index_, shards_[i].start_i);
+      CHECK(!std::memcmp(shards_[i].start_s.c_str(), entry->path, shards_[i].start_s.size()));
+      CHECK(str.Lt(shards_[i - 1].end_s, shards_[i].start_s));
+      CHECK(shards_[i - 1].end_i == shards_[i].start_i);
+    }
+    if (i != shards_.size() - 1) {
+      CHECK(shards_[i].start_i < shards_[i].end_i);
+      CHECK(str.Lt(shards_[i].start_s, shards_[i].end_s));
+    }
   }
 }
 
