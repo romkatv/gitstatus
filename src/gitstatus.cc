@@ -162,6 +162,11 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
     resp.Print("0");
   }
 
+  // The number of files in the index with skip-worktree bit set.
+  resp.Print(stats.num_skip_worktree);
+  // The number of files in the index with assume-unchanged bit set.
+  resp.Print(stats.num_assume_unchanged);
+
   resp.Dump("with git status");
 }
 

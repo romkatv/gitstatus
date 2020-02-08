@@ -18,6 +18,7 @@
 #ifndef ROMKATV_GITSTATUS_REPO_H_
 #define ROMKATV_GITSTATUS_REPO_H_
 
+#include <stddef.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -55,6 +56,8 @@ struct IndexStats {
   size_t num_staged_new = 0;
   size_t num_staged_deleted = 0;
   size_t num_unstaged_deleted = 0;
+  size_t num_skip_worktree = 0;
+  size_t num_assume_unchanged = 0;
 };
 
 class Repo {
@@ -75,8 +78,10 @@ class Repo {
  private:
   struct Shard {
     bool Contains(Str<> str, StringView path) const;
-    std::string start;
-    std::string end;
+    std::string start_s;
+    std::string end_s;
+    size_t start_i;
+    size_t end_i;
   };
 
   void UpdateShards();
@@ -111,6 +116,8 @@ class Repo {
   std::atomic<size_t> staged_new_{0};
   std::atomic<size_t> staged_deleted_{0};
   std::atomic<size_t> unstaged_deleted_{0};
+  std::atomic<size_t> skip_worktree_{0};
+  std::atomic<size_t> assume_unchanged_{0};
   std::atomic<Tribool> untracked_cache_{Tribool::kUnknown};
 };
 

@@ -347,7 +347,7 @@ size_t Index::InitDirs(git_index* index) {
   };
 
   for (size_t i = 0; i != index_size; ++i) {
-    const git_index_entry* entry = git_index_get_byindex(index, i);
+    const git_index_entry* entry = git_index_get_byindex_no_sort(index, i);
     IndexDir* prev = stack.top();
     size_t common_len, common_depth;
     CommonDir(str, prev->path.ptr, entry->path, &common_len, &common_depth);

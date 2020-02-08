@@ -265,6 +265,10 @@ function gitstatus_stop() {
 #                                   Non-negative integer.
 #   VCS_STATUS_PUSH_COMMITS_BEHIND  Number of commits the current branch is behind push remote.
 #                                   Non-negative integer.
+#   VCS_STATUS_NUM_SKIP_WORKTREE    The number of files in the index with skip-worktree bit set.
+#                                   Non-negative integer.
+#   VCS_STATUS_NUM_ASSUME_UNCHANGED The number of files in the index with assume-unchanged bit set.
+#                                   Non-negative integer.
 #
 # The point of reporting -1 via VCS_STATUS_HAS_* is to allow the command to skip scanning files in
 # large repos. See -m flag of gitstatus_start.
@@ -327,6 +331,8 @@ function gitstatus_query() {
     VCS_STATUS_PUSH_REMOTE_URL="${resp[22]:-}"
     VCS_STATUS_PUSH_COMMITS_AHEAD="${resp[23]:-0}"
     VCS_STATUS_PUSH_COMMITS_BEHIND="${resp[24]:-0}"
+    VCS_STATUS_NUM_SKIP_WORKTREE="${resp[25]:-0}"
+    VCS_STATUS_NUM_ASSUME_UNCHANGED="${resp[26]:-0}"
     VCS_STATUS_HAS_STAGED=$((VCS_STATUS_NUM_STAGED > 0))
     if (( _GITSTATUS_DIRTY_MAX_INDEX_SIZE >= 0 &&
           VCS_STATUS_INDEX_SIZE > _GITSTATUS_DIRTY_MAX_INDEX_SIZE_ )); then
@@ -367,6 +373,8 @@ function gitstatus_query() {
     unset VCS_STATUS_PUSH_REMOTE_URL
     unset VCS_STATUS_PUSH_COMMITS_AHEAD
     unset VCS_STATUS_PUSH_COMMITS_BEHIND
+    unset VCS_STATUS_NUM_SKIP_WORKTREE
+    unset VCS_STATUS_NUM_ASSUME_UNCHANGED
   fi
 }
 
