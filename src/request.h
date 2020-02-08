@@ -27,7 +27,7 @@ namespace gitstatus {
 struct Request {
   std::string id;
   std::string dir;
-  std::string gitdir;
+  bool from_dotgit = false;
   bool diff = true;
 };
 
@@ -44,6 +44,7 @@ class RequestReader {
   int parent_pid_;
   std::deque<char> read_;
 };
+
 }  // namespace gitstatus
 
 #endif  // ROMKATV_GITSTATUS_REQUEST_H_

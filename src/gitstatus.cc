@@ -46,7 +46,7 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   ON_SCOPE_EXIT(&) { timer.Report("request"); };
 
   ResponseWriter resp(req.id);
-  Repo* repo = req.gitdir.empty() ? cache.Open(req.dir, false) : cache.Open(req.gitdir, true);
+  Repo* repo = cache.Open(req.dir, req.from_dotgit);
   if (!repo) return;
 
   git_config* cfg;
