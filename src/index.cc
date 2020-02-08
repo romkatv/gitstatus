@@ -183,10 +183,7 @@ std::vector<const char*> ScanDirs(git_index* index, int root_fd, IndexDir* const
       } else if (str.Eq(basename, StringView(".git/"))) {
         return;
       }
-      char* path = dir.arena.Allocate<char>(dir.path.len + basename.len + 1);
-      std::memcpy(path, dir.path.ptr, dir.path.len);
-      std::memcpy(path + dir.path.len, basename.ptr, basename.len);
-      path[dir.path.len + basename.len] = 0;
+      char* path = dir.arena.StrCat(dir.path, basename);
       dir.unmatched.push_back(path);
       AddCandidate(basename.len ? "new" : "unreadable", path);
     };

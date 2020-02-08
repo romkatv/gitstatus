@@ -30,7 +30,7 @@ namespace gitstatus {
 const char* GitError();
 
 // Not null.
-const char* RepoState(git_repository* repo);
+std::string RepoState(git_repository* repo);
 
 // Returns the number of commits in the range.
 size_t CountRange(git_repository* repo, const std::string& range);

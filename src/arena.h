@@ -123,6 +123,26 @@ class Arena {
     return res;
   }
 
+  // Guarantees: !StrDup(s)[s.len].
+  inline char* StrDup(StringView s) {
+    return StrDup(s.ptr, s.len);
+  }
+
+  template <class... Ts>
+  inline char* StrCat(const Ts&... ts) {
+    return [&](std::initializer_list<StringView> ss) {
+      size_t len = 0;
+      for (StringView s : ss) len += s.len;
+      char* p = Allocate<char>(len + 1);
+      for (StringView s : ss) {
+        std::memcpy(p, s.ptr, s.len);
+        p += s.len;
+      }
+      *p = 0;
+      return p - len;
+    }({ts...});
+  }
+
   // Copies/moves `val` to the arena and returns a pointer to it.
   template <class T>
   inline std::remove_const_t<std::remove_reference_t<T>>* Dup(T&& val) {
