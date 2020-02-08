@@ -187,6 +187,18 @@ script that uses these bindings to assemble git prompt.
 
 Note: Bash bindings, unlike ZSH bindings, don't support asynchronous calls.
 
+## Using from fish
+
+Install with [Fisher](https://github.com/jorgebucaran/fisher):
+
+```fish
+fisher add romkatv/gitstatus
+```
+
+It ships with a prompt function which add git status prompt to fish's default prompt.
+You could also use functions `gitstatus_prompt` or `gitstatus_query` to write your
+custom prompt function.
+
 ## Using from other shells
 
 If there are no gitstatusd bindings for your shell, you'll need to get your hands dirty.
