@@ -19,8 +19,16 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
+#include <sstream>
 #include <utility>
 
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include "arena.h"
 #include "check.h"
 #include "print.h"
 #include "scope_guard.h"
@@ -32,36 +40,71 @@ const char* GitError() {
   return err && err->message ? err->message : "unknown error";
 }
 
-const char* RepoState(git_repository* repo) {
+std::string RepoState(git_repository* repo) {
+  Arena arena;
+  StringView gitdir(git_repository_path(repo));
+
   // These names mostly match gitaction in vcs_info:
   // https://github.com/zsh-users/zsh/blob/master/Functions/VCS_Info/Backends/VCS_INFO_get_data_git.
-  switch (git_repository_state(repo)) {
-    case GIT_REPOSITORY_STATE_NONE:
-      return "";
-    case GIT_REPOSITORY_STATE_MERGE:
-      return "merge";
-    case GIT_REPOSITORY_STATE_REVERT:
-      return "revert";
-    case GIT_REPOSITORY_STATE_REVERT_SEQUENCE:
-      return "revert-seq";
-    case GIT_REPOSITORY_STATE_CHERRYPICK:
-      return "cherry";
-    case GIT_REPOSITORY_STATE_CHERRYPICK_SEQUENCE:
-      return "cherry-seq";
-    case GIT_REPOSITORY_STATE_BISECT:
-      return "bisect";
-    case GIT_REPOSITORY_STATE_REBASE:
-      return "rebase";
-    case GIT_REPOSITORY_STATE_REBASE_INTERACTIVE:
-      return "rebase-i";
-    case GIT_REPOSITORY_STATE_REBASE_MERGE:
-      return "rebase-m";
-    case GIT_REPOSITORY_STATE_APPLY_MAILBOX:
-      return "am";
-    case GIT_REPOSITORY_STATE_APPLY_MAILBOX_OR_REBASE:
-      return "am/rebase";
+  auto State = [&]() {
+    switch (git_repository_state(repo)) {
+      case GIT_REPOSITORY_STATE_NONE:
+        return "";
+      case GIT_REPOSITORY_STATE_MERGE:
+        return "merge";
+      case GIT_REPOSITORY_STATE_REVERT:
+        return "revert";
+      case GIT_REPOSITORY_STATE_REVERT_SEQUENCE:
+        return "revert-seq";
+      case GIT_REPOSITORY_STATE_CHERRYPICK:
+        return "cherry";
+      case GIT_REPOSITORY_STATE_CHERRYPICK_SEQUENCE:
+        return "cherry-seq";
+      case GIT_REPOSITORY_STATE_BISECT:
+        return "bisect";
+      case GIT_REPOSITORY_STATE_REBASE:
+        return "rebase";
+      case GIT_REPOSITORY_STATE_REBASE_INTERACTIVE:
+        return "rebase-i";
+      case GIT_REPOSITORY_STATE_REBASE_MERGE:
+        return "rebase-m";
+      case GIT_REPOSITORY_STATE_APPLY_MAILBOX:
+        return "am";
+      case GIT_REPOSITORY_STATE_APPLY_MAILBOX_OR_REBASE:
+        return "am/rebase";
+    }
+    return "action";
+  };
+
+  auto DirExists = [&](StringView name) {
+    int fd = open(arena.StrCat(gitdir, "/", name), O_DIRECTORY | O_CLOEXEC);
+    if (fd < 0) return false;
+    CHECK(!close(fd)) << Errno();
+    return true;
+  };
+
+  auto ReadFile = [&](StringView name) {
+    std::ifstream strm(arena.StrCat(gitdir, "/", name));
+    std::string res;
+    strm >> res;
+    return res;
+  };
+
+  std::string next;
+  std::string last;
+
+  if (DirExists("rebase-merge")) {
+    next = ReadFile("rebase-merge/msgnum");
+    last = ReadFile("rebase-merge/end");
+  } else if (DirExists("rebase-apply")) {
+    next = ReadFile("rebase-apply/next");
+    last = ReadFile("rebase-apply/last");
   }
-  return "action";
+
+  std::ostringstream res;
+  res << State();
+  if (!next.empty() && !last.empty()) res << ' ' << next << '/' << last;
+  return res.str();
 }
 
 size_t CountRange(git_repository* repo, const std::string& range) {
