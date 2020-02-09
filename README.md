@@ -52,19 +52,21 @@ RPROMPT='$GITSTATUS_PROMPT'  # right prompt: git status
 
 The expansion of `${GITSTATUS_PROMPT}` can contain the following bits:
 
-| segment     |  meaning                                             |
-|-------------|------------------------------------------------------|
-| `master`    | current branch                                       |
-| `#v1`       | HEAD is tagged with `v1`; not shown when on a branch |
-| `@5fc6fca4` | current commit; not shown when on a branch or tag    |
-| `⇣1`        | local branch is behind the remote by 1 commit        |
-| `⇡2`        | local branch is ahead of the remote by 2 commits     |
-| `*3`        | there are 3 stashes                                  |
-| `merge`     | merge is in progress (could be some other action)    |
-| `~4`        | there are 4 merge conflicts                          |
-| `+5`        | there are 5 staged changes                           |
-| `!6`        | there are 6 unstaged changes                         |
-| `?7`        | there are 7 untracked files                          |
+| segment     |  meaning                                              |
+|-------------|-------------------------------------------------------|
+| `master`    | current branch                                        |
+| `#v1`       | HEAD is tagged with `v1`; not shown when on a branch  |
+| `@5fc6fca4` | current commit; not shown when on a branch or tag     |
+| `⇣1`        | local branch is behind the remote by 1 commit         |
+| `⇡2`        | local branch is ahead of the remote by 2 commits      |
+| `⇠3`        | local branch is behind the push remote by 3 commits   |
+| `⇢4`        | local branch is ahead of the push remote by 4 commits |
+| `*5`        | there are 3 stashes                                   |
+| `merge`     | merge is in progress (could be some other action)     |
+| `~6`        | there are 4 merge conflicts                           |
+| `+7`        | there are 5 staged changes                            |
+| `!8`        | there are 6 unstaged changes                          |
+| `?9`        | there are 7 untracked files                           |
 
 `$GITSTATUS_PROMPT_LEN` tells you how long `$GITSTATUS_PROMPT` is when printed to the console.
 [gitstatus.prompt.zsh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.prompt.zsh) has
@@ -138,17 +140,21 @@ PS1='\w ${GITSTATUS_PROMPT}\n\$ ' # directory followed by git status and $/# (no
 
 The expansion of `${GITSTATUS_PROMPT}` can contain the following bits:
 
-| segment     |  meaning                                     |
-|-------------|----------------------------------------------|
-| `master`    | current branch                               |
-| `#v1`       | HEAD is tagged with `v1`                     |
-| `@5fc6fca4` | current commit (when in detached HEAD state) |
-| `+`         | there are changes staged for commit          |
-| `!`         | there are unstaged changes                   |
-| `?`         | there are untracked files                    |
-| `⇡2`        | local branch is ahead of origin by 2 commits |
-| `⇣3`        | local branch is behind origin by 3 commits   |
-| `*4`        | there are 4 stashes                          |
+| segment     |  meaning                                              |
+|-------------|-------------------------------------------------------|
+| `master`    | current branch                                        |
+| `#v1`       | HEAD is tagged with `v1`; not shown when on a branch  |
+| `@5fc6fca4` | current commit; not shown when on a branch or tag     |
+| `⇣1`        | local branch is behind the remote by 1 commit         |
+| `⇡2`        | local branch is ahead of the remote by 2 commits      |
+| `⇠3`        | local branch is behind the push remote by 3 commits   |
+| `⇢4`        | local branch is ahead of the push remote by 4 commits |
+| `*5`        | there are 3 stashes                                   |
+| `merge`     | merge is in progress (could be some other action)     |
+| `~6`        | there are 4 merge conflicts                           |
+| `+7`        | there are 5 staged changes                            |
+| `!8`        | there are 6 unstaged changes                          |
+| `?9`        | there are 7 untracked files                           |
 
 If you'd like to change the format of git status, or want to have greater control over the
 process of assembling `PS1`, you can copy and modify parts of

@@ -25,12 +25,14 @@ source "${GITSTATUS_DIR:-${${(%):-%x}:h}}/gitstatus.plugin.zsh" || return
 #
 # Example:
 #
-#   GITSTATUS_PROMPT='master ⇣42⇡42 *42 merge ~42 +42 !42 ?42'
+#   GITSTATUS_PROMPT='master ⇣42⇡42 ⇠42⇢42 *42 merge ~42 +42 !42 ?42'
 #   GITSTATUS_PROMPT_LEN=39
 #
 #   master  current branch
 #      ⇣42  local branch is 42 commits behind the remote
 #      ⇡42  local branch is 42 commits ahead of the remote
+#      ⇠42  local branch is 42 commits behind the push remote
+#      ⇢42  local branch is 42 commits ahead of the push remote
 #      *42  42 stashes
 #    merge  merge in progress
 #      ~42  42 merge conflicts
@@ -73,6 +75,11 @@ function gitstatus_prompt_update() {
   # ⇡42 if ahead of the remote; no leading space if also behind the remote: ⇣42⇡42.
   (( VCS_STATUS_COMMITS_AHEAD && !VCS_STATUS_COMMITS_BEHIND )) && p+=" "
   (( VCS_STATUS_COMMITS_AHEAD  )) && p+="${clean}⇡${VCS_STATUS_COMMITS_AHEAD}"
+  # ⇠42 if behind the push remote.
+  (( VCS_STATUS_PUSH_COMMITS_BEHIND )) && p+=" ${clean}⇠${VCS_STATUS_PUSH_COMMITS_BEHIND}"
+  (( VCS_STATUS_PUSH_COMMITS_AHEAD && !VCS_STATUS_PUSH_COMMITS_BEHIND )) && p+=" "
+  # ⇢42 if ahead of the push remote; no leading space if also behind: ⇠42⇢42.
+  (( VCS_STATUS_PUSH_COMMITS_AHEAD  )) && p+="${clean}⇢${VCS_STATUS_PUSH_COMMITS_AHEAD}"
   # *42 if have stashes.
   (( VCS_STATUS_STASHES        )) && p+=" ${clean}*${VCS_STATUS_STASHES}"
   # 'merge' if the repo is in an unusual state.
