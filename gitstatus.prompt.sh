@@ -23,19 +23,19 @@ source "${GITSTATUS_DIR:-${BASH_SOURCE[0]%/*}}/gitstatus.plugin.sh" || return
 # The value is empty if not in a git repository. Forwards all arguments to
 # gitstatus_query.
 #
-# Example value of GITSTATUS_PROMPT:
+# Example value of GITSTATUS_PROMPT: master ⇣42⇡42 ⇠42⇢42 *42 merge ~42 +42 !42 ?42
 #
-#   master+!? ⇡2 ⇣3 *4
-#
-# Meaning:
-#
-#   master   current branch
-#   +        git repo has changes staged for commit
-#   !        git repo has unstaged changes
-#   ?        git repo has untracked files
-#   ⇡2       local branch is ahead of origin by 2 commits
-#   ⇣3       local branch is behind origin by 3 commits
-#   *4       git repo has 4 stashes
+#   master  current branch
+#      ⇣42  local branch is 42 commits behind the remote
+#      ⇡42  local branch is 42 commits ahead of the remote
+#      ⇠42  local branch is 42 commits behind the push remote
+#      ⇢42  local branch is 42 commits ahead of the push remote
+#      *42  42 stashes
+#    merge  merge in progress
+#      ~42  42 merge conflicts
+#      +42  42 staged changes
+#      !42  42 unstaged changes
+#      ?42  42 untracked files
 function gitstatus_prompt_update() {
   GITSTATUS_PROMPT=""
 
@@ -69,6 +69,11 @@ function gitstatus_prompt_update() {
   # ⇡42 if ahead of the remote; no leading space if also behind the remote: ⇣42⇡42.
   (( VCS_STATUS_COMMITS_AHEAD && !VCS_STATUS_COMMITS_BEHIND )) && p+=" "
   (( VCS_STATUS_COMMITS_AHEAD  )) && p+="${clean}⇡${VCS_STATUS_COMMITS_AHEAD}"
+  # ⇠42 if behind the push remote.
+  (( VCS_STATUS_PUSH_COMMITS_BEHIND )) && p+=" ${clean}⇠${VCS_STATUS_PUSH_COMMITS_BEHIND}"
+  (( VCS_STATUS_PUSH_COMMITS_AHEAD && !VCS_STATUS_PUSH_COMMITS_BEHIND )) && p+=" "
+  # ⇢42 if ahead of the push remote; no leading space if also behind: ⇠42⇢42.
+  (( VCS_STATUS_PUSH_COMMITS_AHEAD  )) && p+="${clean}⇢${VCS_STATUS_PUSH_COMMITS_AHEAD}"
   # *42 if have stashes.
   (( VCS_STATUS_STASHES        )) && p+=" ${clean}*${VCS_STATUS_STASHES}"
   # 'merge' if the repo is in an unusual state.
