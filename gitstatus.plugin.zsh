@@ -315,41 +315,81 @@ function _gitstatus_process_response() {
 #             changes for repositories with bash.showDirtyState = false.
 function gitstatus_start() {
   emulate -L zsh
-  setopt err_return no_unset no_bg_nice
+  setopt no_aliases no_unset no_bg_nice extended_glob
 
-  local opt
+  local opt OPTARG
+  local -i OPTIND
   local -F timeout=5
   local -i max_num_staged=1
   local -i max_num_unstaged=1
   local -i max_num_conflicted=1
   local -i max_num_untracked=1
   local -i dirty_max_index_size=-1
-  local -i async
+  local -i async=0
   local -a extra_flags=()
-  while true; do
-    getopts "t:s:u:c:d:m:eaUWD" opt || break
+  while getopts ":t:s:u:c:d:m:eaUWD" opt; do
     case $opt in
-      a) async=1;;
-      t) timeout=$OPTARG;;
-      s) max_num_staged=$OPTARG;;
-      u) max_num_unstaged=$OPTARG;;
-      c) max_num_conflicted=$OPTARG;;
-      d) max_num_untracked=$OPTARG;;
-      m) dirty_max_index_size=$OPTARG;;
-      e) extra_flags+='--recurse-untracked-dirs';;
+      a)  async=1;;
+      t)
+        if [[ $OPTARG != (|+)<->(|.<->)(|[eE](|-|+)<->) ]] || (( ${timeout::=$OPTARG} <= 0 )); then
+          print -r -- "gitstatus_start: invalid -t argument: $OPTARG" >&2
+          return 1
+        fi
+      ;;
+      s)
+        if [[ $OPTARG != (|-|+)<-> ]]; then
+          print -r -- "gitstatus_start: invalid -s argument: $OPTARG" >&2
+          return 1
+        fi
+        max_num_staged=OPTARG
+      ;;
+      u)
+        if [[ $OPTARG != (|-|+)<-> ]]; then
+          print -r -- "gitstatus_start: invalid -u argument: $OPTARG" >&2
+          return 1
+        fi
+        max_num_unstaged=OPTARG
+      ;;
+      c)
+        if [[ $OPTARG != (|-|+)<-> ]]; then
+          print -r -- "gitstatus_start: invalid -c argument: $OPTARG" >&2
+          return 1
+        fi
+        max_num_conflicted=OPTARG
+      ;;
+      d)
+        if [[ $OPTARG != (|-|+)<-> ]]; then
+          print -r -- "gitstatus_start: invalid -d argument: $OPTARG" >&2
+          return 1
+        fi
+        max_num_untracked=OPTARG
+      ;;
+      m)
+        if [[ $OPTARG != (|-|+)<-> ]]; then
+          print -r -- "gitstatus_start: invalid -m argument: $OPTARG" >&2
+          return 1
+        fi
+        dirty_max_index_size=OPTARG
+      ;;
+      e)  extra_flags+='--recurse-untracked-dirs';;
       +e) extra_flags=(${(@)extra_flags:#--recurse-untracked-dirs});;
-      U) extra_flags+='--ignore-status-show-untracked-files';;
+      U)  extra_flags+='--ignore-status-show-untracked-files';;
       +U) extra_flags=(${(@)extra_flags:#--ignore-status-show-untracked-files});;
-      W) extra_flags+='--ignore-bash-show-untracked-files';;
+      W)  extra_flags+='--ignore-bash-show-untracked-files';;
       +W) extra_flags=(${(@)extra_flags:#--ignore-bash-show-untracked-files});;
-      D) extra_flags+='--ignore-bash-show-dirty-state';;
+      D)  extra_flags+='--ignore-bash-show-dirty-state';;
       +D) extra_flags=(${(@)extra_flags:#--ignore-bash-show-dirty-state});;
-      ?) return 1;;
+      \?) >&2 print -r -- "gitstatus_query: invalid option: $OPTARG"           ; return 1;;
+      :)  >&2 print -r -- "gitstatus_query: missing required argument: $OPTARG"; return 1;;
+      *)  >&2 print -r -- "gitstatus_query: invalid option: $opt"              ; return 1;;
     esac
   done
 
-  (( timeout > 0 )) || { echo "invalid -t: $timeout" >&2; return 1 }
-  (( OPTIND == ARGC )) || { echo "usage: gitstatus_start [OPTION]... NAME" >&2; return 1 }
+  if (( OPTIND != ARGC )); then
+    print -r -- "gitstatus_query: exactly one positional argument is required" >&2
+    return 1
+  fi
+
   local name=${*[$OPTIND]}
 
   local lock_file req_fifo resp_fifo log_level
