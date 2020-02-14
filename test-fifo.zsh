@@ -3,9 +3,9 @@
   zmodload zsh/system zsh/net/socket zsh/datetime zsh/zselect
   zmodload -F zsh/files b:zf_rm
 
+  local -F start=EPOCHREALTIME
   local fifo=${TMPDIR:-/tmp}/test.fifo.$sysparams[pid].$EPOCHREALTIME.$RANDOM
   mkfifo $fifo
-  local -F start=EPOCHREALTIME
   local -i req_fd
 
   exec {req_fd}> >(

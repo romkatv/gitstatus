@@ -3,8 +3,8 @@
   zmodload zsh/system zsh/net/socket zsh/datetime zsh/zselect
   zmodload -F zsh/files b:zf_rm
 
-  local sock=${TMPDIR:-/tmp}/test.sock.$sysparams[pid].$EPOCHREALTIME.$RANDOM
   local -F start=EPOCHREALTIME
+  local sock=${TMPDIR:-/tmp}/test.sock.$sysparams[pid].$EPOCHREALTIME.$RANDOM
   zsocket -l $sock
   local -i sock_fd=REPLY
   local -i req_fd
