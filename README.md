@@ -61,12 +61,12 @@ The expansion of `${GITSTATUS_PROMPT}` can contain the following bits:
 | `⇡2`        | local branch is ahead of the remote by 2 commits      |
 | `⇠3`        | local branch is behind the push remote by 3 commits   |
 | `⇢4`        | local branch is ahead of the push remote by 4 commits |
-| `*5`        | there are 3 stashes                                   |
+| `*5`        | there are 5 stashes                                   |
 | `merge`     | merge is in progress (could be some other action)     |
-| `~6`        | there are 4 merge conflicts                           |
-| `+7`        | there are 5 staged changes                            |
-| `!8`        | there are 6 unstaged changes                          |
-| `?9`        | there are 7 untracked files                           |
+| `~6`        | there are 6 merge conflicts                           |
+| `+7`        | there are 7 staged changes                            |
+| `!8`        | there are 8 unstaged changes                          |
+| `?9`        | there are 9 untracked files                           |
 
 `$GITSTATUS_PROMPT_LEN` tells you how long `$GITSTATUS_PROMPT` is when printed to the console.
 [gitstatus.prompt.zsh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.prompt.zsh) has
@@ -149,12 +149,12 @@ The expansion of `${GITSTATUS_PROMPT}` can contain the following bits:
 | `⇡2`        | local branch is ahead of the remote by 2 commits      |
 | `⇠3`        | local branch is behind the push remote by 3 commits   |
 | `⇢4`        | local branch is ahead of the push remote by 4 commits |
-| `*5`        | there are 3 stashes                                   |
+| `*5`        | there are 5 stashes                                   |
 | `merge`     | merge is in progress (could be some other action)     |
-| `~6`        | there are 4 merge conflicts                           |
-| `+7`        | there are 5 staged changes                            |
-| `!8`        | there are 6 unstaged changes                          |
-| `?9`        | there are 7 untracked files                           |
+| `~6`        | there are 6 merge conflicts                           |
+| `+7`        | there are 7 staged changes                            |
+| `!8`        | there are 8 unstaged changes                          |
+| `?9`        | there are 9 untracked files                           |
 
 If you'd like to change the format of git status, or want to have greater control over the
 process of assembling `PS1`, you can copy and modify parts of
