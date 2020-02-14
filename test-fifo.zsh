@@ -20,17 +20,9 @@
         unsetopt err_return
         while zselect -a ready 0; do
           local buf=
-          while true; do
-            while [[ $buf != *$'\x1e' ]]; do
-              sysread 'buf[$#buf+1]' || return
-            done
-            [[ -t 0 ]]
-            if sysread -t 0 'buf[$#buf+1]'; then
-              continue
-            else
-              (( $? == 4 )) || return
-              break
-            fi
+          sysread 'buf[$#buf+1]' || return
+          while [[ $buf != *$'\x1e' ]]; do
+            sysread 'buf[$#buf+1]' || return
           done
           for req in ${(ps:\x1e:)buf}; do
             print -rnu $conn_fd -- "x"$'\x1e'
@@ -54,18 +46,11 @@
   start=EPOCHREALTIME
   repeat 1000; do
     print -rnu $req_fd -- "x"$'\x1e'
+    zselect -a ready $conn_fd
     local buf=
-    while true; do
-      while [[ $buf != *$'\x1e' ]]; do
-        sysread -i $conn_fd 'buf[$#buf+1]' || return
-      done
-      [[ -t $conn_fd ]] || true
-      if sysread -t 0 -i $conn_fd 'buf[$#buf+1]'; then
-        continue
-      else
-        (( $? == 4 )) || return
-        break
-      fi
+    sysread -t 0 -i $conn_fd 'buf[$#buf+1]' || return '$? == 4'
+    while [[ $buf == *[^$'\x05\x1e']$'\x05'# ]]; do
+      sysread -i $conn_fd 'buf[$#buf+1]' || return
     done
   done
   local -F2 took='1000 * (EPOCHREALTIME - start)'
@@ -77,19 +62,11 @@
   done
   local -i received
   while (( received != 1000 )); do
+    zselect -a ready $conn_fd
     local buf=
-    sysread -i $conn_fd 'buf[$#buf+1]' || return
-    while true; do
-      while [[ $buf != *$'\x1e' ]]; do
-        sysread -i $conn_fd 'buf[$#buf+1]' || return
-      done
-      [[ -t $conn_fd ]] || true
-      if sysread -t 0 -i $conn_fd 'buf[$#buf+1]'; then
-        continue
-      else
-        (( $? == 4 )) || return
-        break
-      fi
+    sysread -t 0 -i $conn_fd 'buf[$#buf+1]' || return '$? == 4'
+    while [[ $buf == *[^$'\x05\x1e']$'\x05'# ]]; do
+      sysread -i $conn_fd 'buf[$#buf+1]' || return
     done
     received+=${#${(ps:\x1e:)buf}}
   done
