@@ -315,7 +315,7 @@ function _gitstatus_process_response() {
 #             changes for repositories with bash.showDirtyState = false.
 function gitstatus_start() {
   emulate -L zsh
-  setopt no_aliases no_unset no_bg_nice extended_glob
+  setopt no_aliases no_bg_nice extended_glob typeset_silent
 
   local opt OPTARG
   local -i OPTIND
@@ -327,46 +327,48 @@ function gitstatus_start() {
   local -i dirty_max_index_size=-1
   local -i async=0
   local -a extra_flags=()
+
   while getopts ":t:s:u:c:d:m:eaUWD" opt; do
     case $opt in
       a)  async=1;;
+      +a) async=0;;
       t)
-        if [[ $OPTARG != (|+)<->(|.<->)(|[eE](|-|+)<->) ]] || (( ${timeout::=$OPTARG} <= 0 )); then
-          print -r -- "gitstatus_start: invalid -t argument: $OPTARG" >&2
+        if [[ $OPTARG != (|+)<->(|.<->)(|[eE](|-|+)<->) ]] || (( ${timeout::=OPTARG} <= 0 )); then
+          >&2 print -r -- "gitstatus_start: invalid -t argument: $OPTARG"
           return 1
         fi
       ;;
       s)
         if [[ $OPTARG != (|-|+)<-> ]]; then
-          print -r -- "gitstatus_start: invalid -s argument: $OPTARG" >&2
+          >&2 print -r -- "gitstatus_start: invalid -s argument: $OPTARG"
           return 1
         fi
         max_num_staged=OPTARG
       ;;
       u)
         if [[ $OPTARG != (|-|+)<-> ]]; then
-          print -r -- "gitstatus_start: invalid -u argument: $OPTARG" >&2
+          >&2 print -r -- "gitstatus_start: invalid -u argument: $OPTARG"
           return 1
         fi
         max_num_unstaged=OPTARG
       ;;
       c)
         if [[ $OPTARG != (|-|+)<-> ]]; then
-          print -r -- "gitstatus_start: invalid -c argument: $OPTARG" >&2
+          >&2 print -r -- "gitstatus_start: invalid -c argument: $OPTARG"
           return 1
         fi
         max_num_conflicted=OPTARG
       ;;
       d)
         if [[ $OPTARG != (|-|+)<-> ]]; then
-          print -r -- "gitstatus_start: invalid -d argument: $OPTARG" >&2
+          >&2 print -r -- "gitstatus_start: invalid -d argument: $OPTARG"
           return 1
         fi
         max_num_untracked=OPTARG
       ;;
       m)
         if [[ $OPTARG != (|-|+)<-> ]]; then
-          print -r -- "gitstatus_start: invalid -m argument: $OPTARG" >&2
+          >&2 print -r -- "gitstatus_start: invalid -m argument: $OPTARG"
           return 1
         fi
         dirty_max_index_size=OPTARG
@@ -386,43 +388,34 @@ function gitstatus_start() {
   done
 
   if (( OPTIND != ARGC )); then
-    print -r -- "gitstatus_query: exactly one positional argument is required" >&2
+    >&2 print -r -- "gitstatus_query: exactly one positional argument is required"
     return 1
   fi
 
-  local name=${*[$OPTIND]}
+  local name=$*[OPTIND]
+  if [[ $name != [a-zA-Z0-9_][[:IDENT:]]# ]]; then
+    >&2 print -r -- "gitstatus_query: invalid positional argument: $name"
+    return 1
+  fi
 
-  local lock_file req_fifo resp_fifo log_level
-  local log_file=/dev/null xtrace_file=/dev/null
-  local -i stderr_fd lock_fd req_fd resp_fd daemon_pid
-  local daemon_pid_var=GITSTATUS_DAEMON_PID_${name}
-  (( $+parameters[$daemon_pid_var] )) && {
-    (( ! async )) || return 0
-    daemon_pid=${(P)daemon_pid_var}
-    (( daemon_pid == -1 )) || return 0
-    local resp_fd_var=_GITSTATUS_RESP_FD_${name}
-    local log_file_var=GITSTATUS_DAEMON_LOG_${name}
-    local xtrace_file_var=GITSTATUS_XTRACE_${name}
-    resp_fd=${(P)resp_fd_var}
-    log_file=${(P)log_file_var}
-    xtrace_file=${(P)xtrace_file_var}
-  } || {
-    log_level=${GITSTATUS_LOG_LEVEL:-}
-    [[ -n $log_level || ${GITSTATUS_ENABLE_LOGGING:-0} != 1 ]] || log_level=INFO
-    [[ -z $log_level ]] || {
-      log_file=${TMPDIR:-/tmp}/gitstatus.$$.daemon-log.$EPOCHREALTIME.$RANDOM
-      xtrace_file=${TMPDIR:-/tmp}/gitstatus.$$.xtrace.$EPOCHREALTIME.$RANDOM
-    }
+  local fifo log_level log_file=/dev/null
+  local -i req_fd resp_fd daemon_pid
+  if (( $+parameters[GITSTATUS_DAEMON_PID_$name] )); then
+    (( async )) && return
+    daemon_pid=GITSTATUS_DAEMON_PID_$name
+    (( daemon_pid != -1 )) && return
+    resp_fd=_GITSTATUS_RESP_FD_${name}
+    log_file=${(P)${:-GITSTATUS_DAEMON_LOG_$name}}
+  else
+    log_level=$GITSTATUS_LOG_LEVEL
+    (( GITSTATUS_ENABLE_LOGGING )) && : ${log_level:=INFO}
+    if [[ -n $log_level ]]; then
+      log_file=${TMPDIR:-/tmp}/gitstatus.$sysparams[pid].daemon-log.$EPOCHREALTIME.$RANDOM
+    fi
     typeset -g GITSTATUS_DAEMON_LOG_${name}=$log_file
-    typeset -g GITSTATUS_XTRACE_${name}=$xtrace_file
-  }
+  fi
 
-  function gitstatus_start_impl() {
-    [[ $xtrace_file == /dev/null ]] || {
-      exec {stderr_fd}>&2 2>>$xtrace_file
-      setopt xtrace
-    }
-
+  {
     (( daemon_pid == -1 )) || {
       local os
       local daemon=${GITSTATUS_DAEMON:-}
@@ -529,6 +522,8 @@ function gitstatus_start() {
       exec 2>&$stderr_fd {stderr_fd}>&-
       stderr_fd=0
     }
+  } always {
+    
   }
 
   gitstatus_start_impl && {
