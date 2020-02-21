@@ -51,9 +51,6 @@
 [[ ! -o 'no_brace_expand' ]] || _gitstatus_opts+=('no_brace_expand')
 'builtin' 'setopt' 'no_aliases' 'no_sh_glob' 'brace_expand'
 
-autoload -Uz add-zsh-hook
-zmodload zsh/datetime zsh/system
-
 typeset -g _gitstatus_plugin_dir=${${(%):-%x}:A:h}
 
 # Retrives status of a git repo from a directory under its working tree.
@@ -314,19 +311,16 @@ function _gitstatus_process_response() {
 #   -D        Unless this option is specified, report zero staged, unstaged and conflicted
 #             changes for repositories with bash.showDirtyState = false.
 function gitstatus_start() {
-  emulate -L zsh
-  setopt no_aliases no_bg_nice extended_glob typeset_silent
+  emulate -L zsh || return
+  setopt no_aliases no_bg_nice extended_glob typeset_silent monitor || return
+
+  print -rn2 || return
 
   local opt OPTARG
   local -i OPTIND
   local -F timeout=5
-  local -i max_num_staged=1
-  local -i max_num_unstaged=1
-  local -i max_num_conflicted=1
-  local -i max_num_untracked=1
-  local -i dirty_max_index_size=-1
   local -i async=0
-  local -a extra_flags=()
+  local -a args=()
 
   while getopts ":t:s:u:c:d:m:eaUWD" opt; do
     case $opt in
@@ -334,103 +328,225 @@ function gitstatus_start() {
       +a) async=0;;
       t)
         if [[ $OPTARG != (|+)<->(|.<->)(|[eE](|-|+)<->) ]] || (( ${timeout::=OPTARG} <= 0 )); then
-          >&2 print -r -- "gitstatus_start: invalid -t argument: $OPTARG"
+          print -ru2 -- "gitstatus_start: invalid -t argument: $OPTARG"
           return 1
         fi
       ;;
-      s)
+      s|u|c|d|m)
         if [[ $OPTARG != (|-|+)<-> ]]; then
-          >&2 print -r -- "gitstatus_start: invalid -s argument: $OPTARG"
+          print -ru2 -- "gitstatus_start: invalid -$opt argument: $OPTARG"
           return 1
         fi
-        max_num_staged=OPTARG
+        args+=(-$opt $OPTARG)
       ;;
-      u)
-        if [[ $OPTARG != (|-|+)<-> ]]; then
-          >&2 print -r -- "gitstatus_start: invalid -u argument: $OPTARG"
-          return 1
-        fi
-        max_num_unstaged=OPTARG
-      ;;
-      c)
-        if [[ $OPTARG != (|-|+)<-> ]]; then
-          >&2 print -r -- "gitstatus_start: invalid -c argument: $OPTARG"
-          return 1
-        fi
-        max_num_conflicted=OPTARG
-      ;;
-      d)
-        if [[ $OPTARG != (|-|+)<-> ]]; then
-          >&2 print -r -- "gitstatus_start: invalid -d argument: $OPTARG"
-          return 1
-        fi
-        max_num_untracked=OPTARG
-      ;;
-      m)
-        if [[ $OPTARG != (|-|+)<-> ]]; then
-          >&2 print -r -- "gitstatus_start: invalid -m argument: $OPTARG"
-          return 1
-        fi
-        dirty_max_index_size=OPTARG
-      ;;
-      e)  extra_flags+='--recurse-untracked-dirs';;
-      +e) extra_flags=(${(@)extra_flags:#--recurse-untracked-dirs});;
-      U)  extra_flags+='--ignore-status-show-untracked-files';;
-      +U) extra_flags=(${(@)extra_flags:#--ignore-status-show-untracked-files});;
-      W)  extra_flags+='--ignore-bash-show-untracked-files';;
-      +W) extra_flags=(${(@)extra_flags:#--ignore-bash-show-untracked-files});;
-      D)  extra_flags+='--ignore-bash-show-dirty-state';;
-      +D) extra_flags=(${(@)extra_flags:#--ignore-bash-show-dirty-state});;
-      \?) >&2 print -r -- "gitstatus_query: invalid option: $OPTARG"           ; return 1;;
-      :)  >&2 print -r -- "gitstatus_query: missing required argument: $OPTARG"; return 1;;
-      *)  >&2 print -r -- "gitstatus_query: invalid option: $opt"              ; return 1;;
+      e|U|W|D)    args+=$opt;;
+      +(e|U|W|D)) args=(${(@)args:#-$opt});;
+      \?) print -ru2 -- "gitstatus_query: invalid option: $OPTARG"           ; return 1;;
+      :)  print -ru2 -- "gitstatus_query: missing required argument: $OPTARG"; return 1;;
+      *)  print -ru2 -- "gitstatus_query: invalid option: $opt"              ; return 1;;
     esac
   done
 
   if (( OPTIND != ARGC )); then
-    >&2 print -r -- "gitstatus_query: exactly one positional argument is required"
+    print -ru2 -- "gitstatus_query: exactly one positional argument is required"
     return 1
   fi
 
   local name=$*[OPTIND]
   if [[ $name != [a-zA-Z0-9_][[:IDENT:]]# ]]; then
-    >&2 print -r -- "gitstatus_query: invalid positional argument: $name"
+    print -ru2 -- "gitstatus_query: invalid positional argument: $name"
     return 1
   fi
 
-  local fifo log_level log_file=/dev/null
-  local -i req_fd resp_fd daemon_pid
-  if (( $+parameters[GITSTATUS_DAEMON_PID_$name] )); then
+  autoload -Uz add-zsh-hook        || return
+  zmodload zsh/datetime zsh/system || return
+
+  local -i req_fd resp_fd
+  local {xtrace,daemon_log,forwarder_log}=/dev/null
+  if (( _GITSTATUS_STATE_$name )); then
     (( async )) && return
-    daemon_pid=GITSTATUS_DAEMON_PID_$name
-    (( daemon_pid != -1 )) && return
-    resp_fd=_GITSTATUS_RESP_FD_${name}
-    log_file=${(P)${:-GITSTATUS_DAEMON_LOG_$name}}
+    (( _GITSTATUS_STATE_$name == 2 )) && return
+    req_fd=_GITSTATUS_REQ_FD_$name
+    resp_fd=_GITSTATUS_RESP_FD_$name
+    xtrace=${(P)${:-GITSTATUS_XTRACE_$name}}
+    daemon_log=${(P)${:-GITSTATUS_DAEMON_LOG_$name}}
+    forwarder_log=${(P)${:-GITSTATUS_FORWARDER_LOG_$name}}
   else
-    log_level=$GITSTATUS_LOG_LEVEL
+    local log_level=$GITSTATUS_LOG_LEVEL
+    local file_prefix=${TMPDIR:-/tmp}/gitstatus.$EUID.$sysparams[pid].$EPOCHSECONDS
     (( GITSTATUS_ENABLE_LOGGING )) && : ${log_level:=INFO}
     if [[ -n $log_level ]]; then
-      log_file=${TMPDIR:-/tmp}/gitstatus.$sysparams[pid].daemon-log.$EPOCHREALTIME.$RANDOM
+      xtrace=$file_prefix.xtrace.log
+      daemon_log=$file_prefix.daemon.log
+      forwarder_log=$file_prefix.forwarder.log
     fi
-    typeset -g GITSTATUS_DAEMON_LOG_${name}=$log_file
+    args+=(-v ${log_level:-FATAL})
+    typeset -g GITSTATUS_XTRACE_${name}=$xtrace
+    typeset -g GITSTATUS_DAEMON_LOG_${name}=$daemon_log
+    typeset -g GITSTATUS_FORWARDER_LOG_${name}=$forwarder_log
   fi
 
+  local -i stderr_fd
   {
-    (( daemon_pid == -1 )) || {
-      local os
-      local daemon=${GITSTATUS_DAEMON:-}
-      [[ -n $daemon ]] || {
-        os="$(uname -s)" && [[ -n $os ]]
-        [[ $os != Linux || "$(uname -o)" != Android ]] || os=Android
-        [[ ${(L)os} != (mingw|msys)* ]]                || os=MSYS_NT-10.0
-        local arch && arch="$(uname -m)" && [[ -n $arch ]]
-        daemon=$_gitstatus_plugin_dir/bin/gitstatusd-${os:l}-${arch:l}
-      }
-      [[ -x $daemon ]]
+    if [[ $xtrace != /dev/null && -o no_xtrace ]]; then
+      exec {stderr_fd}>&2
+      exec 2>>$xtrace || return
+      setopt xtrace
+    fi
 
-      lock_file=${TMPDIR:-/tmp}/gitstatus.$$.lock.$EPOCHREALTIME.$RANDOM
-      echo -n >$lock_file
-      zsystem flock -f lock_fd $lock_file
+    if (( ! _GITSTATUS_STATE_$name )); then
+      {
+        () {
+          [[ $sysparams[procsubstpid] == <1-> ]] || return
+          typeset -g GITSTATUS_FORWARDER_PID_$name=$sysparams[procsubstpid]
+          sysopen -w -o cloexec -u req_fd $1 || return
+          typeset -g _GITSTATUS_REQ_FD_$name=$req_fd
+        } 2>&3 >(
+          exec 3>&-
+          local ready
+          sysread -s1 ready || return
+          [[ $ready == 1 ]] || return
+          { exec cat -u >$file_prefix.fifo } &!
+          exec true
+        ) || return
+      } 3>&2 2>>$daemon_log </dev/null >/dev/null || return
+
+      {
+        () {
+          [[ $sysparams[procsubstpid] == <1-> ]] || return
+          typeset -g GITSTATUS_DAEMON_PID_$name=$sysparams[procsubstpid]
+          sysopen -r -o cloexec -u resp_fd $1 || return
+          typeset -g _GITSTATUS_RESP_FD_$name=$resp_fd
+        } 2>&3 <(
+          exec 3>&-
+          local pgid=$sysparams[pid]
+          [[ $pgid == <1-> ]] || return
+          zmodload -F zsh/files b:zf_rm || return
+
+          {
+            {
+              trap '' PIPE
+
+              local os daemon=$GITSTATUS_DAEMON
+              if [[ -z $daemon ]]; then
+                os="$(uname -s)" || return
+                [[ -n $os ]]     || return
+                case $os in
+                  Linux)            [[ "$(uname -o)" == Android ]] && os=android;;
+                  (#i)cygwin_nt-*)  os=cygwin_nt-10.0;;
+                  (#i)(mingw|msys)) os=MSYS_NT-10.0;;
+                esac
+                local arch
+                arch="$(uname -m)" || return
+                [[ -n $arch ]]     || return
+                daemon=$_gitstatus_plugin_dir/bin/gitstatusd-${os:l}-${arch:l}
+              fi
+              [[ -x $daemon ]] || return
+
+              if [[ $GITSTATUS_NUM_THREADS == <1-> ]]; then
+                args+=(-t $GITSTATUS_NUM_THREADS)
+              else
+                local cpus
+                if (( ! $+commands[sysctl] )) || ! cpus="$(sysctl -n hw.ncpu)"; then
+                  if (( ! $+commands[getconf] )) || ! cpus="$(getconf _NPROCESSORS_ONLN)"; then
+                    cpus=8
+                  fi
+                fi
+                args+=(-t $((cpus > 16 ? 32 : cpus > 0 ? 2 * cpus : 16)))
+              fi
+
+              mkfifo $file_prefix.fifo || return
+              print -nu $req_fd 1      || return
+              exec <$file_prefix.fifo  || return
+              zf_rm $file_prefix.fifo  || return
+              print -n 1               || return
+
+              $daemon "${(@)args}"
+              if [[ $? != (0|10) && $? -le 128 && -x ${daemon}-static ]]; then
+                ${daemon}-static "${(@)args}" || return
+              fi
+            } always {
+              kill -- -$pgid
+            }
+          } &!
+
+          exec true
+        ) || return
+      } 3>&2 2>>$daemon_log </dev/null >/dev/null || return
+    fi
+
+    if (( async )); then
+      typeset -g _GITSTATUS_STATE_$name=1
+    else
+      local ready
+      [[ -t $resp_fd ]]
+      sysread -s1 -t $timeout -u $resp_fd ready || return
+      [[ $ready == 1 ]] || return
+
+      print -nru $req_fd -- $'hello\x1f\x1e' || return
+      local expected=$'hello\x1f0' actual
+      while (( $#actual < $#expected )); do
+        [[ -t $resp_fd ]]
+        sysread -s $(($#expected - $#actual)) -t $timeout -u $resp_fd actual || return
+      done
+      [[ $actual == $expected ]] || return
+
+      function _gitstatus_process_response_${name}() {
+        local name=${${(%):-%N}#_gitstatus_process_response_}
+        (( ARGC == 1 )) && {
+          _gitstatus_process_response $name 0 ''
+          true
+        } || {
+          gitstatus_stop $name
+        }
+      }
+      zle -F $resp_fd _gitstatus_process_response_${name}
+
+      function _gitstatus_cleanup_$$_${ZSH_SUBSHELL}_${daemon_pid}() {
+        emulate -L zsh
+        setopt err_return no_unset
+        local fname=${(%):-%N}
+        local prefix=_gitstatus_cleanup_$$_${ZSH_SUBSHELL}_
+        [[ $fname == ${prefix}* ]] || return 0
+        local -i daemon_pid=${fname#$prefix}
+        kill -- -$daemon_pid &>/dev/null || true
+      }
+      add-zsh-hook zshexit _gitstatus_cleanup_$$_${ZSH_SUBSHELL}_${daemon_pid}
+    }
+
+  } always {
+    local err=$?
+    if (( stderr_fd )); then
+      unsetopt xtrace
+      exec 2>&$stderr_fd
+    fi
+    gitstatus_stop $name
+  }
+
+
+
+  {
+    if [[ $xtrace_file != /dev/null ]]; then
+      exec {stderr_fd}>&2 2>>$xtrace_file
+      setopt xtrace
+    fi
+
+    if (( daemon_pid == 0 )); then
+      local os daemon=$GITSTATUS_DAEMON
+      if [[ -z $daemon ]]; then
+        os="$(uname -s)" || return
+        [[ -n $os ]]     || return
+        case $os in
+          Linux)            [[ "$(uname -o)" == Android ]] && os=android;;
+          (#i)cygwin_nt-*)  os=cygwin_nt-10.0;;
+          (#i)(mingw|msys)) os=MSYS_NT-10.0;;
+        esac
+        local arch
+        arch="$(uname -m)" || return
+        [[ -n $arch ]]     || return
+        daemon=$_gitstatus_plugin_dir/bin/gitstatusd-${os:l}-${arch:l}
+      fi
+      [[ -x $daemon ]] || return
 
       req_fifo=${TMPDIR:-/tmp}/gitstatus.$$.req.$EPOCHREALTIME.$RANDOM
       resp_fifo=${TMPDIR:-/tmp}/gitstatus.$$.resp.$EPOCHREALTIME.$RANDOM
@@ -490,6 +606,9 @@ function gitstatus_start() {
       read -ru $resp_fd reply
       [[ $reply == <1-> ]]
       daemon_pid=reply
+
+      print -nru $req_fd -- $'hello\x1f\x1e' || return
+      
 
       function _gitstatus_process_response_${name}() {
         local name=${${(%):-%N}#_gitstatus_process_response_}
