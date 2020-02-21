@@ -23,38 +23,47 @@
 #include "git.h"
 #include "print.h"
 #include "scope_guard.h"
+#include "string_view.h"
 
 namespace gitstatus {
 
 namespace {
 
-std::string DotGitDir(const std::string& dir, bool from_dotgit) {
-  git_buf gitdir = {};
+void GitDirs(const char* dir, bool from_dotgit, std::string& gitdir, std::string& workdir) {
+  git_buf gitdir_buf = {};
+  git_buf workdir_buf = {};
+  ON_SCOPE_EXIT(&) {
+    git_buf_free(&gitdir_buf);
+    git_buf_free(&workdir_buf);
+  };
   int flags = from_dotgit ? GIT_REPOSITORY_OPEN_NO_SEARCH | GIT_REPOSITORY_OPEN_NO_DOTGIT : 0;
-  switch (git_repository_discover_ex(&gitdir, dir.c_str(), flags, nullptr)) {
-    case 0: {
-      std::string res(gitdir.ptr, gitdir.size);
-      git_buf_free(&gitdir);
-      return res;
-    }
+  switch (git_repository_discover_ex(&gitdir_buf, &workdir_buf, NULL, NULL, dir, flags, nullptr)) {
+    case 0:
+      gitdir.assign(gitdir_buf.ptr, gitdir_buf.size);
+      workdir.assign(workdir_buf.ptr, workdir_buf.size);
+      VERIFY(!gitdir.empty() && gitdir.front() == '/' && gitdir.back() == '/');
+      VERIFY(!workdir.empty() && workdir.front() == '/' && workdir.back() == '/');
+      break;
     case GIT_ENOTFOUND:
-      return "";
+      gitdir.clear();
+      workdir.clear();
+      break;
     default:
       LOG(ERROR) << "git_repository_open_ext: " << Print(dir) << ": " << GitError();
       throw Exception();
   }
 }
 
-git_repository* OpenRepo(const std::string& dotgit) {
+git_repository* OpenRepo(const std::string& dir, bool from_dotgit) {
   git_repository* repo = nullptr;
-  int flags = GIT_REPOSITORY_OPEN_NO_SEARCH | GIT_REPOSITORY_OPEN_NO_DOTGIT;
-  switch (git_repository_open_ext(&repo, dotgit.c_str(), flags, nullptr)) {
+  int flags = from_dotgit ? GIT_REPOSITORY_OPEN_NO_SEARCH | GIT_REPOSITORY_OPEN_NO_DOTGIT : 0;
+  switch (git_repository_open_ext(&repo, dir.c_str(), flags, nullptr)) {
     case 0:
       return repo;
     case GIT_ENOTFOUND:
       return nullptr;
     default:
-      LOG(ERROR) << "git_repository_open_ext: " << Print(dotgit) << ": " << GitError();
+      LOG(ERROR) << "git_repository_open_ext: " << Print(dir) << ": " << GitError();
       throw Exception();
   }
 }
@@ -77,8 +86,12 @@ std::string DirName(std::string path) {
 Repo* RepoCache::Open(const std::string& dir, bool from_dotgit) {
   if (dir.empty() || dir.front() != '/') return nullptr;
 
-  std::string gitdir = DotGitDir(dir, from_dotgit);
+  std::string gitdir, workdir;
+  GitDirs(dir.c_str(), from_dotgit, gitdir, workdir);
   if (gitdir.empty()) {
+    // This isn't quite correct because of differences in canonicalization, .git files and GIT_DIR.
+    // A proper solution would require tracking the "discovery dir" for every repository and
+    // performing path canonicalization.
     if (from_dotgit) {
       Erase(cache_.find(dir.back() == '/' ? dir : dir + '/'));
     } else {
@@ -91,14 +104,7 @@ Repo* RepoCache::Open(const std::string& dir, bool from_dotgit) {
     }
     return nullptr;
   }
-  std::string workdir = DirName(gitdir);
-  if (workdir.empty()) {
-    Erase(cache_.find(gitdir));
-    return nullptr;
-  }
 
-  VERIFY(gitdir.front() == '/' && gitdir.back() == '/') << Print(gitdir);
-  VERIFY(workdir.front() == '/' && workdir.back() == '/') << Print(workdir);
   auto it = cache_.find(gitdir);
   if (it != cache_.end()) {
     lru_.erase(it->second->lru);
@@ -106,7 +112,9 @@ Repo* RepoCache::Open(const std::string& dir, bool from_dotgit) {
     return it->second.get();
   }
 
-  git_repository* repo = OpenRepo(gitdir);
+  // Opening from gitdir is faster but we cannot use it when gitdir came from a .git file.
+  git_repository* repo =
+      DirName(gitdir) == workdir ? OpenRepo(gitdir, true) : OpenRepo(dir, from_dotgit);
   if (!repo) return nullptr;
   ON_SCOPE_EXIT(&) {
     if (repo) git_repository_free(repo);
