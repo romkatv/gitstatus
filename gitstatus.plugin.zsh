@@ -146,7 +146,7 @@ function gitstatus_query() {
   local opt dir callback OPTARG
   local -i no_diff OPTIND
   local -F timeout=-1
-  while getopts ":d:c:t:p"; do
+  while getopts ":d:c:t:p" opt; do
     case $opt in
       +p) no_diff=0;;
       p)  no_diff=1;;
@@ -208,36 +208,36 @@ function gitstatus_process_results() {
   local opt OPTARG
   local -i OPTIND
   local -F timeout=-1
-  while getopts ":t:"; do
+  while getopts ":t:" opt; do
     case $opt in
       t)
         if [[ $OPTARG != (|+)<->(|.<->)(|[eE](|-|+)<->) ]]; then
-          print -ru2 -- "gitstatus_query: invalid -t argument: $OPTARG"
+          print -ru2 -- "gitstatus_process_results: invalid -t argument: $OPTARG"
           return 1
         fi
         timeout=OPTARG
       ;;
-      \?) print -ru2 -- "gitstatus_query: invalid option: $OPTARG"           ; return 1;;
-      :)  print -ru2 -- "gitstatus_query: missing required argument: $OPTARG"; return 1;;
-      *)  print -ru2 -- "gitstatus_query: invalid option: $opt"              ; return 1;;
+      \?) print -ru2 -- "gitstatus_process_results: invalid option: $OPTARG"           ; return 1;;
+      :)  print -ru2 -- "gitstatus_process_results: missing required argument: $OPTARG"; return 1;;
+      *)  print -ru2 -- "gitstatus_process_results: invalid option: $opt"              ; return 1;;
     esac
   done
 
   if (( OPTIND != ARGC )); then
-    print -ru2 -- "gitstatus_start: exactly one positional argument is required"
+    print -ru2 -- "gitstatus_process_results: exactly one positional argument is required"
     return 1
   fi
 
   local name=$*[OPTIND]
   if [[ $name != [[:IDENT:]]## ]]; then
-    print -ru2 -- "gitstatus_start: invalid positional argument: $name"
+    print -ru2 -- "gitstatus_process_results: invalid positional argument: $name"
     return 1
   fi
 
   (( _GITSTATUS_STATE_$name == 2 )) || return
 
   while (( _GITSTATUS_NUM_INFLIGHT_$name )); do
-    _gitstatus_process_response $name $timeout || return
+    _gitstatus_process_response $name $timeout '' || return
     [[ $VCS_STATUS_RESULT == *-async ]] || break
   done
 
@@ -245,16 +245,15 @@ function gitstatus_process_results() {
 }
 
 function _gitstatus_clear() {
-  unset {WORKDIR,COMMIT,LOCAL_BRANCH,REMOTE_BRANCH,REMOTE_NAME,REMOTE_URL,ACTION,INDEX_SIZE,NUM_STAGED,NUM_UNSTAGED,NUM_CONFLICTED,NUM_UNTRACKED,HAS_STAGED,HAS_UNSTAGED,HAS_CONFLICTED,HAS_UNTRACKED,COMMITS_AHEAD,COMMITS_BEHIND,STASHES,TAG,NUM_UNSTAGED_DELETED,NUM_STAGED_NEW,NUM_STAGED_DELETED,PUSH_REMOTE_NAME,PUSH_REMOTE_URL,PUSH_COMMITS_AHEAD,PUSH_COMMITS_BEHIND,NUM_SKIP_WORKTREE,NUM_ASSUME_UNCHANGED}
+  unset VCS_STATUS_{WORKDIR,COMMIT,LOCAL_BRANCH,REMOTE_BRANCH,REMOTE_NAME,REMOTE_URL,ACTION,INDEX_SIZE,NUM_STAGED,NUM_UNSTAGED,NUM_CONFLICTED,NUM_UNTRACKED,HAS_STAGED,HAS_UNSTAGED,HAS_CONFLICTED,HAS_UNTRACKED,COMMITS_AHEAD,COMMITS_BEHIND,STASHES,TAG,NUM_UNSTAGED_DELETED,NUM_STAGED_NEW,NUM_STAGED_DELETED,PUSH_REMOTE_NAME,PUSH_REMOTE_URL,PUSH_COMMITS_AHEAD,PUSH_COMMITS_BEHIND,NUM_SKIP_WORKTREE,NUM_ASSUME_UNCHANGED}
 }
 
 function _gitstatus_process_response() {
-  local name=$1 timeout req_id=$3
-  (( $2 >= 0 )) && timeout=-t$2
+  local name=$1 timeout req_id=$3 buf
   local -i resp_fd=_GITSTATUS_RESP_FD_$name
   local -i dirty_max_index_size=_GITSTATUS_DIRTY_MAX_INDEX_SIZE_$name
 
-  local buf
+  (( $2 >= 0 )) && timeout=-t$2 && [[ -t $resp_fd ]]
   sysread $timeout -i $resp_fd 'buf[$#buf+1]' || {
     if (( $? == 4 )); then
       if [[ -n $req_id ]]; then
@@ -276,7 +275,7 @@ function _gitstatus_process_response() {
 
   local s
   for s in ${(ps:\x1e:)buf}; do
-    local -a resp=(${ps:\x1f:}s)
+    local -a resp=("${(@ps:\x1f:)s}")
     if (( resp[2] )); then
       if [[ $resp[1] == $req_id' '* ]]; then
         typeset -g VCS_STATUS_RESULT=ok-sync
@@ -309,7 +308,7 @@ function _gitstatus_process_response() {
           VCS_STATUS_NUM_SKIP_WORKTREE    \
           VCS_STATUS_NUM_ASSUME_UNCHANGED in "${(@)resp[3,27]}"; do
       done
-      typeset -gi VCS_STATUS{INDEX_SIZE,NUM_STAGED,NUM_UNSTAGED,NUM_CONFLICTED,NUM_UNTRACKED,COMMITS_AHEAD,COMMITS_BEHIND,STASHES,NUM_UNSTAGED_DELETED,NUM_STAGED_NEW,NUM_STAGED_DELETED,PUSH_COMMITS_AHEAD,PUSH_COMMITS_BEHIND,NUM_SKIP_WORKTREE,NUM_ASSUME_UNCHANGED}
+      typeset -gi VCS_STATUS_{INDEX_SIZE,NUM_STAGED,NUM_UNSTAGED,NUM_CONFLICTED,NUM_UNTRACKED,COMMITS_AHEAD,COMMITS_BEHIND,STASHES,NUM_UNSTAGED_DELETED,NUM_STAGED_NEW,NUM_STAGED_DELETED,PUSH_COMMITS_AHEAD,PUSH_COMMITS_BEHIND,NUM_SKIP_WORKTREE,NUM_ASSUME_UNCHANGED}
       typeset -gi VCS_STATUS_HAS_STAGED=$((VCS_STATUS_NUM_STAGED > 0))
       if (( dirty_max_index_size >= 0 && VCS_STATUS_INDEX_SIZE > dirty_max_index_size )); then
         typeset -gi                    \
@@ -373,7 +372,7 @@ function gitstatus_start() {
   emulate -L zsh || return
   setopt no_aliases no_bg_nice extended_glob typeset_silent monitor || return
 
-  print -rn2 || return
+  print -rnu2 || return
 
   local opt OPTARG
   local -i OPTIND
@@ -441,7 +440,7 @@ function gitstatus_start() {
     typeset -g GITSTATUS_XTRACE_$name=$xtrace
     typeset -g GITSTATUS_DAEMON_LOG_$name=$daemon_log
     typeset -g _GITSTATUS_FILE_PREFIX_$name=$file_prefix
-    typeset -gi _GITSTATUS_CLIENT_PID_$name=sysparams[pid]
+    typeset -gi _GITSTATUS_CLIENT_PID_$name="sysparams[pid]"
     typeset -gi _GITSTATUS_DIRTY_MAX_INDEX_SIZE_$name=dirty_max_index_size
   fi
 
@@ -461,11 +460,11 @@ function gitstatus_start() {
       {
         () {
           [[ $sysparams[procsubstpid] == <1-> ]] || return
-          typeset -gi GITSTATUS_DAEMON_PID_$name=sysparams[procsubstpid]
+          typeset -gi GITSTATUS_DAEMON_PID_$name="sysparams[procsubstpid]"
           sysopen -r -o cloexec -u resp_fd -- $1 || return
           typeset -gi _GITSTATUS_RESP_FD_$name=resp_fd
-        } 2>&3 <(
-          exec 3>&-
+        } <(
+          exec 2>&3 3>&- || return
           local pgid=$sysparams[pid]
           [[ $pgid == <1-> ]] || return
 
@@ -480,7 +479,7 @@ function gitstatus_start() {
                 case $os in
                   Linux)            [[ "$(uname -o)" == Android ]] && os=android;;
                   (#i)cygwin_nt-*)  os=cygwin_nt-10.0;;
-                  (#i)(mingw|msys)) os=MSYS_NT-10.0;;
+                  (#i)(mingw|msys)) os=msys_nt-10.0;;
                 esac
                 local arch
                 arch="$(uname -m)" || return
@@ -493,7 +492,8 @@ function gitstatus_start() {
                 args+=(-t $GITSTATUS_NUM_THREADS)
               else
                 local cpus
-                if (( ! $+commands[sysctl] )) || ! cpus="$(sysctl -n hw.ncpu)"; then
+                if [[ $+commands[sysctl] == 0 || "${os:-$(uname -s)}" == Linux ]] ||
+                   ! cpus="$(sysctl -n hw.ncpu)"; then
                   if (( ! $+commands[getconf] )) || ! cpus="$(getconf _NPROCESSORS_ONLN)"; then
                     cpus=8
                   fi
@@ -522,7 +522,7 @@ function gitstatus_start() {
             fi
           } &!
         ) || return
-      } 3>&2 2>>$daemon_log </dev/null >/dev/null || return
+      } 3>>$daemon_log </dev/null >/dev/null || return
 
       typeset -gi _GITSTATUS_STATE_$name=1
     fi
@@ -532,17 +532,17 @@ function gitstatus_start() {
 
       local ready
       [[ -t $resp_fd ]]
-      sysread -s1 -t $timeout -u $resp_fd ready || return
+      sysread -s1 -t $timeout -i $resp_fd ready || return
       [[ $ready == 1 ]] || return
 
-      sysopen -w -o cloexec -u req_fd -- $1 || return
+      sysopen -w -o cloexec -u req_fd -- $file_prefix.fifo || return
       typeset -gi _GITSTATUS_REQ_FD_$name=req_fd
 
       function _gitstatus_process_response_$name() {
         emulate -L zsh -o no_aliases -o extended_glob -o typeset_silent
         local name=${${(%):-%N}#_gitstatus_process_response_}
         if (( ARGC == 1 )); then
-          _gitstatus_process_response $name
+          _gitstatus_process_response $name 0 ''
         else
           gitstatus_stop $name
         fi
@@ -567,7 +567,7 @@ function gitstatus_start() {
       local expected=$'hello\x1f0' actual
       while (( $#actual < $#expected )); do
         [[ -t $resp_fd ]]
-        sysread -s $(($#expected - $#actual)) -t $timeout -u $resp_fd actual || return
+        sysread -s $(($#expected - $#actual)) -t $timeout -i $resp_fd actual || return
       done
       [[ $actual == $expected ]] || return
 
@@ -593,7 +593,7 @@ function gitstatus_start() {
       print -ru2   -- "  The content of ${(q-)xtrace} (gitstatus_start xtrace):"
       print -Pru2  -- '%F{yellow}'
       >&2 awk '{print "    " $0}' <$xtrace
-      print -Pru2  -- '%F{red}                               ^ this command failed%f'
+      print -Pnru2 -- '%f'
     fi
     if [[ -s $daemon_log ]]; then
       print -ru2   -- ''
@@ -653,49 +653,44 @@ function gitstatus_stop() {
     return 1
   fi
 
-  {
-    local state_var=_GITSTATUS_STATE_$name
-    local req_fd_var=_GITSTATUS_REQ_FD_$name
-    local resp_fd_var=_GITSTATUS_RESP_FD_$name
-    local lock_fd_var=_GITSTATUS_LOCK_FD_$name
-    local client_pid_var=GITSTATUS_CLIENT_PID_$name
-    local daemon_pid_var=GITSTATUS_DAEMON_PID_$name
-    local inflight_var=_GITSTATUS_NUM_INFLIGHT_$name
-    local file_prefix_var=_GITSTATUS_FILE_PREFIX_$name
-    local dirty_max_index_size_var=_GITSTATUS_DIRTY_MAX_INDEX_SIZE_$name
+  local state_var=_GITSTATUS_STATE_$name
+  local req_fd_var=_GITSTATUS_REQ_FD_$name
+  local resp_fd_var=_GITSTATUS_RESP_FD_$name
+  local lock_fd_var=_GITSTATUS_LOCK_FD_$name
+  local client_pid_var=GITSTATUS_CLIENT_PID_$name
+  local daemon_pid_var=GITSTATUS_DAEMON_PID_$name
+  local inflight_var=_GITSTATUS_NUM_INFLIGHT_$name
+  local file_prefix_var=_GITSTATUS_FILE_PREFIX_$name
+  local dirty_max_index_size_var=_GITSTATUS_DIRTY_MAX_INDEX_SIZE_$name
 
-    local req_fd=${(P)req_fd_var}
-    local resp_fd=${(P)resp_fd_var}
-    local lock_fd=${(P)lock_fd_var}
-    local daemon_pid=${(P)daemon_pid_var}
-    local file_prefix=${(P)file_prefix_var}
+  local req_fd=${(P)req_fd_var}
+  local resp_fd=${(P)resp_fd_var}
+  local lock_fd=${(P)lock_fd_var}
+  local daemon_pid=${(P)daemon_pid_var}
+  local file_prefix=${(P)file_prefix_var}
 
-    local cleanup=_gitstatus_cleanup_$name
-    local process=_gitstatus_process_response_$name
+  local cleanup=_gitstatus_cleanup_$name
+  local process=_gitstatus_process_response_$name
 
-    [[ -n $daemon_pid ]] && kill -- -$daemon_pid
+  [[ -n $daemon_pid ]] && kill -- -$daemon_pid 2>/dev/null
 
-    if (( $+functions[$cleanup] )); then
-      add-zsh-hook -d zshexit -- $cleanup
-      unfunction -- $cleanup
-    fi
+  if (( $+functions[$cleanup] )); then
+    add-zsh-hook -d zshexit $cleanup
+    unfunction -- $cleanup
+  fi
 
-    if (( $+functions[$process] )); then
-      [[ -n $resp_fd ]] && zle -F $resp_fd
-      unfunction -- $process
-    fi
+  if (( $+functions[$process] )); then
+    [[ -n $resp_fd ]] && zle -F $resp_fd
+    unfunction -- $process
+  fi
 
-    zf_rm -f -- "$file_prefix.lock" "$file_prefix.fifo"
-    [[ -n $lock_fd ]] && system flock -u $lock_fd
+  [[ -n $file_prefix ]] && zf_rm -f -- "$file_prefix.lock" "$file_prefix.fifo"
+  [[ -n $lock_fd     ]] && system flock -u $lock_fd
+  [[ -n $req_fd      ]] && exec {req_fd}>&-
+  [[ -n $resp_fd     ]] && exec {resp_fd}>&-
 
-    [[ -n $req_fd  ]] && exec {req_fd}>&-
-    [[ -n $resp_fd ]] && exec {resp_fd}>&-
-
-    unset -- $state_var $req_fd_var $resp_fd_var $client_pid_var $daemon_pid_var
-    unset -- $inflight_var $file_prefix_var $dirty_max_index_size_var
-  } # 2>/dev/null
-
-  return 0
+  unset $state_var $req_fd_var $lock_fd_var $resp_fd_var $client_pid_var $daemon_pid_var
+  unset $inflight_var $file_prefix_var $dirty_max_index_size_var
 }
 
 # Usage: gitstatus_check NAME.
@@ -706,13 +701,13 @@ function gitstatus_check() {
   emulate -L zsh -o no_aliases -o extended_glob -o typeset_silent
 
   if (( ARGC != 1 )); then
-    print -ru2 -- "gitstatus_stop: exactly one positional argument is required"
+    print -ru2 -- "gitstatus_check: exactly one positional argument is required"
     return 1
   fi
 
   local name=$1
   if [[ $name != [[:IDENT:]]## ]]; then
-    print -ru2 -- "gitstatus_stop: invalid positional argument: $name"
+    print -ru2 -- "gitstatus_check: invalid positional argument: $name"
     return 1
   fi
 
