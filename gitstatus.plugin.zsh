@@ -482,23 +482,33 @@ function gitstatus_start() {
                 [[ -n $kernel ]]           || return
               fi
 
-              local daemon=$GITSTATUS_DAEMON
-              if [[ -z $daemon ]]; then
-                daemon=$_gitstatus_plugin_dir/bin/gitstatusd-
+              if [[ $GITSTATUS_DAEMON == /* ]]; then
+                local daemons=($GITSTATUS_DAEMON)
+              elif (( $+commands[$GITSTATUS_DAEMON] )); then
+                local daemons=($commands[$GITSTATUS_DAEMON])
+              elif [[ -n $GITSTATUS_DAEMON ]]; then
+                local daemons=($_gitstatus_plugin_dir/{usrbin,bin}/$GITSTATUS_DAEMON)
+              else
+                local os
                 case $kernel in
                   linux)
-                    local os
                     os="${(L)$(uname -o)}" || return
                     [[ -n $os ]]           || return
-                    [[ $os == android ]] && daemon+=android || daemon+=linux
+                    [[ $os == android ]]   || os=linux
                   ;;
-                  cygwin_nt-*)  daemon+=ygwin_nt-10.0;;
-                  mingw|msys)   daemon+=msys_nt-10.0;;
-                  *)            daemon+=$kernel;;
+                  cygwin_nt-*)  os=cygwin_nt-10.0;;
+                  mingw|msys)   os=msys_nt-10.0;;
+                  *)            os=$kernel;;
                 esac
-                daemon+="-${(L)$(uname -m)}" || return
+                local arch
+                arch="${(L)$(uname -m)}" || return
+                [[ -n $arch ]]           || return
+                local daemons=($_gitstatus_plugin_dir/{usrbin,bin}/gitstatusd-$os-$arch{,-static})
               fi
-              [[ -x $daemon ]] || return
+
+              daemons=(${^daemons}(N:A))
+              daemons=(${^daemons}(N*))
+              (( $#daemons )) || return
 
               if [[ $GITSTATUS_NUM_THREADS == <1-> ]]; then
                 args+=(-t $GITSTATUS_NUM_THREADS)
@@ -518,10 +528,12 @@ function gitstatus_start() {
               exec <$file_prefix.fifo     || return
               zf_rm -- $file_prefix.fifo  || return
 
-              $daemon "${(@)args}"
-              if [[ $? != (0|10) && $? -le 128 && -x ${daemon}-static ]]; then
-                ${daemon}-static "${(@)args}" || return
-              fi
+              local daemon
+              for daemon in $daemons; do
+                $daemon "${(@)args}"
+                local -i ret=$?
+                (( ret == 0 || ret == 10 || ret > 128 )) && return ret
+              done
             } always {
               local -i ret=$?
               kill -- -$pgid
