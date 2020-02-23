@@ -713,6 +713,9 @@ function gitstatus_stop() {
 
   unset $state_var $req_fd_var $lock_fd_var $resp_fd_var $client_pid_var $daemon_pid_var
   unset $inflight_var $file_prefix_var $dirty_max_index_size_var
+
+  unset VCS_STATUS_RESULT
+  _gitstatus_clear
 }
 
 # Usage: gitstatus_check NAME.
