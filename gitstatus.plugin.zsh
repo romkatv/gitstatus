@@ -595,7 +595,7 @@ function gitstatus_start() {
       fi
 
       print -nru $req_fd -- $'hello\x1f\x1e' || return
-      local expected=$'hello\x1f0' actual
+      local expected=$'hello\x1f0\x1e' actual
       while (( $#actual < $#expected )); do
         [[ -t $resp_fd ]]
         sysread -s $(($#expected - $#actual)) -t $timeout -i $resp_fd 'actual[$#actual+1]' || return
