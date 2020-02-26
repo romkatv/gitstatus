@@ -11,51 +11,58 @@
 
 readonly GITSTATUS_REPO_URL=https://github.com/romkatv/gitstatus.git
 readonly LIBGIT2_REPO_URL=https://github.com/romkatv/libgit2.git
+readonly ICONV_TARBALL_URL=https://opensource.apple.com/tarballs/libiconv/libiconv-51.200.6.tar.gz
 
 emulate -L zsh
-setopt err_return err_return no_unset pipe_fail extended_glob typeset_silent
+setopt pipe_fail no_aliases extended_glob typeset_silent
 
-[[ $# -lt 2 ]] || {
-  echo "Usage: build.sh [DIR]" >&2
+if [[ $# > 1 ]]; then
+  echo "Usage: build.sh [dir]" >&2
   return 1
-}
+fi
 
-local DIR=${${1:-${TMPDIR:-/tmp}/gitstatus}:a}
-local OS && OS=$(uname -s)
-[[ $OS != Linux || $(uname -o) != Android ]] || OS=Android
+local dir=${${1:-${TMPDIR:-/tmp}/gitstatus}:a}
 
-local CPUS
-case $OS in
-  *BSD) CPUS=$(sysctl -n hw.ncpu);;
-  *) CPUS=$(getconf _NPROCESSORS_ONLN);;
-esac
+local kernel
+kernel="${(L)$(uname -s)}" || return
+[[ -n $kernel ]]           || return
+
+local cpus
+if (( ! $+commands[sysctl] )) || [[ $kernel == linux ]] || ! cpus="$(sysctl -n hw.ncpu)"; then
+  if (( ! $+commands[getconf] )) || ! cpus="$(getconf _NPROCESSORS_ONLN)"; then
+    cpus=8
+  fi
+fi
+[[ $cpus == <1-> ]] || cpus=8
 
 function build_iconv() {
-  [[ $OS == Darwin ]] || return 0
-  cd $DIR
-  [[ -n libiconv(#qFN) ]] || {
-    rm -rf iconv libiconv-51.200.6.tar.gz libiconv-51.200.6
-    curl -fsSLO https://opensource.apple.com/tarballs/libiconv/libiconv-51.200.6.tar.gz
-    tar xvzf libiconv-51.200.6.tar.gz
-    mv libiconv-51.200.6/libiconv .
-  }
-  cd libiconv
-  ./configure --enable-static
-  make -j $CPUS
-  cp lib/.libs/libiconv.a .
+  [[ $kernel == darwin ]]             || return 0
+  cd -- $dir                          || return
+
+  local tarball=${ICONV_TARBALL_URL:t}
+  local base=${tarball%.tar.gz}
+
+  if [[ -z libiconv(#qFN) ]]; then
+    rm -rf -- iconv $tarball $base    || return
+    curl -fsSLO -- $ICONV_TARBALL_URL || return
+    tar xvzf -- $tarball              || return
+    mv $base/libiconv .               || return
+  fi
+  cd libiconv                         || return
+  ./configure --enable-static         || return
+  make -j $cpus                       || return
+  cp lib/.libs/libiconv.a .           || return
 }
 
 function build_libgit2() {
-  cd $DIR
-  [[ -n libgit2(#qFN) ]] || git clone --depth 1 $LIBGIT2_REPO_URL
-  mkdir -p libgit2/build
-  cd libgit2/build
-  local -a cmakeflags=(${(@Q)${(z)CMAKEFLAGS:-}})
-  case $OS in
-    Darwin)
-      cmakeflags+=-DUSE_ICONV=ON
-      ;;
-  esac
+  cd $dir                                 || return
+  if [[ -z libgit2(#qFN) ]]; then
+    git clone --depth 1 $LIBGIT2_REPO_URL || return
+  fi
+  mkdir -p libgit2/build                  || return
+  cd libgit2/build                        || return
+  local -a cmakeflags=(${(@Q)${(z)CMAKEFLAGS}})
+  [[ $kernel == darwin ]] && cmakeflags+=-DUSE_ICONV=ON
   cmake                        \
     -DCMAKE_BUILD_TYPE=Release \
     -DTHREADSAFE=ON            \
@@ -67,66 +74,83 @@ function build_libgit2() {
     -DBUILD_SHARED_LIBS=OFF    \
     -DUSE_EXT_HTTP_PARSER=OFF  \
     -DZERO_NSEC=ON             \
-    ${(@Q)${(z)CMAKEFLAGS:-}}  \
-    ..
-  make -j $CPUS
+    $cmakeflags                \
+    ..                                    || return
+  make -j $cpus                           || return
 }
 
 function build_gitstatus() {
-  cd $DIR
-  [[ -n gitstatus(#qFN) ]] || git clone --depth 1 $GITSTATUS_REPO_URL
-  cd gitstatus
-  local arch && arch=$(uname -m)
+  cd $dir                                   || return
+  if [[ -z gitstatus(#qFN) ]]; then
+    git clone --depth 1 $GITSTATUS_REPO_URL || return
+  fi
+  cd gitstatus                              || return
+
+  local os=$kernel
+  if [[ $os == linux ]]; then
+    os="${(L)$(uname -o)}"                  || return
+    [[ -n $os ]]                            || return
+    [[ $os == android ]]                    || os=linux
+  fi
+
+  local arch
+  arch="${(L)$(uname -m)}"                  || return
+  [[ -n $arch ]]                            || return
+
   local cxx=${CXX:-'g++'}
-  local cxxflags=${CXXFLAGS:-''}
-  local ldflags=${LDFLAGS:-''}
+  local cxxflags=${CXXFLAGS}
+  local ldflags=${LDFLAGS}
   local make=make
-  cxxflags+=" -I$DIR/libgit2/include -DGITSTATUS_ZERO_NSEC"
-  ldflags+=" -L$DIR/libgit2/build"
-  case $OS in
-    Android)
+
+  cxxflags+=" -I${(q)dir}/libgit2/include -DGITSTATUS_ZERO_NSEC"
+  ldflags+=" -L${(q)dir}/libgit2/build"
+
+  case $os in
+    android)
       cxx=${CXX:-'clang++'}
       [[ $arch != 'armv7l' ]] || ldflags+=" -latomic"
       ;;
-    Linux)
+    linux)
       ldflags+=" -static-libstdc++ -static-libgcc"
       ;;
-    FreeBSD)
+    freebsd)
       ldflags+=" -static"
       make=gmake
       ;;
-    OpenBSD)
+    openbsd)
       cxx=${CXX:-'eg++'}
       ldflags+=" -static"
       make=gmake
       ;;
-    Darwin)
-      cxxflags+=" -I$DIR/libiconv/include"
-      ldflags+=" -L$DIR/libiconv -liconv"
+    darwin)
+      cxxflags+=" -I${(q)dir}/libiconv/include"
+      ldflags+=" -L${(q)dir}/libiconv -liconv"
       ;;
-    CYGWIN*|MSYS*)
+    cygwin*|msys*)
       cxxflags+=" -D_GNU_SOURCE"
       ldflags+=" -static"
       ;;
   esac
-  CXX=$cxx CXXFLAGS=$cxxflags LDFLAGS=$ldflags $make -j $CPUS
-  strip gitstatusd
-  local target=$PWD/bin/gitstatusd-${OS:l}-${arch:l}
-  cp -f gitstatusd $target
-  echo "built: $target" >&2
+
+  CXX=$cxx CXXFLAGS=$cxxflags LDFLAGS=$ldflags $make -j $cpus || return
+  strip gitstatusd                                            || return
+  local target=$PWD/usrbin/gitstatusd-$os-$arch
+  mkdir -p -- ${target:h}                                     || return
+  cp -f -- gitstatusd $target                                 || return
+  echo -E - "built: $target" >&2
 }
 
 function verify_gitstatus() {
   local reply
-  echo -nE $'hello\x1f\x1e' | $DIR/gitstatus/gitstatusd 2>/dev/null | {
-    IFS='' read -r -d $'\x1e' -t 5 reply
-    [[ $reply == $'hello\x1f0' ]]
-  }
+  echo -nE $'hello\x1f\x1e' | $dir/gitstatus/gitstatusd 2>/dev/null | {
+    IFS='' read -r -d $'\x1e' -t 5 reply || return
+    [[ $reply == $'hello\x1f0' ]]        || return
+  } || return
   echo "self-check successful" >&2
 }
 
-echo "Building gitstatus in $DIR ..." >&2
-mkdir -p $DIR
+echo -E - "Building gitstatus in $dir ..." >&2
+mkdir -p $dir
 build_iconv
 build_libgit2
 build_gitstatus
