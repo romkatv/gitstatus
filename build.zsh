@@ -72,7 +72,6 @@ function build_libgit2() {
     -DUSE_SSH=OFF              \
     -DUSE_HTTPS=OFF            \
     -DBUILD_SHARED_LIBS=OFF    \
-    -DUSE_EXT_HTTP_PARSER=OFF  \
     -DZERO_NSEC=ON             \
     $cmakeflags                \
     ..                                    || return
