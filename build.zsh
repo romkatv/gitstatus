@@ -45,7 +45,7 @@ function build_iconv() {
   if [[ -z libiconv(#qFN) ]]; then
     rm -rf -- iconv $tarball $base    || return
     curl -fsSLO -- $ICONV_TARBALL_URL || return
-    tar xvzf -- $tarball              || return
+    tar xvzf $tarball                 || return
     mv $base/libiconv .               || return
   fi
   cd libiconv                         || return
@@ -150,8 +150,8 @@ function verify_gitstatus() {
 }
 
 echo -E - "Building gitstatus in $dir ..." >&2
-mkdir -p $dir
-build_iconv
-build_libgit2
-build_gitstatus
-verify_gitstatus
+mkdir -p $dir     || return
+build_iconv       || return
+build_libgit2     || return
+build_gitstatus   || return
+verify_gitstatus  || return
