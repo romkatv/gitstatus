@@ -17,7 +17,7 @@ emulate -L zsh
 setopt pipe_fail no_aliases extended_glob typeset_silent
 
 if [[ $# > 1 ]]; then
-  echo "Usage: build.sh [dir]" >&2
+  print -ru2 -- "usage: build.zsh [dir]"
   return 1
 fi
 
@@ -139,18 +139,18 @@ function build_gitstatus() {
 
 function verify_gitstatus() {
   local reply
-  echo -nE $'hello\x1f\x1e' | $dir/gitstatus/usrbin/* 2>/dev/null | {
+  print -rn -- $'hello\x1f\x1e' | $dir/gitstatus/usrbin/* 2>/dev/null | {
     IFS='' read -r -d $'\x1e' -t 5 reply || return
     [[ $reply == $'hello\x1f0' ]]        || return
   } || return
-  echo "self-check successful" >&2
+  print -ru2 -- "self-check successful"
 }
 
-echo -E - "Building gitstatus in $dir ..." >&2
+print -ru2 -- "Building gitstatus in $dir ..."
 mkdir -p $dir     || return
 build_iconv       || return
 build_libgit2     || return
 build_gitstatus   || return
 verify_gitstatus  || return
 
-echo -E - "built:" $dir/gitstatus/usrbin/* >&2
+print -ru2 -- built: $dir/gitstatus/usrbin/* >&2
