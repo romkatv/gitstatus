@@ -456,8 +456,27 @@ zsh -c "$(curl -fsSL https://raw.githubusercontent.com/romkatv/gitstatus/master/
 
 If everything goes well, the path to your newly built binary will be printed at the end.
 
-If something breaks due to a missing dependency (e.g., `cmake` not found), install the dependency,
+```text
+self-check successful
+built: /tmp/gitstatus/gitstatus/usrbin/gitstatusd-linux-x86_64
+```
+
+Copy the binary to `usrbin` subdirectory (create it if necessary) of your gitstatus installation.
+For example:
+
+```zsh
+mkdir -p ~/powerlevel10k/gitstatus/usrbin
+cp /tmp/gitstatus/gitstatus/usrbin/gitstatusd-linux-x86_64 ~/powerlevel10k/gitstatus/usrbin/
+```
+
+When using gitstatus from Zsh, this binary will be picked up automatically. With Bash you need to
+set `GITSTATUS_DAEMON` pointing to the gitstatusd binary.
+
+If build fails due to a missing dependency (e.g., `cmake` not found), install the dependency,
 remove `${TMPDIR:-/tmp}/gitstatus` and retry.
+
+*IMPORTANT*: You must rebuild the binary every time you update gitstatus. The new version of shell
+bindings may not work with the old binary.
 
 To build from locally modified sources, read
 [build.zsh](https://github.com/romkatv/gitstatus/tree/master/build.zsh) and improvise. This is a
