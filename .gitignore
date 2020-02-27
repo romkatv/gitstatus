@@ -1,5 +1,6 @@
 *.zwc
 obj/
+usrbin/
 /core
 /gitstatusd
 /.vscode/ipch

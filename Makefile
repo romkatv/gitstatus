@@ -11,8 +11,13 @@ OBJS := $(patsubst src/%.cc, obj/%.o, $(SRCS))
 
 all: $(APPNAME)
 
-$(APPNAME): $(OBJS)
-	$(CXX) $(OBJS) $(LDFLAGS) $(LDLIBS) -o $(APPNAME)
+$(APPNAME): usrbin/$(APPNAME)
+
+usrbin/$(APPNAME): $(OBJS) | usrbin
+	$(CXX) $(OBJS) $(LDFLAGS) $(LDLIBS) -o $@
+
+usrbin:
+	mkdir -p usrbin
 
 obj:
 	mkdir -p obj
