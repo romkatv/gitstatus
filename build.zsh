@@ -131,17 +131,15 @@ function build_gitstatus() {
       ;;
   esac
 
+  rm -rf usrbin                                               || return
   CXX=$cxx CXXFLAGS=$cxxflags LDFLAGS=$ldflags $make -j $cpus || return
-  strip gitstatusd                                            || return
-  local target=$PWD/usrbin/gitstatusd-$os-$arch
-  mkdir -p -- ${target:h}                                     || return
-  cp -f -- gitstatusd $target                                 || return
-  echo -E - "built: $target" >&2
+  strip usrbin/gitstatusd                                     || return
+  mv -f -- usrbin/gitstatusd{,-$os-$arch} $target             || return
 }
 
 function verify_gitstatus() {
   local reply
-  echo -nE $'hello\x1f\x1e' | $dir/gitstatus/gitstatusd 2>/dev/null | {
+  echo -nE $'hello\x1f\x1e' | $dir/gitstatus/usrbin/* 2>/dev/null | {
     IFS='' read -r -d $'\x1e' -t 5 reply || return
     [[ $reply == $'hello\x1f0' ]]        || return
   } || return
@@ -154,3 +152,5 @@ build_iconv       || return
 build_libgit2     || return
 build_gitstatus   || return
 verify_gitstatus  || return
+
+echo -E - "built:" $dir/gitstatus/usrbin/* >&2
