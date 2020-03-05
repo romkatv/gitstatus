@@ -519,8 +519,19 @@ function gitstatus_start() {
                   $_gitstatus_plugin_dir/{usrbin,bin}/gitstatusd-${^os}-$arch{,-static})
               fi
 
-              daemons=(${^daemons}(N:A))
-              daemons=(${^daemons}(N*))
+              local files=(${^daemons}(N:A))
+              daemons=(${^files}(N*))
+
+              if (( stderr_fd && $#daemons != $#files )); then
+                unsetopt xtrace
+                print -ru2   -- ''
+                print -ru2   -- 'ERROR: missing execute permissions on gitstatusd file(s):'
+                print -ru2   -- ''
+                print -ru2   -- '  '${(pj:\n  :)${files:|daemons}}
+                print -ru2   -- ''
+                setopt xtrace
+              fi
+
               (( $#daemons )) || return
 
               if [[ $GITSTATUS_NUM_THREADS == <1-> ]]; then
