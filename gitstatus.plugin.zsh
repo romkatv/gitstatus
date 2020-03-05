@@ -442,7 +442,7 @@ function gitstatus_start() {
     file_prefix=${(P)${:-_GITSTATUS_FILE_PREFIX_$name}}
   else
     local log_level=$GITSTATUS_LOG_LEVEL
-    local file_prefix=${${TMPDIR:-/tmp}:A}/gitstatus.$EUID.$sysparams[pid].$EPOCHSECONDS
+    local file_prefix=${${TMPDIR:-/tmp}:A}/gitstatus.$name.$EUID.$sysparams[pid].$EPOCHSECONDS
     (( GITSTATUS_ENABLE_LOGGING )) && : ${log_level:=INFO}
     if [[ -n $log_level ]]; then
       xtrace=$file_prefix.xtrace.log
