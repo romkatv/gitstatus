@@ -87,8 +87,7 @@ function build_gitstatus() {
 
   local os=$kernel
   if [[ $os == linux ]]; then
-    os="${(L)$(uname -o)}"                  || return
-    [[ -n $os ]]                            || return
+    os="${(L)$(uname -o 2>/dev/null)}"      || os=
     [[ $os == android ]]                    || os=linux
   fi
 
