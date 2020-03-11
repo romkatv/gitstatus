@@ -71,8 +71,8 @@ function gitstatus_start() {
       os=$(uname -s)                                    || return
       local arch && arch=$(uname -m)                    || return
       local dir  &&  dir=$(dirname "${BASH_SOURCE[0]}") || return
-      [[ "$os" != Linux || "$(uname -o)" != Android ]]  || os=Android
-      [[ "${os,,}" != msys* && "${os,,}" != mingw* ]]   || os=MSYS_NT-10.0
+      [[ "$os" != Linux || "$(uname -o 2>/dev/null)" != Android ]]  || os=Android
+      [[ "${os,,}" != msys* && "${os,,}" != mingw* ]]               || os=MSYS_NT-10.0
       daemon="$dir/bin/gitstatusd-${os,,}-${arch,,}"
     fi
 
