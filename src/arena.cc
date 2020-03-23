@@ -43,7 +43,8 @@ Arena::Arena(Arena::Options opt) : opt_(std::move(opt)), top_(&g_empty_block) {
 Arena::Arena(Arena&& other) : Arena() { *this = std::move(other); }
 
 Arena::~Arena() {
-  for (const Block& b : blocks_) ::operator delete(reinterpret_cast<void*>(b.start), b.size());
+  // See comments in Makefile for the reason sized deallocation is not used.
+  for (const Block& b : blocks_) ::operator delete(reinterpret_cast<void*>(b.start));
 }
 
 Arena& Arena::operator=(Arena&& other) {
@@ -65,7 +66,8 @@ void Arena::Reuse(size_t num_blocks) {
   reusable_ = std::min(reusable_, num_blocks);
   for (size_t i = reusable_; i != blocks_.size(); ++i) {
     const Block& b = blocks_[i];
-    ::operator delete(reinterpret_cast<void*>(b.start), b.size());
+    // See comments in Makefile for the reason sized deallocation is not used.
+    ::operator delete(reinterpret_cast<void*>(b.start));
   }
   blocks_.resize(reusable_);
   if (reusable_) {
