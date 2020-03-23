@@ -2,7 +2,11 @@ APPNAME ?= gitstatusd
 
 CXX ?= g++
 
-CXXFLAGS += -std=c++14 -funsigned-char -O3 -DNDEBUG -Wall -Werror -fsized-deallocation # -g -fsanitize=thread
+# Note: -fsized-deallocation is not used to avoid binary compatibility issues on macOS.
+#
+# Sized delete is implemented as __ZdlPvm in /usr/lib/libc++.1.dylib but this symbol is
+# missing in macOS prior to 10.13.
+CXXFLAGS += -std=c++14 -funsigned-char -O3 -DNDEBUG -Wall -Werror # -g -fsanitize=thread
 LDFLAGS += -pthread # -fsanitize=thread
 LDLIBS += -lgit2 # -lprofiler -lunwind
 
