@@ -92,12 +92,13 @@ case "$GITSTATUS_KERNEL" in
       >&2 echo "[error] please install homebrew from https://brew.sh/ and retry"
       exit 1
     fi
-    brew install libiconv
+    brew install libiconv cmake
     mkdir -- "$workdir"/lib
     ln -s -- /usr/local/opt/libiconv/lib/libiconv.a "$workdir"/lib
     libgit2_cmake_flags="$libgit2_cmake_flags -DUSE_ICONV=ON"
     libgit2_cflags="$libgit2_cflags -I/usr/local/opt/libiconv/include"
     gitstatus_cxxflags="$gitstatus_cxxflags -I/usr/local/opt/libiconv/include"
+    gitstatus_ldlibs="$gitstatus_ldlibs -liconv"
     gitstatus_ldflags="$gitstatus_ldflags -L${workdir}/lib"
   ;;
   msys*|mingw*)
@@ -141,7 +142,7 @@ CFLAGS="$libgit2_cflags" cmake \
   -DZERO_NSEC=ON               \
   $libgit2_cmake_flags         \
   "$outdir"/deps/libgit2
-make -j "$cpus"
+make -j "$cpus" VERBOSE=1
 
 APPNAME="$appname".tmp           \
   OBJDIR="$workdir"/gitstatus    \
@@ -153,10 +154,10 @@ APPNAME="$appname".tmp           \
 
 app="$outdir"/usrbin/"$appname"
 
-strip -- "$app".tmp
+strip "$app".tmp
 
-resp="$(printf 'hello\x1f\x1e' | "$app".tmp | tr '\x1f\x1e' ':;')"
-[ "$resp" = "hello:0;" ]
+resp="$(printf 'hello\x1f\x1e' | "$app".tmp)"
+[ -n "$resp" -a -z "${resp##hello*0*}" ]
 
 mv -f -- "$app".tmp "$app"
 
