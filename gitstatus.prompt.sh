@@ -2,7 +2,13 @@
 
 # Source gitstatus.plugin.sh from $GITSTATUS_DIR or from the same directory
 # in which the current script resides if the variable isn't set.
-source "${GITSTATUS_DIR:-${BASH_SOURCE[0]%/*}}/gitstatus.plugin.sh" || return
+if [[ -n "${GITSTATUS_DIR:-}" ]]; then
+  source "$GITSTATUS_DIR"                           || return
+elif [[ "${BASH_SOURCE[0]}" == */* ]]; then
+  source "${BASH_SOURCE[0]%/*}/gitstatus.plugin.sh" || return
+else
+  source gitstatus.plugin.sh                        || return
+fi
 
 # Sets GITSTATUS_PROMPT to reflect the state of the current git repository.
 # The value is empty if not in a git repository. Forwards all arguments to
