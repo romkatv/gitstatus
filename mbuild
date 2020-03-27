@@ -1,0 +1,188 @@
+#!/usr/bin/env zsh
+#
+# Windows Server 2019 Setup (as Administrator over RDP):
+#
+# - Disable Windows Defender.
+#   ps> Set-MpPreference -DisableRealtimeMonitoring $true
+# - Install 64-bit and 32-bit msys2: https://www.msys2.org/.
+# - Install 64-bit and 32-bit cygwin: https://cygwin.com/install.html.
+#   - Choose to install 32-bit to c:/cygwin32 instead of the default c:/cygwin.
+#   - Select these packages: binutils, cmake, gcc-core, gcc-g++, make.
+# - Install OpenSSH: https://docs.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse.
+#   ps> Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+#   ps> Start-Service sshd
+#   ps> Set-Service -Name sshd -StartupType 'Automatic'
+# - Enable publickey authentication: https://stackoverflow.com/a/50502015/1095235.
+#   ps> cd $env:USERPROFILE
+#   ps> mkdir .ssh
+#   ps> notepad.exe .ssh/authorized_keys
+#     - Paste your public key, save, close.
+#   ps> icacls .ssh/authorized_keys /inheritance:r
+#   ps> notepad.exe C:\ProgramData\ssh\sshd_config
+#     - Comment out these two lines:
+#       # Match Group administrators
+#       #   AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys
+#   ps> Restart-Service sshd
+#
+# Linux Setup (Debian):
+#
+# - Install docker.
+#   $ apt install docker.io
+#   $ usermod -aG docker $USER
+# - Install git.
+#   $ apt install git
+#
+# macOS Setup:
+#
+# - Install compiler tools:
+#   $ xcode-select --install
+# - Install homebrew: https://brew.sh/.
+#   $ bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+#
+# FreeBSD Setup:
+#
+# - Install git.
+#   $ pkg install git
+
+'emulate' '-L' 'zsh' '-o' 'no_aliases' '-o' 'err_return'
+setopt no_unset extended_glob pipe_fail prompt_percent typeset_silent \
+  no_prompt_subst no_prompt_bang pushd_silent monitor
+
+zmodload zsh/system
+
+local -r git_url='https://github.com/romkatv/gitstatus.git'
+
+local -rA assets=(
+  # kernel-arch         hostname
+  cygwin_nt-10.0-i686   win
+  cygwin_nt-10.0-x86_64 win
+  msys_nt-10.0-i686     win
+  msys_nt-10.0-x86_64   win
+  darwin-x86_64         mac
+  freebsd-amd64         freebsd
+  linux-aarch64         pi64
+  linux-armv7l          pi32
+  linux-i386            linux
+  linux-x86_64          linux
+)
+
+local -rA protocol=(
+  'cygwin_nt-10.0-*' win
+  'msys_nt-10.0-*'   win
+  'darwin-*'         unix
+  'freebsd-*'        unix
+  'linux-*'          unix
+)
+
+local -rA sh=(
+  # hostname   anything but bash <= 4.4
+  win          dash
+  mac          zsh
+  freebsd      sh
+  pi64         dash
+  pi32         dash
+  linux        dash
+)
+
+local -r rootdir=${ZSH_SCRIPT:h}
+local -r logs=$rootdir/logs
+local -r locks=$rootdir/locks
+local -r binaries=$rootdir/bin
+
+function usage() {
+  print -r -- 'usage: mbuild [-b REF] [KERNEL-ARCH]...'
+}
+
+local OPTARG opt git_ref=master
+local -i OPTIND
+while getopts ":b:h" opt; do
+  case $opt in
+    h) usage; return 0;;
+    b) [[ -n $OPTARG ]]; git_ref=$OPTARG;;
+    \?) print -ru2 -- "mbuild: invalid option: -$OPTARG"           ; return 1;;
+    :)  print -ru2 -- "mbuild: missing required argument: -$OPTARG"; return 1;;
+    *)  print -ru2 -- "mbuild: invalid option: -$opt"              ; return 1;;
+  esac
+done
+
+shift $((OPTIND - 1))
+
+(( $# )) || set -- ${(k)assets}
+
+local platform
+for platform; do
+  if (( ! $+assets[$platform] )); then
+    print -ru2 -- "mbuild: invalid platform: $platform"
+    return 1
+  fi
+done
+
+function build-unix() {
+  local intro
+  [[ $2 != darwin-* ]] || intro='PATH="/usr/local/bin:$PATH"'
+  ssh $1 -- /bin/sh -uex <<<'
+    '$intro'
+    cd /tmp
+    rm -rf gitstatus
+    git clone --recursive --shallow-submodules --depth=1 -b '$git_ref' '$git_url'
+    cd gitstatus
+    '$sh[$1]' -x ./build'
+  scp $1:/tmp/gitstatus/usrbin/gitstatusd-$2 $binaries/
+}
+
+function build-win() {
+  local tmp env bin
+  case $2 in
+    msys_nt-10.0-*)        tmp='/c/tmp'; env='MSYSTEM=MSYS';|
+    cygwin_nt-10.0-*)      tmp='/cygdrive/c/tmp'           ;|
+    msys_nt-10.0-i686)     bin='c:/msys32/usr/bin'         ;;
+    msys_nt-10.0-x86_64)   bin='c:/msys64/usr/bin'         ;;
+    cygwin_nt-10.0-i686)   bin='c:/cygwin32/bin'           ;;
+    cygwin_nt-10.0-x86_64) bin='c:/cygwin64/bin'           ;;
+  esac
+  local cmd='
+    set -uex
+    mkdir -p -- '$tmp'
+    cd -- '$tmp'
+    rm -rf gitstatus
+    git clone --recursive --shallow-submodules --depth=1 -b '$git_ref' '$git_url'
+    cd gitstatus
+    '$sh[$1]' -x ./build'
+  ssh $1 $bin/env.exe $env $bin/bash.exe -l <<<$cmd
+  scp $1:c:/tmp/gitstatus/usrbin/gitstatusd-$2 $binaries/
+  chmod +x $binaries/gitstatusd-$2
+}
+
+function build() (
+  local platform=$1
+  local machine=$assets[$platform]
+  print -n >>$locks/$machine
+  zsystem flock $locks/$machine
+  build-${protocol[(k)$platform]} $machine $platform
+)
+
+mkdir -p -- $logs $locks $binaries
+
+{
+  unsetopt monitor
+  local platform pid pids=()
+  for platform; do
+    build $platform &>$logs/$platform &
+    print -ru2 -- "starting build for $platform (pid $!)"
+    pids+=($!)
+  done
+  for pid in $pids; do
+    print -rnu2 -- "$platform => "
+    if wait $pid; then
+      print -ru2 -- "ok"
+    else
+      print -ru2 -- "error $?"
+      print -ru2 -- "---------------------"
+      >&2 cat $logs/$platform
+      return 1
+    fi
+  done
+} &
+
+trap "kill -- -$! 2>/dev/null" EXIT INT QUIT ILL PIPE TERM ZERR HUP
+wait %1
