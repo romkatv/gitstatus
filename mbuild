@@ -46,7 +46,7 @@
 
 'emulate' '-L' 'zsh' '-o' 'no_aliases' '-o' 'err_return'
 setopt no_unset extended_glob pipe_fail prompt_percent typeset_silent \
-  no_prompt_subst no_prompt_bang pushd_silent monitor
+  no_prompt_subst no_prompt_bang pushd_silent monitor want_create_global
 
 zmodload zsh/system
 
@@ -117,16 +117,28 @@ for platform; do
   fi
 done
 
+local build='
+  rm -rf gitstatus
+  git clone --recursive --shallow-submodules --depth=1 -b '$git_ref' '$git_url'
+  cd gitstatus
+  if command -v zsh >/dev/null 2>&1; then
+    sh=zsh
+  elif command -v dash >/dev/null 2>&1; then
+    sh=dash
+  elif command -v ash >/dev/null 2>&1; then
+    sh=ash
+  else
+    sh=sh
+  fi
+  $sh -x ./build -m '
+
 function build-unix() {
   local intro
   [[ $2 != darwin-* ]] || intro='PATH="/usr/local/bin:$PATH"'
-  ssh $1 -- /bin/sh -uex <<<'
-    '$intro'
+  ssh $1 -- /bin/sh -uex <<<"
+    $intro
     cd /tmp
-    rm -rf gitstatus
-    git clone --recursive --shallow-submodules --depth=1 -b '$git_ref' '$git_url'
-    cd gitstatus
-    '$sh[$1]' -x ./build -m '${2##*-}
+    $build ${2##*-}"
   scp $1:/tmp/gitstatus/usrbin/gitstatusd-$2 $binaries/
 }
 
@@ -140,15 +152,11 @@ function build-win() {
     cygwin_nt-10.0-i686)   bin='c:/cygwin32/bin'           ;;
     cygwin_nt-10.0-x86_64) bin='c:/cygwin64/bin'           ;;
   esac
-  local cmd='
+  ssh $1 $bin/env.exe $env $bin/bash.exe -l <<<"
     set -uex
-    mkdir -p -- '$tmp'
-    cd -- '$tmp'
-    rm -rf gitstatus
-    git clone --recursive --shallow-submodules --depth=1 -b '$git_ref' '$git_url'
-    cd gitstatus
-    '$sh[$1]' -x ./build -m '${2##*-}
-  ssh $1 $bin/env.exe $env $bin/bash.exe -l <<<$cmd
+    mkdir -p -- $tmp
+    cd -- $tmp
+    $build ${2##*-}"
   scp $1:c:/tmp/gitstatus/usrbin/gitstatusd-$2 $binaries/
   chmod +x $binaries/gitstatusd-$2
 }
