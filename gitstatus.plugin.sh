@@ -71,8 +71,10 @@ function gitstatus_start() {
       os=$(uname -s)                                    || return
       local arch && arch=$(uname -m)                    || return
       local dir  &&  dir=$(dirname "${BASH_SOURCE[0]}") || return
-      [[ "$os" != Linux || "$(uname -o 2>/dev/null)" != Android ]]  || os=Android
-      [[ "${os,,}" != msys* && "${os,,}" != mingw* ]]               || os=MSYS_NT-10.0
+      [[ "${os,,}" != cygwin_nt-*  ]] || os=cygwin_nt-10.0
+      [[ "${os,,}" != msys_nt-*    ]] || os=msys_nt-10.0
+      [[ "${os,,}" != mingw32_nt-* ]] || os=msys_nt-10.0
+      [[ "${os,,}" != mingw64_nt-* ]] || os=msys_nt-10.0
       daemon="$dir/bin/gitstatusd-${os,,}-${arch,,}"
     fi
 
@@ -118,10 +120,6 @@ function gitstatus_start() {
           trap 'kill %1 &>/dev/null' SIGINT SIGTERM EXIT
           \"\$_gitstatus_daemon\" ${daemon_args[*]} 0<&0 1>&3 2>&2 &
           wait %1
-          if [[ \$? != 0 && \$? != 10 && \$? -le 128 && -f \"\$_gitstatus_daemon\"-static ]]; then
-            \"\$_gitstatus_daemon\"-static ${daemon_args[*]} 0<&0 1>&3 2>&2 &
-            wait %1
-          fi
           echo -nE $'bye\x1f0\x1e' >&3" & } 2>/dev/null
     disown
     GITSTATUS_DAEMON_PID=$!
