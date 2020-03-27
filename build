@@ -156,7 +156,7 @@ app="$outdir"/usrbin/"$appname"
 
 strip "$app".tmp
 
-resp="$(printf 'hello\x1f\x1e' | "$app".tmp)"
+resp="$(printf 'hello\037\036' | "$app".tmp)"
 [ -n "$resp" -a -z "${resp##hello*0*}" ]
 
 mv -f -- "$app".tmp "$app"
