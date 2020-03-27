@@ -1,0 +1,331 @@
+#!/bin/sh
+#
+# Usage: build [-m ARCH] [-c CPU] [-i IMAGE]
+#
+# Type `build -h` for help and see https://github.com/romkatv/gitstatus
+# for full documentation.
+
+set -ue
+
+if [ -n "${BASH_VERSION:-}" ]; then
+  if [ -z "${BASH_VERSION##[0-4].*}" ]; then
+    >&2 echo "[error] bash version < 5 is not supported; try another interpreter"
+    exit 1
+  fi
+fi
+
+if [ -n "${ZSH_VERSION:-}" ]; then
+  emulate sh -o err_exit -o no_unset
+fi
+
+usage="$(cat <<\END
+Usage: build [-m ARCH] [-c CPU] [-i IMAGE]
+
+Options:
+
+  -m ARCH   `uname -m` from the target machine; defaults to `uname -m`
+            from the local machine
+  -c CPU    generate machine instructions for CPU of this type; this
+            value gets passed as -march to gcc; inferred from ARCH
+            if not set explicitly
+  -i IMAGE  docker image used for building gitstatusd; inferred from
+            ARCH if not set explicitly
+END
+)"
+
+build="$(cat <<\END
+outdir="$(pwd)"
+
+if command -v mktemp >/dev/null 2>&1; then
+  workdir="$(mktemp -d "${TMPDIR:-/tmp}"/gitstatus-build.XXXXXXXXXX)"
+else
+  workdir="${TMPDIR:-/tmp}/gitstatus-build.$$"
+  mkdir -- "$workdir"
+fi
+
+cd -- "$workdir"
+workdir="$(pwd)"
+
+narg() { echo $#; }
+
+if [ "$(narg $workdir)" != 1 -o -z "${workdir##*:*}" ]; then
+  >&2 echo "[error] cannot build in this directory: $workdir"
+  exit 1
+fi
+
+appname=gitstatusd-"$GITSTATUS_KERNEL"-"$GITSTATUS_ARCH"
+
+cleanup() {
+  cd /
+  rm -rf -- "$workdir" "$outdir"/usrbin/"$appname".tmp
+}
+trap cleanup INT QUIT TERM EXIT ILL PIPE
+
+cpus="$(getconf _NPROCESSORS_ONLN)" || cpus="$(sysctl -n hw.ncpu)" || cpus=8
+
+libgit2_cmake_flags=
+libgit2_cflags=
+
+gitstatus_cxx=g++
+gitstatus_cxxflags="-Ideps/libgit2/include -DGITSTATUS_ZERO_NSEC -D_GNU_SOURCE"
+gitstatus_ldflags="-L${workdir}/libgit2"
+gitstatus_ldlibs=
+gitstatus_make=make
+
+case "$GITSTATUS_KERNEL" in
+  linux)
+    apk update
+    apk add binutils cmake gcc g++ make musl-dev
+    gitstatus_ldflags="$gitstatus_ldflags -static"
+  ;;
+  freebsd)
+    pkg install -y cmake gmake binutils gcc
+    gitstatus_make=gmake
+    gitstatus_ldflags="$gitstatus_ldflags -static"
+  ;;
+  darwin)
+    if ! command -v make >/dev/null 2>&1 || ! command -v gcc >/dev/null 2>&1; then
+      >&2 echo "[error] please run 'xcode-select --install' and retry"
+      exit 1
+    fi
+    if ! command -v brew >/dev/null 2>&1; then
+      >&2 echo "[error] please install homebrew from https://brew.sh/ and retry"
+      exit 1
+    fi
+    brew install libiconv
+    mkdir -- "$workdir"/lib
+    ln -s -- /usr/local/opt/libiconv/lib/libiconv.a "$workdir"/lib
+    libgit2_cmake_flags="$libgit2_cmake_flags -DUSE_ICONV=ON"
+    libgit2_cflags="$libgit2_cflags -I/usr/local/opt/libiconv/include"
+    gitstatus_cxxflags="$gitstatus_cxxflags -I/usr/local/opt/libiconv/include"
+    gitstatus_ldflags="$gitstatus_ldflags -L${workdir}/lib"
+  ;;
+  msys*|mingw*)
+    pacman -Sy --noconfirm binutils cmake gcc g++ make
+    gitstatus_ldflags="$gitstatus_ldflags -static"
+  ;;
+  cygwin*)
+    for cmd in cmake gcc g++ ld make; do
+      if ! command -v "$cmd" >/dev/null 2>&1; then
+        >&2 echo "[error] command not found: $cmd"
+        >&2 echo ""
+        >&2 echo "Make sure the following Cygwin packages are installed:"
+        >&2 echo ""
+        >&2 echo "  binutils"
+        >&2 echo "  cmake"
+        >&2 echo "  gcc-core"
+        >&2 echo "  gcc-g++"
+        >&2 echo "  make"
+        exit 1
+      fi
+    done
+    gitstatus_ldflags="$gitstatus_ldflags -static"
+  ;;
+  *)
+    >&2 echo "[internal error] unhandled kernel: $GITSTATUS_KERNEL"
+    exit 1
+  ;;
+esac
+
+mkdir -- "$workdir"/libgit2
+cd -- "$workdir"/libgit2
+CFLAGS="$libgit2_cflags" cmake \
+  -DCMAKE_BUILD_TYPE=Release   \
+  -DTHREADSAFE=ON              \
+  -DUSE_BUNDLED_ZLIB=ON        \
+  -DREGEX_BACKEND=builtin      \
+  -DBUILD_CLAR=OFF             \
+  -DUSE_SSH=OFF                \
+  -DUSE_HTTPS=OFF              \
+  -DBUILD_SHARED_LIBS=OFF      \
+  -DZERO_NSEC=ON               \
+  $libgit2_cmake_flags         \
+  "$outdir"/deps/libgit2
+make -j "$cpus"
+
+APPNAME="$appname".tmp           \
+  OBJDIR="$workdir"/gitstatus    \
+  CXX="$gitstatus_cxx"           \
+  CXXFLAGS="$gitstatus_cxxflags" \
+  LDFLAGS="$gitstatus_ldflags"   \
+  LDLIBS="$gitstatus_ldlibs"     \
+  "$gitstatus_make" -C "$outdir" -j "$cpus"
+
+app="$outdir"/usrbin/"$appname"
+
+strip -- "$app".tmp
+
+resp="$(printf 'hello\x1f\x1e' | "$app".tmp | tr '\x1f\x1e' ':;')"
+[ "$resp" = "hello:0;" ]
+
+mv -f -- "$app".tmp "$app"
+
+cleanup
+
+cat >&2 <<-END
+	-------------------------------------------------
+	SUCCESS: created ./usrbin/$appname
+	END
+END
+)"
+
+absfile() {
+  [ -e "$1" ]
+  local dir base
+  dir="$(dirname -- "$1")"
+  base="$(basename -- "$1")"
+  ( cd -- "$dir" && dir="$(pwd)" && printf '%s/%s\n' "${dir%/}" "${base}" )
+}
+
+GITSTATUS_ARCH=
+GITSTATUS_CPU=
+GITSTATUS_IMAGE=
+
+while getopts ':m:c:i:h' opt "$@"; do
+  case "$opt" in
+    h)
+      printf '%s\n' "$usage"
+      exit
+    ;;
+    m)
+      if [ -n "$GITSTATUS_ARCH" ]; then
+        >&2 echo "[error] duplicate option: -$opt"
+        exit 1
+      fi
+      if [ -z "$OPTARG" ]; then
+        >&2 echo "[error] incorrect value of -$opt: $OPTARG"
+        exit 1
+      fi
+      GITSTATUS_ARCH="$OPTARG"
+    ;;
+    c)
+      if [ -n "$GITSTATUS_CPU" ]; then
+        >&2 echo "[error] duplicate option: -$opt"
+        exit 1
+      fi
+      if [ -z "$OPTARG" ]; then
+        >&2 echo "[error] incorrect value of -$opt: $OPTARG"
+        exit 1
+      fi
+      GITSTATUS_CPU="$OPTARG"
+    ;;
+    i)
+      if [ -n "$GITSTATUS_IMAGE" ]; then
+        >&2 echo "[error] duplicate option: -$opt"
+        exit 1
+      fi
+      if [ -z "$OPTARG" ]; then
+        >&2 echo "[error] incorrect value of -$opt: $OPTARG"
+        exit 1
+      fi
+      GITSTATUS_IMAGE="$OPTARG"
+    ;;
+    \?) >&2 echo "[error] invalid option: -$OPTARG"           ; exit 1;;
+    :)  >&2 echo "[error] missing required argument: -$OPTARG"; exit 1;;
+    *)  >&2 echo "[internal error] unhandled option: -$opt"   ; exit 1;;
+  esac
+done
+
+if [ "$OPTIND" -le $# ]; then
+  >&2 echo "[error] unexpected positional argument"
+  return 1
+fi
+
+if [ -z "$GITSTATUS_ARCH" ]; then
+  GITSTATUS_ARCH="$(uname -m)"
+  GITSTATUS_ARCH="$(printf '%s' "$GITSTATUS_ARCH" | tr '[A-Z]' '[a-z]')"
+fi
+
+if [ -z "$GITSTATUS_CPU" ]; then
+  case "$GITSTATUS_ARCH" in
+    armv7l)         GITSTATUS_CPU=armv7;;
+    aarch64)        GITSTATUS_CPU=armv8-a;;
+    x86_64|amd64)   GITSTATUS_CPU=x86-64;;
+    i386|i586|i686) GITSTATUS_CPU="$GITSTATUS_ARCH";;
+    *)
+      >&2 echo '[error] unable to infer target CPU architecture'
+      >&2 echo 'Please specify explicitly with `-c CPU`.'
+      exit 1
+    ;;
+  esac
+fi
+
+GITSTATUS_KERNEL="$(uname -s)"
+GITSTATUS_KERNEL="$(printf '%s' "$GITSTATUS_KERNEL" | tr '[A-Z]' '[a-z]')"
+
+case "$GITSTATUS_KERNEL" in
+  linux)
+    if [ -z "$GITSTATUS_IMAGE" ]; then
+      case "$GITSTATUS_ARCH" in
+        x86_64)         GITSTATUS_IMAGE=alpine:3.9.5;;
+        i386|i586|i686) GITSTATUS_IMAGE=i386/alpine:3.9.5;;
+        armv7l)         GITSTATUS_IMAGE=arm32v7/alpine:3.9.5;;
+        aarch64)        GITSTATUS_IMAGE=arm64v8/alpine:3.9.5;;
+        *)
+          >&2 echo '[error] unable to infer docker image'
+          >&2 echo 'Please specify explicitly with `-i IMAGE`.'
+          exit 1
+        ;;
+      esac
+    fi
+    if ! command -v docker >/dev/null 2>&1; then
+      >&2 echo '[error] docker not found; please install and retry'
+      exit 1
+    fi
+  ;;
+  freebsd)
+    if [ -n "$GITSTATUS_IMAGE" ]; then
+      >&2 echo '[error] docker image (-i) is not supported on freebsd'
+      exit 1
+    fi
+  ;;
+  darwin)
+    if [ -n "$GITSTATUS_IMAGE" ]; then
+      >&2 echo '[error] docker image (-i) is not supported on freebsd'
+      exit 1
+    fi
+  ;;
+  msys_nt-*|mingw32_nt-*|mingw64_nt-*|cygwin_nt-*)
+    if ! printf '%s' "$GITSTATUS_KERNEL" | grep -Eqx '[^-]+-[0-9]+\.[0-9]+(-.*)?'; then
+      >&2 echo '[error] unsupported kernel, sorry!'
+      exit 1
+    fi
+    GITSTATUS_KERNEL="$(printf '%s' "$GITSTATUS_KERNEL" | sed 's/^\([^-]*-[0-9]*\.[0-9]*\).*/\1/')"
+    if [ -n "$GITSTATUS_IMAGE" ]; then
+      >&2 echo '[error] docker image (-i) is not supported on windows'
+      exit 1
+    fi
+  ;;
+  *)
+    >&2 echo '[error] unsupported kernel, sorry!'
+    exit 1
+  ;;
+esac
+
+>&2 echo "Building gitstatusd..."
+>&2 echo ""
+[ -z "$GITSTATUS_IMAGE" ] || >&2 echo "  IMAGE=$GITSTATUS_IMAGE"
+>&2 echo "  KERNEL=$GITSTATUS_KERNEL"
+>&2 echo "  ARCH=$GITSTATUS_ARCH"
+>&2 echo "  CPU=$GITSTATUS_CPU"
+
+case "$GITSTATUS_KERNEL" in
+  linux)
+    docker run                                \
+      -e GITSTATUS_KERNEL="$GITSTATUS_KERNEL" \
+      -e GITSTATUS_ARCH="$GITSTATUS_ARCH"     \
+      -e GITSTATUS_CPU="$GITSTATUS_CPU"       \
+      -v "$PWD":/out                          \
+      -w /out                                 \
+      --tty                                   \
+      --rm                                    \
+      -- "$GITSTATUS_IMAGE" /bin/sh -uexc "$build"
+  ;;
+  freebsd|darwin|msys*|mingw*|cygwin*)
+    eval "$build"
+  ;;
+  *)
+    >&2 echo "[internal error] unhandled kernel: $GITSTATUS_KERNEL";
+    exit 1
+  ;;
+esac
