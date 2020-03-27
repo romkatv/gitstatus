@@ -1,5 +1,25 @@
 #!/usr/bin/env zsh
 #
+# Linux Setup (Debian):
+#
+# - Install docker.
+#   $ apt install docker.io
+#   $ usermod -aG docker $USER
+# - Install git.
+#   $ apt install git
+#
+# macOS Setup:
+#
+# - Install compiler tools:
+#   $ xcode-select --install
+# - Install homebrew: https://brew.sh/.
+#   $ bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+#
+# FreeBSD Setup:
+#
+# - Install git.
+#   $ pkg install git
+#
 # Windows Server 2019 Setup (as Administrator over RDP):
 #
 # - Disable Windows Defender.
@@ -23,26 +43,6 @@
 #       # Match Group administrators
 #       #   AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys
 #   ps> Restart-Service sshd
-#
-# Linux Setup (Debian):
-#
-# - Install docker.
-#   $ apt install docker.io
-#   $ usermod -aG docker $USER
-# - Install git.
-#   $ apt install git
-#
-# macOS Setup:
-#
-# - Install compiler tools:
-#   $ xcode-select --install
-# - Install homebrew: https://brew.sh/.
-#   $ bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
-#
-# FreeBSD Setup:
-#
-# - Install git.
-#   $ pkg install git
 
 'emulate' '-L' 'zsh' '-o' 'no_aliases' '-o' 'err_return'
 setopt no_unset extended_glob pipe_fail prompt_percent typeset_silent \
@@ -126,7 +126,7 @@ function build-unix() {
     rm -rf gitstatus
     git clone --recursive --shallow-submodules --depth=1 -b '$git_ref' '$git_url'
     cd gitstatus
-    '$sh[$1]' -x ./build'
+    '$sh[$1]' -x ./build -m '${2##*-}
   scp $1:/tmp/gitstatus/usrbin/gitstatusd-$2 $binaries/
 }
 
@@ -147,7 +147,7 @@ function build-win() {
     rm -rf gitstatus
     git clone --recursive --shallow-submodules --depth=1 -b '$git_ref' '$git_url'
     cd gitstatus
-    '$sh[$1]' -x ./build'
+    '$sh[$1]' -x ./build -m '${2##*-}
   ssh $1 $bin/env.exe $env $bin/bash.exe -l <<<$cmd
   scp $1:c:/tmp/gitstatus/usrbin/gitstatusd-$2 $binaries/
   chmod +x $binaries/gitstatusd-$2
@@ -168,10 +168,10 @@ mkdir -p -- $logs $locks $binaries
   local platform pid pids=()
   for platform; do
     build $platform &>$logs/$platform &
-    print -ru2 -- "starting build for $platform (pid $!)"
-    pids+=($!)
+    print -ru2 -- "starting build for $platform on $assets[$platform] (pid $!)"
+    pids+=($platform $!)
   done
-  for pid in $pids; do
+  for platform pid in $pids; do
     print -rnu2 -- "$platform => "
     if wait $pid; then
       print -ru2 -- "ok"
