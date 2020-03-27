@@ -1,4 +1,5 @@
 APPNAME ?= gitstatusd
+OBJDIR ?= obj
 
 CXX ?= g++
 
@@ -11,26 +12,23 @@ LDFLAGS += -pthread # -fsanitize=thread
 LDLIBS += -lgit2 # -lprofiler -lunwind
 
 SRCS := $(shell find src -name "*.cc")
-OBJS := $(patsubst src/%.cc, obj/%.o, $(SRCS))
+OBJS := $(patsubst src/%.cc, $(OBJDIR)/%.o, $(SRCS))
 
 all: $(APPNAME)
 
 $(APPNAME): usrbin/$(APPNAME)
 
-usrbin/$(APPNAME): $(OBJS) | usrbin
+usrbin/$(APPNAME): $(OBJS)
 	$(CXX) $(OBJS) $(LDFLAGS) $(LDLIBS) -o $@
 
-usrbin:
-	mkdir -p usrbin
+$(OBJDIR):
+	mkdir -p -- $(OBJDIR)
 
-obj:
-	mkdir -p obj
-
-obj/%.o: src/%.cc Makefile | obj
-	$(CXX) $(CXXFLAGS) -MM -MT $@ src/$*.cc >obj/$*.dep
+$(OBJDIR)/%.o: src/%.cc Makefile | $(OBJDIR)
+	$(CXX) $(CXXFLAGS) -MM -MT $@ src/$*.cc >$(OBJDIR)/$*.dep
 	$(CXX) $(CXXFLAGS) -Wall -c -o $@ src/$*.cc
 
 clean:
-	rm -rf obj
+	rm -rf -- $(OBJDIR)
 
 -include $(OBJS:.o=.dep)
