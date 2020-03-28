@@ -186,6 +186,7 @@ function mbuild() {
   done
 }
 
+# Copied from https://github.com/romkatv/run-process-tree.
 function run-process-tree() {
   zmodload zsh/system zsh/param/private || return
   local -P opt=(${(kv)options[@]})      || return
