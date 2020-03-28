@@ -166,10 +166,7 @@ function build() (
   build-${protocol[(k)$platform]} $machine $platform
 )
 
-mkdir -p -- $logs $locks $binaries
-
-{
-  unsetopt monitor
+function mbuild() {
   local platform pid pids=()
   for platform; do
     build $platform &>$logs/$platform &
@@ -187,7 +184,47 @@ mkdir -p -- $logs $locks $binaries
       return 1
     fi
   done
-} &
+}
 
-trap "kill -- -$! 2>/dev/null" EXIT INT QUIT ILL PIPE TERM ZERR HUP
-wait %1
+function run-process-tree() {
+  zmodload zsh/system zsh/param/private || return
+  local -P opt=(${(kv)options[@]})      || return
+  emulate -L zsh -o err_return          || return
+  setopt monitor pipe_fail no_unset
+
+  local -P stdout REPLY
+  exec {stdout}>&1
+
+  {
+    local -Pi pipe
+    local -P gid=$sysparams[pid]
+    local -P sig=(TERM EXIT INT QUIT ILL PIPE ZERR HUP)
+    local -P trap=(trap "trap - $sig; kill -- -$sysparams[pid]" $sig)
+
+    exec {pipe}>&1 1>&$stdout
+    $trap
+
+    {
+      $trap
+      while sleep 1 && print -u $pipe .; do; done
+    } 2>/dev/null &
+    local -Pi watchdog=$!
+
+    {
+      exec {pipe}>&-
+      trap - $sig
+      options=($opt zle off monitor off)
+      "$@"
+    } &
+    local -Pi ret
+    wait $! || ret=$?
+
+    trap "exit $ret" TERM
+    kill $watchdog
+    wait $watchdog
+    return ret
+  } | while read; do; done
+}
+
+mkdir -p -- $logs $locks $binaries
+run-process-tree mbuild "$@"
