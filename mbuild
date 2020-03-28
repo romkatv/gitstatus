@@ -1,6 +1,19 @@
 #!/usr/bin/env zsh
 #
-# Linux Setup:
+# Usage: mbuild [-b git-ref] [kernel-arch]...
+#
+# Builds a bunch of zsh-5.8-*.tar.gz archives for a zsh-bin release. Without
+# arguments builds all archives. git-ref defaults to master.
+#
+# Before using this script you need to set up build servers and list them
+# in ~/.ssh/config. There should be a Host entry for every value of `assets`
+# association defined below. VMs and cloud instances work as well as physical
+# machines, including localhost. As long as the machine has been set up as
+# described below and you can SSH to it without password, it should work.
+#
+#                    ===[ Build Server Setup ]===
+#
+#                              Linux
 #
 # - Install docker.
 #   $ apt install docker.io     # adjust appropriately if there is no `apt`
@@ -8,19 +21,19 @@
 # - Install git.
 #   $ apt install git           # adjust appropriately if there is no `apt`
 #
-# macOS Setup:
+#                              macOS
 #
 # - Install compiler tools:
 #   $ xcode-select --install
 # - Install homebrew: https://brew.sh/.
 #   $ bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
 #
-# FreeBSD Setup:
+#                             FreeBSD
 #
 # - Install git.
 #   $ pkg install git
 #
-# Windows Setup:
+#                             Windows
 #
 # - Disable Windows Defender (optional).
 #   ps> Set-MpPreference -DisableRealtimeMonitoring $true
@@ -46,7 +59,14 @@
 
 'emulate' '-L' 'zsh' '-o' 'no_aliases' '-o' 'err_return'
 setopt no_unset extended_glob pipe_fail prompt_percent typeset_silent \
-  no_prompt_subst no_prompt_bang pushd_silent monitor warn_create_global
+  no_prompt_subst no_prompt_bang pushd_silent warn_create_global
+
+autoload -Uz is-at-least
+
+if ! is-at-least 5.1 || [[ $ZSH_VERSION == 5.4.* ]]; then
+  print -ru2 -- "[error] unsupported zsh version: $ZSH_VERSION"
+  return 1
+fi
 
 zmodload zsh/system
 
@@ -98,6 +118,7 @@ done
 shift $((OPTIND - 1))
 
 (( $# )) || set -- ${(k)assets}
+set -- ${(u)@}
 
 local platform
 for platform; do
