@@ -1,12 +1,12 @@
 #!/usr/bin/env zsh
 #
-# Linux Setup (Debian):
+# Linux Setup:
 #
 # - Install docker.
-#   $ apt install docker.io
-#   $ usermod -aG docker $USER  # if not building as root
+#   $ apt install docker.io     # adjust appropriately if there is no `apt`
+#   $ usermod -aG docker $USER  # not needed if going to build as root
 # - Install git.
-#   $ apt install git
+#   $ apt install git           # adjust appropriately if there is no `apt`
 #
 # macOS Setup:
 #
@@ -20,9 +20,9 @@
 # - Install git.
 #   $ pkg install git
 #
-# Windows Server 2019 Setup (as Administrator over RDP):
+# Windows Setup:
 #
-# - Disable Windows Defender.
+# - Disable Windows Defender (optional).
 #   ps> Set-MpPreference -DisableRealtimeMonitoring $true
 # - Install 64-bit and 32-bit msys2: https://www.msys2.org/.
 # - Install 64-bit and 32-bit cygwin: https://cygwin.com/install.html.
@@ -39,49 +39,39 @@
 #     - Paste your public key, save, close.
 #   ps> icacls .ssh/authorized_keys /inheritance:r
 #   ps> notepad.exe C:\ProgramData\ssh\sshd_config
-#     - Comment out these two lines:
+#     - Comment out these two lines, save, close:
 #       # Match Group administrators
 #       #   AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys
 #   ps> Restart-Service sshd
 
 'emulate' '-L' 'zsh' '-o' 'no_aliases' '-o' 'err_return'
 setopt no_unset extended_glob pipe_fail prompt_percent typeset_silent \
-  no_prompt_subst no_prompt_bang pushd_silent monitor want_create_global
+  no_prompt_subst no_prompt_bang pushd_silent monitor warn_create_global
 
 zmodload zsh/system
 
 local -r git_url='https://github.com/romkatv/gitstatus.git'
 
 local -rA assets=(
-  # kernel-arch         hostname
-  cygwin_nt-10.0-i686   win
-  cygwin_nt-10.0-x86_64 win
-  msys_nt-10.0-i686     win
-  msys_nt-10.0-x86_64   win
-  darwin-x86_64         mac
-  freebsd-amd64         freebsd
-  linux-aarch64         pi64
-  linux-armv7l          pi32
-  linux-i386            linux
-  linux-x86_64          linux
+  # target kernel-arch   hostname of the build machine
+  cygwin_nt-10.0-i686    build-windows-x86_64
+  cygwin_nt-10.0-x86_64  build-windows-x86_64
+  msys_nt-10.0-i686      build-windows-x86_64
+  msys_nt-10.0-x86_64    build-windows-x86_64
+  darwin-x86_64          build-macos-x86_64
+  freebsd-amd64          build-freebsd-amd64
+  linux-aarch64          build-linux-aarch64
+  linux-armv7l           build-linux-armv7l
+  linux-i386             build-linux-x86_64
+  linux-x86_64           build-linux-x86_64
 )
 
 local -rA protocol=(
-  'cygwin_nt-10.0-*' win
-  'msys_nt-10.0-*'   win
+  'cygwin_nt-10.0-*' windows
+  'msys_nt-10.0-*'   windows
   'darwin-*'         unix
   'freebsd-*'        unix
   'linux-*'          unix
-)
-
-local -rA sh=(
-  # hostname   anything but bash <= 4.4
-  win          dash
-  mac          zsh
-  freebsd      sh
-  pi64         dash
-  pi32         dash
-  linux        dash
 )
 
 local -r rootdir=${ZSH_SCRIPT:h}
@@ -142,18 +132,25 @@ function build-unix() {
   scp $1:/tmp/gitstatus/usrbin/gitstatusd-$2 $binaries/
 }
 
-function build-win() {
-  local tmp env bin
+function build-windows() {
+  local tmp env bin intro
   case $2 in
-    msys_nt-10.0-*)        tmp='/c/tmp'; env='MSYSTEM=MSYS';|
-    cygwin_nt-10.0-*)      tmp='/cygdrive/c/tmp'           ;|
-    msys_nt-10.0-i686)     bin='c:/msys32/usr/bin'         ;;
-    msys_nt-10.0-x86_64)   bin='c:/msys64/usr/bin'         ;;
-    cygwin_nt-10.0-i686)   bin='c:/cygwin32/bin'           ;;
-    cygwin_nt-10.0-x86_64) bin='c:/cygwin64/bin'           ;;
+    msys_nt-10.0-*)
+      tmp='/c/tmp'
+      env='MSYSTEM=MSYS'
+      intro='pacman -Sy --needed --noconfirm git'
+    ;|
+    cygwin_nt-10.0-*)
+      tmp='/cygdrive/c/tmp'
+    ;|
+    msys_nt-10.0-i686)     bin='c:/msys32/usr/bin';;
+    msys_nt-10.0-x86_64)   bin='c:/msys64/usr/bin';;
+    cygwin_nt-10.0-i686)   bin='c:/cygwin32/bin'  ;;
+    cygwin_nt-10.0-x86_64) bin='c:/cygwin64/bin'  ;;
   esac
   ssh $1 $bin/env.exe $env $bin/bash.exe -l <<<"
     set -uex
+    $intro
     mkdir -p -- $tmp
     cd -- $tmp
     $build ${2##*-}"
@@ -176,16 +173,16 @@ mkdir -p -- $logs $locks $binaries
   local platform pid pids=()
   for platform; do
     build $platform &>$logs/$platform &
-    print -ru2 -- "starting build for $platform on $assets[$platform] (pid $!)"
+    print -r -- "starting build for $platform on $assets[$platform] (pid $!)"
     pids+=($platform $!)
   done
   for platform pid in $pids; do
-    print -rnu2 -- "$platform => "
+    print -rn -- "$platform => "
     if wait $pid; then
-      print -ru2 -- "ok"
+      print -r -- "ok"
     else
-      print -ru2 -- "error $?"
-      print -ru2 -- "---------------------"
+      print -r -- "error $?"
+      print -r -- "---------------------"
       >&2 cat $logs/$platform
       return 1
     fi
