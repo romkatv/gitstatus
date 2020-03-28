@@ -245,7 +245,7 @@ function run-process-tree() {
     kill $watchdog
     wait $watchdog
     return ret
-  } | while read; do; done
+  } | while read; do; done || return
 }
 
 mkdir -p -- $logs $locks $binaries
