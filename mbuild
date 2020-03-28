@@ -228,4 +228,4 @@ function run-process-tree() {
 }
 
 mkdir -p -- $logs $locks $binaries
-run-process-tree mbuild "$@"
+run-process-tree mbuild $@
