@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Usage: build [-m ARCH] [-c CPU] [-i IMAGE]
+# Usage: build [-m ARCH] [-c CPU] [-i IMAGE] [-d CMD]
 #
 # Type `build -h` for help and see https://github.com/romkatv/gitstatus
 # for full documentation.
@@ -19,7 +19,7 @@ if [ -n "${ZSH_VERSION:-}" ]; then
 fi
 
 usage="$(cat <<\END
-Usage: build [-m ARCH] [-c CPU] [-i IMAGE]
+Usage: build [-m ARCH] [-c CPU] [-i IMAGE] [-d CMD]
 
 Options:
 
@@ -30,6 +30,8 @@ Options:
             if not set explicitly
   -i IMAGE  docker image used for building gitstatusd; inferred from
             ARCH if not set explicitly
+  -d CMD    use this command instead of 'docker'; it must understand
+            the same command line arguments
 END
 )"
 
@@ -178,11 +180,13 @@ absfile() {
   ( cd -- "$dir" && dir="$(pwd)" && printf '%s/%s\n' "${dir%/}" "${base}" )
 }
 
+image=
+docker=
+
 GITSTATUS_ARCH=
 GITSTATUS_CPU=
-GITSTATUS_IMAGE=
 
-while getopts ':m:c:i:h' opt "$@"; do
+while getopts ':m:c:i:d:h' opt "$@"; do
   case "$opt" in
     h)
       printf '%s\n' "$usage"
@@ -211,7 +215,7 @@ while getopts ':m:c:i:h' opt "$@"; do
       GITSTATUS_CPU="$OPTARG"
     ;;
     i)
-      if [ -n "$GITSTATUS_IMAGE" ]; then
+      if [ -n "$image" ]; then
         >&2 echo "[error] duplicate option: -$opt"
         exit 1
       fi
@@ -219,7 +223,18 @@ while getopts ':m:c:i:h' opt "$@"; do
         >&2 echo "[error] incorrect value of -$opt: $OPTARG"
         exit 1
       fi
-      GITSTATUS_IMAGE="$OPTARG"
+      image="$OPTARG"
+    ;;
+    d)
+      if [ -n "$docker" ]; then
+        >&2 echo "[error] duplicate option: -$opt"
+        exit 1
+      fi
+      if [ -z "$OPTARG" ]; then
+        >&2 echo "[error] incorrect value of -$opt: $OPTARG"
+        exit 1
+      fi
+      docker="$OPTARG"
     ;;
     \?) >&2 echo "[error] invalid option: -$OPTARG"           ; exit 1;;
     :)  >&2 echo "[error] missing required argument: -$OPTARG"; exit 1;;
@@ -256,12 +271,12 @@ GITSTATUS_KERNEL="$(printf '%s' "$GITSTATUS_KERNEL" | tr '[A-Z]' '[a-z]')"
 
 case "$GITSTATUS_KERNEL" in
   linux)
-    if [ -z "$GITSTATUS_IMAGE" ]; then
+    if [ -z "$image" ]; then
       case "$GITSTATUS_ARCH" in
-        x86_64)         GITSTATUS_IMAGE=alpine:3.9.5;;
-        i386|i586|i686) GITSTATUS_IMAGE=i386/alpine:3.9.5;;
-        armv7l)         GITSTATUS_IMAGE=arm32v7/alpine:3.9.5;;
-        aarch64)        GITSTATUS_IMAGE=arm64v8/alpine:3.9.5;;
+        x86_64)         image=alpine:3.9.5;;
+        i386|i586|i686) image=i386/alpine:3.9.5;;
+        armv7l)         image=arm32v7/alpine:3.9.5;;
+        aarch64)        image=arm64v8/alpine:3.9.5;;
         *)
           >&2 echo '[error] unable to infer docker image'
           >&2 echo 'Please specify explicitly with `-i IMAGE`.'
@@ -269,20 +284,36 @@ case "$GITSTATUS_KERNEL" in
         ;;
       esac
     fi
-    if ! command -v docker >/dev/null 2>&1; then
-      >&2 echo '[error] docker not found; please install and retry'
-      exit 1
+    : "${docker:=docker}"
+    if [ -z "${docker##*/*}" ]; then
+      if [ ! -x "$docker" ]; then
+        >&2 echo "[error] not an executable file: $docker"
+        exit 1
+      fi
+    else
+      if ! command -v "$docker" >/dev/null 2>&1; then
+        >&2 echo "[error] command not found: $docker"
+        exit 1
+      fi
     fi
   ;;
   freebsd)
-    if [ -n "$GITSTATUS_IMAGE" ]; then
+    if [ -n "$image" ]; then
       >&2 echo '[error] docker image (-i) is not supported on freebsd'
+      exit 1
+    fi
+    if [ -n "$docker" ]; then
+      >&2 echo '[error] docker (-d) is not supported on freebsd'
       exit 1
     fi
   ;;
   darwin)
-    if [ -n "$GITSTATUS_IMAGE" ]; then
-      >&2 echo '[error] docker image (-i) is not supported on freebsd'
+    if [ -n "$image" ]; then
+      >&2 echo '[error] docker image (-i) is not supported on macOS'
+      exit 1
+    fi
+    if [ -n "$docker" ]; then
+      >&2 echo '[error] docker (-d) is not supported on macOS'
       exit 1
     fi
   ;;
@@ -292,8 +323,12 @@ case "$GITSTATUS_KERNEL" in
       exit 1
     fi
     GITSTATUS_KERNEL="$(printf '%s' "$GITSTATUS_KERNEL" | sed 's/^\([^-]*-[0-9]*\.[0-9]*\).*/\1/')"
-    if [ -n "$GITSTATUS_IMAGE" ]; then
+    if [ -n "$image" ]; then
       >&2 echo '[error] docker image (-i) is not supported on windows'
+      exit 1
+    fi
+    if [ -n "$docker" ]; then
+      >&2 echo '[error] docker (-d) is not supported on windows'
       exit 1
     fi
   ;;
@@ -305,22 +340,22 @@ esac
 
 >&2 echo "Building gitstatusd..."
 >&2 echo ""
-[ -z "$GITSTATUS_IMAGE" ] || >&2 echo "  IMAGE=$GITSTATUS_IMAGE"
+[ -z "$docker" ] || >&2 echo "  DOCKER=$docker"
+[ -z "$image"  ] || >&2 echo "  IMAGE=$image"
 >&2 echo "  KERNEL=$GITSTATUS_KERNEL"
 >&2 echo "  ARCH=$GITSTATUS_ARCH"
 >&2 echo "  CPU=$GITSTATUS_CPU"
 
 case "$GITSTATUS_KERNEL" in
   linux)
-    docker run                                \
+    "$docker" run                             \
       -e GITSTATUS_KERNEL="$GITSTATUS_KERNEL" \
       -e GITSTATUS_ARCH="$GITSTATUS_ARCH"     \
       -e GITSTATUS_CPU="$GITSTATUS_CPU"       \
       -v "$PWD":/out                          \
       -w /out                                 \
-      --tty                                   \
       --rm                                    \
-      -- "$GITSTATUS_IMAGE" /bin/sh -uexc "$build"
+      -- "$image" /bin/sh -uexc "$build"
   ;;
   freebsd|darwin|msys*|mingw*|cygwin*)
     eval "$build"
