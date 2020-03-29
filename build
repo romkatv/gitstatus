@@ -60,6 +60,7 @@ appname=gitstatusd-"$GITSTATUS_KERNEL"-"$GITSTATUS_ARCH"
 cleanup() {
   cd /
   rm -rf -- "$workdir" "$outdir"/usrbin/"$appname".tmp
+  trap - INT QUIT TERM EXIT ILL PIPE
 }
 trap cleanup INT QUIT TERM EXIT ILL PIPE
 
@@ -171,14 +172,6 @@ cat >&2 <<-END
 	END
 END
 )"
-
-absfile() {
-  [ -e "$1" ]
-  local dir base
-  dir="$(dirname -- "$1")"
-  base="$(basename -- "$1")"
-  ( cd -- "$dir" && dir="$(pwd)" && printf '%s/%s\n' "${dir%/}" "${base}" )
-}
 
 image=
 docker=
@@ -338,6 +331,24 @@ case "$GITSTATUS_KERNEL" in
   ;;
 esac
 
+dir="$(dirname -- "$0")"
+cd -- "$dir"
+dir="$(pwd)"
+
+if [ ! -e deps/libgit2 ]; then
+  >&2 echo "[error] not found: $dir/deps/libgit2"
+  exit 1
+fi
+
+if [ ! -e deps/libgit2/CMakeLists.txt ]; then
+  >&2 echo "[error] not found: $dir/deps/libgit2/CMakeLists.txt"
+  >&2 echo ""
+  >&2 echo "Pull submodules to fix:"
+  >&2 echo ""
+  >&2 echo "  git -C $dir submodule update --init"
+  exit 1
+fi
+
 >&2 echo "Building gitstatusd..."
 >&2 echo ""
 [ -z "$docker" ] || >&2 echo "  DOCKER=$docker"
@@ -352,7 +363,7 @@ case "$GITSTATUS_KERNEL" in
       -e GITSTATUS_KERNEL="$GITSTATUS_KERNEL" \
       -e GITSTATUS_ARCH="$GITSTATUS_ARCH"     \
       -e GITSTATUS_CPU="$GITSTATUS_CPU"       \
-      -v "$PWD":/out                          \
+      -v "$dir":/out                          \
       -w /out                                 \
       --rm                                    \
       -- "$image" /bin/sh -uexc "$build"
