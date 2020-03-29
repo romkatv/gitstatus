@@ -97,7 +97,7 @@ local -rA protocol=(
 local -r rootdir=${ZSH_SCRIPT:h}
 local -r logs=$rootdir/logs
 local -r locks=$rootdir/locks
-local -r binaries=$rootdir/bin
+local -r binaries=$rootdir/usrbin
 
 function usage() {
   print -r -- 'usage: mbuild [-b REF] [KERNEL-ARCH]...'
