@@ -1,6 +1,8 @@
 *.zwc
-obj/
-usrbin/
 /core
 /gitstatusd
+/locks
+/logs
+/obj
+/usrbin
 /.vscode/ipch
