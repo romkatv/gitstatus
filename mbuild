@@ -209,10 +209,13 @@ function mbuild() {
 
 # Copied from https://github.com/romkatv/run-process-tree.
 function run-process-tree() {
-  zmodload zsh/system zsh/param/private || return
-  local -P opt=(${(kv)options[@]})      || return
-  emulate -L zsh -o err_return          || return
+  zmodload zsh/parameter zsh/param/private || return
+  local -P opt=(${(kv)options[@]})         || return
+  local -P pat=(${patchars[@]})            || return
+  local -P dis_pat=(${dis_patchars[@]})    || return
+  emulate -L zsh -o err_return             || return
   setopt monitor traps_async pipe_fail no_unset
+  zmodload zsh/system
 
   if (( $# == 0 )); then
     print -ru2 -- 'usage: run-process-tree command [arg]...'
@@ -225,7 +228,7 @@ function run-process-tree() {
     {
       local -Pi pipe
       local -P gid=$sysparams[pid]
-      local -P sig=(TERM EXIT INT QUIT ILL PIPE ZERR HUP)
+      local -P sig=(ABRT EXIT HUP ILL INT PIPE QUIT TERM ZERR)
       local -P trap=(trap "trap - $sig; kill -- -$sysparams[pid]" $sig)
 
       exec {pipe}>&1 1>&$stdout
@@ -238,8 +241,10 @@ function run-process-tree() {
       local -Pi watchdog=$!
 
       {
+        trap - ZERR
         exec {pipe}>&-
-        trap - $sig
+        enable -p -- $pat
+        disable -p -- $dis_pat
         options=($opt zle off monitor off)
         "$@"
       } &
