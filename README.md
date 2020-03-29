@@ -445,43 +445,33 @@ _WARNING: Changes to libgit2 are extensive but the testing they underwent isn't.
 ## Compiling
 
 There are prebuilt `gitstatusd` binaries in
-[bin](https://github.com/romkatv/gitstatus/tree/master/bin). When using ZSH bindings provided by
-`gitstatus.plugin.zsh`, the right binary for your architecture is picked up automatically.
+[bin](https://github.com/romkatv/gitstatus/tree/master/bin). When using the official shell
+bindings provided by gitstatus, the right binary for your architecture is picked up automatically.
 
-If precompiled binaries don't work for you, you'll need to get your hands dirty.
+If prebuilt binaries don't work for you, you'll need to get your hands dirty.
 
 ```zsh
-zsh -c "$(curl -fsSL https://raw.githubusercontent.com/romkatv/gitstatus/master/build.zsh)"
+cd /tmp
+git clone --recursive --shallow-submodules --depth=1 https://github.com/romkatv/gitstatus.git
+cd gitstatus
+./build
 ```
 
-If everything goes well, the path to your newly built binary will be printed at the end.
-
-```text
-self-check successful
-built: /tmp/gitstatus/gitstatus/usrbin/gitstatusd-linux-x86_64
-```
+If everything goes well, the newly built binary will appear in `./usrbin`.
 
 Copy the binary to `usrbin` subdirectory (create it if necessary) of your gitstatus installation.
 For example:
 
 ```zsh
 mkdir -p ~/powerlevel10k/gitstatus/usrbin
-cp /tmp/gitstatus/gitstatus/usrbin/gitstatusd-linux-x86_64 ~/powerlevel10k/gitstatus/usrbin/
+cp ./usrbin/gitstatusd-* ~/powerlevel10k/gitstatus/usrbin/
 ```
 
 When using gitstatus from Zsh, this binary will be picked up automatically. With Bash you need to
 set `GITSTATUS_DAEMON` pointing to the gitstatusd binary.
 
-If build fails due to a missing dependency (e.g., `cmake` not found), install the dependency,
-remove `${TMPDIR:-/tmp}/gitstatus` and retry.
-
 *IMPORTANT*: You must rebuild the binary every time you update gitstatus. The new version of shell
 bindings may not work with the old binary.
-
-To build from locally modified sources, read
-[build.zsh](https://github.com/romkatv/gitstatus/tree/master/build.zsh) and improvise. This is a
-release script from which you'll have to devise a local build script. Expect painful experience if
-you aren't familiar with ZSH, C++, CMake or GNU make.
 
 ## License
 
