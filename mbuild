@@ -212,40 +212,48 @@ function run-process-tree() {
   zmodload zsh/system zsh/param/private || return
   local -P opt=(${(kv)options[@]})      || return
   emulate -L zsh -o err_return          || return
-  setopt monitor pipe_fail no_unset
+  setopt monitor traps_async pipe_fail no_unset
+
+  if (( $# == 0 )); then
+    print -ru2 -- 'usage: run-process-tree command [arg]...'
+    return 1
+  fi
 
   local -P stdout REPLY
   exec {stdout}>&1
-
   {
-    local -Pi pipe
-    local -P gid=$sysparams[pid]
-    local -P sig=(TERM EXIT INT QUIT ILL PIPE ZERR HUP)
-    local -P trap=(trap "trap - $sig; kill -- -$sysparams[pid]" $sig)
-
-    exec {pipe}>&1 1>&$stdout
-    $trap
-
     {
+      local -Pi pipe
+      local -P gid=$sysparams[pid]
+      local -P sig=(TERM EXIT INT QUIT ILL PIPE ZERR HUP)
+      local -P trap=(trap "trap - $sig; kill -- -$sysparams[pid]" $sig)
+
+      exec {pipe}>&1 1>&$stdout
       $trap
-      while sleep 1 && print -u $pipe .; do; done
-    } 2>/dev/null &
-    local -Pi watchdog=$!
 
-    {
-      exec {pipe}>&-
-      trap - $sig
-      options=($opt zle off monitor off)
-      "$@"
-    } &
-    local -Pi ret
-    wait $! || ret=$?
+      {
+        $trap
+        while sleep 1 && print -u $pipe .; do; done
+      } 2>/dev/null &
+      local -Pi watchdog=$!
 
-    trap "exit $ret" TERM
-    kill $watchdog
-    wait $watchdog
-    return ret
-  } | while read; do; done || return
+      {
+        exec {pipe}>&-
+        trap - $sig
+        options=($opt zle off monitor off)
+        "$@"
+      } &
+      local -Pi ret
+      wait $! || ret=$?
+
+      trap "exit $ret" TERM
+      kill $watchdog
+      wait $watchdog
+      return ret
+    } | while read; do; done || return
+  } always {
+    exec {stdout}>&-
+  }
 }
 
 mkdir -p -- $logs $locks $binaries
