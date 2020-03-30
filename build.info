@@ -1,0 +1,6 @@
+# This file is used by Makefile, build and install. Unless
+# GITSTATUS_DISABLE_VERSION_CHECK is set to 1, it's also used
+# by shell bindings.
+version="v1.0.0"
+libgit2_url="https://github.com/romkatv/libgit2.git"
+libgit2_ref="bb77509f4436901f3958e30272026f63d2247d7d"

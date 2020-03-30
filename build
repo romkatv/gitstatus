@@ -70,19 +70,19 @@ libgit2_cmake_flags=
 libgit2_cflags=
 
 gitstatus_cxx=g++
-gitstatus_cxxflags="-Ideps/libgit2/include -DGITSTATUS_ZERO_NSEC -D_GNU_SOURCE"
-gitstatus_ldflags="-L${workdir}/libgit2"
+gitstatus_cxxflags="-I${workdir}/libgit2/include -DGITSTATUS_ZERO_NSEC -D_GNU_SOURCE"
+gitstatus_ldflags="-L${workdir}/libgit2/build"
 gitstatus_ldlibs=
 gitstatus_make=make
 
 case "$GITSTATUS_KERNEL" in
   linux)
     apk update
-    apk add binutils cmake gcc g++ make musl-dev
+    apk add binutils cmake gcc g++ git make musl-dev
     gitstatus_ldflags="$gitstatus_ldflags -static"
   ;;
   freebsd)
-    pkg install -y cmake gmake binutils gcc
+    pkg install -y cmake gmake binutils gcc git
     gitstatus_make=gmake
     gitstatus_ldflags="$gitstatus_ldflags -static"
   ;;
@@ -95,7 +95,7 @@ case "$GITSTATUS_KERNEL" in
       >&2 echo "[error] please install homebrew from https://brew.sh/ and retry"
       exit 1
     fi
-    brew install libiconv cmake
+    brew install libiconv cmake git
     mkdir -- "$workdir"/lib
     ln -s -- /usr/local/opt/libiconv/lib/libiconv.a "$workdir"/lib
     libgit2_cmake_flags="$libgit2_cmake_flags -DUSE_ICONV=ON"
@@ -105,11 +105,11 @@ case "$GITSTATUS_KERNEL" in
     gitstatus_ldflags="$gitstatus_ldflags -L${workdir}/lib"
   ;;
   msys*|mingw*)
-    pacman -Sy --needed --noconfirm binutils cmake gcc make
+    pacman -Sy --needed --noconfirm binutils cmake gcc git make
     gitstatus_ldflags="$gitstatus_ldflags -static"
   ;;
   cygwin*)
-    for cmd in cmake gcc g++ ld make; do
+    for cmd in cmake gcc g++ git ld make; do
       if ! command -v "$cmd" >/dev/null 2>&1; then
         >&2 echo "[error] command not found: $cmd"
         >&2 echo ""
@@ -131,8 +131,13 @@ case "$GITSTATUS_KERNEL" in
   ;;
 esac
 
-mkdir -- "$workdir"/libgit2
+. "$outdir"/build.info
+git clone -- "$libgit2_url" "$workdir"/libgit2
 cd -- "$workdir"/libgit2
+git checkout "$libgit2_ref"
+mkdir build
+cd build
+
 CFLAGS="$libgit2_cflags" cmake \
   -DCMAKE_BUILD_TYPE=Release   \
   -DTHREADSAFE=ON              \
@@ -144,7 +149,7 @@ CFLAGS="$libgit2_cflags" cmake \
   -DBUILD_SHARED_LIBS=OFF      \
   -DZERO_NSEC=ON               \
   $libgit2_cmake_flags         \
-  "$outdir"/deps/libgit2
+  ..
 make -j "$cpus" VERBOSE=1
 
 APPNAME="$appname".tmp           \
@@ -334,20 +339,6 @@ esac
 dir="$(dirname -- "$0")"
 cd -- "$dir"
 dir="$(pwd)"
-
-if [ ! -e deps/libgit2 ]; then
-  >&2 echo "[error] not found: $dir/deps/libgit2"
-  exit 1
-fi
-
-if [ ! -e deps/libgit2/CMakeLists.txt ]; then
-  >&2 echo "[error] not found: $dir/deps/libgit2/CMakeLists.txt"
-  >&2 echo ""
-  >&2 echo "Pull submodules to fix:"
-  >&2 echo ""
-  >&2 echo "  git -C $dir submodule update --init"
-  exit 1
-fi
 
 >&2 echo "Building gitstatusd..."
 >&2 echo ""
