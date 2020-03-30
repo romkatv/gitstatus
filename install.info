@@ -1,0 +1,2 @@
+# This file is used by install and shell bindings.
+uname_s="linux"; uname_m="x86_64"; version="v1.0.0"; url="https://..."; sha256="..."; md5="...";
