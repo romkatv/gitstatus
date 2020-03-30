@@ -23,7 +23,10 @@
 #include <algorithm>
 #include <climits>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
+
+#include "print.h"
 
 namespace gitstatus {
 
@@ -105,6 +108,12 @@ void PrintUsage() {
             << "  -D, --ignore-bash-show-dirty-state\n"
             << "   Unless this option is specified, report zero staged, unstaged and conflicted\n"
             << "   changes for repositories with bash.showDirtyState = false.\n"
+            << "\n"
+            << "  -V, --version\n"
+            << "   Print gitstatusd version and exit.\n"
+            << "\n"
+            << "  -E, --ensure-version=STR\n"
+            << "   Immediately exit with code 11 if gitstatusd version isn't equal to this.\n"
             << "\n"
             << "  -h, --help\n"
             << "  Display this help and exit.\n"
@@ -214,10 +223,24 @@ void PrintUsage() {
             << "  A PARTICULAR PURPOSE." << std::endl;
 }
 
+const char* Version() {
+  #ifdef GITSTATUS_VERSION
+#define _INTERNAL_GITSTATUS_STRINGIZE(x) _INTERNAL_GITSTATUS_STRINGIZE_I(x)
+#define _INTERNAL_GITSTATUS_STRINGIZE_I(x) #x
+  return _INTERNAL_GITSTATUS_STRINGIZE(GITSTATUS_VERSION);
+#undef _INTERNAL_GITSTATUS_STRINGIZE_I
+#undef _INTERNAL_GITSTATUS_STRINGIZE
+#else
+  return "unknown";
+#endif
+}
+
 }  // namespace
 
 Options ParseOptions(int argc, char** argv) {
   const struct option opts[] = {{"help", no_argument, nullptr, 'h'},
+                                {"version", no_argument, nullptr, 'V'},
+                                {"ensure-version", no_argument, nullptr, 'E'},
                                 {"lock-fd", required_argument, nullptr, 'l'},
                                 {"parent-pid", required_argument, nullptr, 'p'},
                                 {"num-threads", required_argument, nullptr, 't'},
@@ -235,7 +258,7 @@ Options ParseOptions(int argc, char** argv) {
                                 {}};
   Options res;
   while (true) {
-    switch (getopt_long(argc, argv, "hl:p:t:v:r:s:u:c:d:m:eUWD", opts, nullptr)) {
+    switch (getopt_long(argc, argv, "hVE:l:p:t:v:r:s:u:c:d:m:eUWD", opts, nullptr)) {
       case -1:
         if (optind != argc) {
           std::cerr << "unexpected positional argument: " << argv[optind] << std::endl;
@@ -245,6 +268,16 @@ Options ParseOptions(int argc, char** argv) {
       case 'h':
         PrintUsage();
         std::exit(0);
+      case 'V':
+        std::cout << Version() << std::endl;
+        std::exit(0);
+      case 'E':
+        if (std::strcmp(optarg, Version())) {
+          std::cerr << "Version mismatch. Wanted: " << Print(optarg)
+                    << ". Actual: " << Print(Version()) << "." << std::endl;
+          std::exit(11);
+        }
+        break;
       case 'l':
         res.lock_fd = ParseInt(optarg);
         break;
