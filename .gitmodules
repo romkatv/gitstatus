@@ -1,4 +1,0 @@
-[submodule "deps/libgit2"]
-	path = deps/libgit2
-	url = https://github.com/romkatv/libgit2.git
-	branch = master
