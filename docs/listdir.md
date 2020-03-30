@@ -1,6 +1,6 @@
 # Fast directory listing
 
-In order to find untracked files in a git repository, [gitstatusd](../) needs to list the
+In order to find untracked files in a git repository, [gitstatusd](/) needs to list the
 contents of every directory. gitstatusd does it 27% faster than a reasonable implementation that a
 seasoned C/C++ practitioner might write. This document explains the optimizations that went into it.
 As directory listing is a common operation, many other projects can benefit from applying these
