@@ -26,7 +26,7 @@ usrbin/$(APPNAME): $(OBJS)
 $(OBJDIR):
 	mkdir -p -- $(OBJDIR)
 
-$(OBJDIR)/%.o: src/%.cc Makefile | $(OBJDIR)
+$(OBJDIR)/%.o: src/%.cc Makefile build.info | $(OBJDIR)
 	$(CXX) $(CXXFLAGS) -MM -MT $@ src/$*.cc >$(OBJDIR)/$*.dep
 	$(CXX) $(CXXFLAGS) -Wall -c -o $@ src/$*.cc
 

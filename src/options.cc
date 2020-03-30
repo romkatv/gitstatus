@@ -224,15 +224,11 @@ void PrintUsage() {
 }
 
 const char* Version() {
-  #ifdef GITSTATUS_VERSION
 #define _INTERNAL_GITSTATUS_STRINGIZE(x) _INTERNAL_GITSTATUS_STRINGIZE_I(x)
 #define _INTERNAL_GITSTATUS_STRINGIZE_I(x) #x
   return _INTERNAL_GITSTATUS_STRINGIZE(GITSTATUS_VERSION);
 #undef _INTERNAL_GITSTATUS_STRINGIZE_I
 #undef _INTERNAL_GITSTATUS_STRINGIZE
-#else
-  return "unknown";
-#endif
 }
 
 }  // namespace
