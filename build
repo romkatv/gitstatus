@@ -173,7 +173,7 @@ cleanup
 
 cat >&2 <<-END
 	-------------------------------------------------
-	SUCCESS: created ./usrbin/$appname
+	SUCCESS: created usrbin/$appname
 	END
 END
 )"
