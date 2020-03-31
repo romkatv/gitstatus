@@ -17,6 +17,7 @@
 
 #include "options.h"
 
+#include <fnmatch.h>
 #include <getopt.h>
 #include <unistd.h>
 
@@ -87,7 +88,7 @@ void PrintUsage() {
             << "   Report at most this many unstaged changes; negative value means infinity.\n"
             << "\n"
             << "  -d, --max-num-untracked=NUM [default=1]\n"
-            << "   Report at most this many untracked fles; negative value means infinity.\n"
+            << "   Report at most this many untracked files; negative value means infinity.\n"
             << "\n"
             << "  -m, --dirty-max-index-size=NUM [default=-1]\n"
             << "   If a repo has more files in its index than this, override --max-num-unstaged\n"
@@ -112,8 +113,10 @@ void PrintUsage() {
             << "  -V, --version\n"
             << "   Print gitstatusd version and exit.\n"
             << "\n"
-            << "  -E, --ensure-version=STR\n"
-            << "   Immediately exit with code 11 if gitstatusd version isn't equal to this.\n"
+            << "  -G, --version-glob=STR [default=*]\n"
+            << "   Immediately exit with code 11 if gitstatusd version (see --version) doesn't\n"
+            << "   does not match the specified pattern. Matching is done with fnmatch(3)\n"
+            << "   without flags.\n"
             << "\n"
             << "  -h, --help\n"
             << "  Display this help and exit.\n"
@@ -236,7 +239,7 @@ const char* Version() {
 Options ParseOptions(int argc, char** argv) {
   const struct option opts[] = {{"help", no_argument, nullptr, 'h'},
                                 {"version", no_argument, nullptr, 'V'},
-                                {"ensure-version", no_argument, nullptr, 'E'},
+                                {"version-glob", no_argument, nullptr, 'G'},
                                 {"lock-fd", required_argument, nullptr, 'l'},
                                 {"parent-pid", required_argument, nullptr, 'p'},
                                 {"num-threads", required_argument, nullptr, 't'},
@@ -254,7 +257,7 @@ Options ParseOptions(int argc, char** argv) {
                                 {}};
   Options res;
   while (true) {
-    switch (getopt_long(argc, argv, "hVE:l:p:t:v:r:s:u:c:d:m:eUWD", opts, nullptr)) {
+    switch (getopt_long(argc, argv, "hVG:l:p:t:v:r:s:u:c:d:m:eUWD", opts, nullptr)) {
       case -1:
         if (optind != argc) {
           std::cerr << "unexpected positional argument: " << argv[optind] << std::endl;
@@ -267,9 +270,14 @@ Options ParseOptions(int argc, char** argv) {
       case 'V':
         std::cout << Version() << std::endl;
         std::exit(0);
-      case 'E':
-        if (std::strcmp(optarg, Version())) {
-          std::cerr << "Version mismatch. Wanted: " << Print(optarg)
+      case 'G':
+        if (int err = fnmatch(optarg, Version(), 0)) {
+          if (err != FNM_NOMATCH) {
+            std::cerr << "Cannot match " << Print(Version()) << " against pattern "
+                                         << Print(optarg) << ": error " << err;
+            std::exit(10);
+          }
+          std::cerr << "Version mismatch. Wanted (pattern): " << Print(optarg)
                     << ". Actual: " << Print(Version()) << "." << std::endl;
           std::exit(11);
         }
