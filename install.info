@@ -1,2 +1,8 @@
 # This file is used by install and shell bindings.
-uname_s="linux"; uname_m="x86_64"; version="v1.0.0"; url="https://..."; sha256="..."; md5="...";
+uname_s_glob="linux";        uname_m_glob="x86_64"; file="gitstatusd-linux-x86_64";          version_glob="v1.0.0"; url="https://..."; sha256="..."; md5="...";
+uname_s_glob="msys_nt-10.0"; uname_m_glob="x86_64"; file="gitstatusd-msys_nt-10.0-x86_64";   version_glob="v1.0.0"; url="https://..."; sha256="..."; md5="...";
+uname_s_glob="*";            uname_m_glob="*";      file="gitstatusd-${uname_s}-${uname_m}"; version_glob="*";      url="";            sha256="";    md5="";
+uname_s_glob="linux";        uname_m_glob="i686";   file="gitstatusd-linux-i386";            version_glob="v1.0.0"; url="https://..."; sha256="..."; md5="...";
+uname_s_glob="msys_nt-*";    uname_m_glob="x86_64"; file="gitstatusd-msys_nt-10.0-x86_64";   version_glob="v1.0.0"; url="https://..."; sha256="..."; md5="...";
+uname_s_glob="mingw32_nt-*"; uname_m_glob="x86_64"; file="gitstatusd-msys_nt-10.0-x86_64";   version_glob="v1.0.0"; url="https://..."; sha256="..."; md5="...";
+uname_s_glob="mingw64_nt-*"; uname_m_glob="x86_64"; file="gitstatusd-msys_nt-10.0-x86_64";   version_glob="v1.0.0"; url="https://..."; sha256="..."; md5="...";
