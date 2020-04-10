@@ -67,10 +67,10 @@ trap cleanup INT QUIT TERM EXIT ILL PIPE
 cpus="$(getconf _NPROCESSORS_ONLN)" || cpus="$(sysctl -n hw.ncpu)" || cpus=8
 
 libgit2_cmake_flags=
-libgit2_cflags=
+libgit2_cflags="-march=$GITSTATUS_CPU"
 
 gitstatus_cxx=g++
-gitstatus_cxxflags="-Ideps/libgit2/include -DGITSTATUS_ZERO_NSEC -D_GNU_SOURCE"
+gitstatus_cxxflags="-Ideps/libgit2/include -DGITSTATUS_ZERO_NSEC -D_GNU_SOURCE -march=$GITSTATUS_CPU"
 gitstatus_ldflags="-L${workdir}/libgit2"
 gitstatus_ldlibs=
 gitstatus_make=make
@@ -247,6 +247,7 @@ fi
 
 if [ -z "$GITSTATUS_CPU" ]; then
   case "$GITSTATUS_ARCH" in
+    armv6l)         GITSTATUS_CPU=armv6;;
     armv7l)         GITSTATUS_CPU=armv7;;
     aarch64)        GITSTATUS_CPU=armv8-a;;
     x86_64|amd64)   GITSTATUS_CPU=x86-64;;
@@ -268,6 +269,7 @@ case "$GITSTATUS_KERNEL" in
       case "$GITSTATUS_ARCH" in
         x86_64)         image=alpine:3.9.5;;
         i386|i586|i686) image=i386/alpine:3.9.5;;
+        armv6l)         image=arm32v6/alpine:3.9.5;;
         armv7l)         image=arm32v7/alpine:3.9.5;;
         aarch64)        image=arm64v8/alpine:3.9.5;;
         *)
