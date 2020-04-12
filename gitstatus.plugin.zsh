@@ -562,6 +562,7 @@ function gitstatus_start() {
               done
             } always {
               local -i ret=$?
+              zf_rm -f -- $file_prefix.lock $file_prefix.fifo
               kill -- -$pgid
             }
           } &!
