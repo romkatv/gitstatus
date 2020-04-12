@@ -575,7 +575,7 @@ function gitstatus_start() {
             fi
           } &!
         ) || return
-      } 3>>$daemon_log </dev/null >/dev/null || return
+      } <&- >&- 3>>$daemon_log || return
 
       typeset -gi _GITSTATUS_STATE_$name=1
     fi
