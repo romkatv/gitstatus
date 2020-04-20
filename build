@@ -105,7 +105,8 @@ case "$GITSTATUS_KERNEL" in
     gitstatus_ldflags="$gitstatus_ldflags -L${workdir}/lib"
   ;;
   msys*|mingw*)
-    pacman -Sy --needed --noconfirm binutils cmake gcc make
+    pacman -Syu --noconfirm
+    pacman -S --needed --noconfirm binutils cmake gcc make
     gitstatus_ldflags="$gitstatus_ldflags -static"
   ;;
   cygwin*)
