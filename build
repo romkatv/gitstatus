@@ -86,6 +86,11 @@ case "$GITSTATUS_KERNEL" in
     gitstatus_make=gmake
     gitstatus_ldflags="$gitstatus_ldflags -static"
   ;;
+  netbsd)
+    pkgin -y install cmake gmake binutils
+    gitstatus_make=gmake
+    gitstatus_ldflags="$gitstatus_ldflags -static"
+  ;;
   darwin)
     if ! command -v make >/dev/null 2>&1 || ! command -v gcc >/dev/null 2>&1; then
       >&2 echo "[error] please run 'xcode-select --install' and retry"
@@ -303,6 +308,16 @@ case "$GITSTATUS_KERNEL" in
       exit 1
     fi
   ;;
+  netbsd)
+    if [ -n "$image" ]; then
+      >&2 echo '[error] docker image (-i) is not supported on netbsd'
+      exit 1
+    fi
+    if [ -n "$docker" ]; then
+      >&2 echo '[error] docker (-d) is not supported on netbsd'
+      exit 1
+    fi
+  ;;
   darwin)
     if [ -n "$image" ]; then
       >&2 echo '[error] docker image (-i) is not supported on macOS'
@@ -371,7 +386,7 @@ case "$GITSTATUS_KERNEL" in
       --rm                                    \
       -- "$image" /bin/sh -uexc "$build"
   ;;
-  freebsd|darwin|msys*|mingw*|cygwin*)
+  freebsd|netbsd|darwin|msys*|mingw*|cygwin*)
     eval "$build"
   ;;
   *)
