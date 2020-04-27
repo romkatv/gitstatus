@@ -3,7 +3,7 @@
 # Usage: mbuild [-b git-ref] [kernel-arch]...
 #
 # Builds a bunch of gitstatusd-* binaries. Without arguments builds binaries
-# for all platforms. git-ref defaults to master.
+# for all platforms. git-ref defaults to src.
 #
 # Before using this script you need to set up build servers and list them
 # in ~/.ssh/config. There should be a Host entry for every value of `assets`
@@ -104,7 +104,7 @@ function usage() {
   print -r -- 'usage: mbuild [-b REF] [KERNEL-ARCH]...'
 }
 
-local OPTARG opt git_ref=master
+local OPTARG opt git_ref=src
 local -i OPTIND
 while getopts ":b:h" opt; do
   case $opt in
