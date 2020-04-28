@@ -80,6 +80,7 @@ case "$GITSTATUS_KERNEL" in
     apk update
     apk add binutils cmake gcc g++ git make musl-dev
     gitstatus_ldflags="$gitstatus_ldflags -static"
+    gitstatus_ldlibs="$gitstatus_ldlibs -lrt -Wl,--whole-archive -lpthread -Wl,--no-whole-archive"
   ;;
   freebsd)
     pkg install -y cmake gmake binutils gcc git
