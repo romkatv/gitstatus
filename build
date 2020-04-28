@@ -80,7 +80,6 @@ case "$GITSTATUS_KERNEL" in
     apk update
     apk add binutils cmake gcc g++ git make musl-dev
     gitstatus_ldflags="$gitstatus_ldflags -static"
-    gitstatus_ldlibs="$gitstatus_ldlibs -lrt -Wl,--whole-archive -lpthread -Wl,--no-whole-archive"
   ;;
   freebsd)
     pkg install -y cmake gmake binutils gcc git
@@ -170,6 +169,14 @@ APPNAME="$appname".tmp           \
 app="$outdir"/usrbin/"$appname"
 
 strip "$app".tmp
+
+mkdir -- "$workdir"/repo
+git -C "$workdir"/repo init --
+git -C "$workdir"/repo config user.email "you@example.com"
+git -C "$workdir"/repo commit --allow-empty --allow-empty-message -m ''
+
+resp="$(printf "hello\037$workdir/repo\036" | "$app".tmp)"
+[ -n "$resp" -a -z "${resp##hello*1*$workdir/repo*master*}" ]
 
 resp="$(printf 'hello\037\036' | "$app".tmp)"
 [ -n "$resp" -a -z "${resp##hello*0*}" ]
@@ -279,11 +286,11 @@ case "$GITSTATUS_KERNEL" in
   linux)
     if [ -z "$image" ]; then
       case "$GITSTATUS_ARCH" in
-        x86_64)         image=alpine:3.9.5;;
-        i386|i586|i686) image=i386/alpine:3.9.5;;
-        armv6l)         image=arm32v6/alpine:3.9.5;;
-        armv7l)         image=arm32v7/alpine:3.9.5;;
-        aarch64)        image=arm64v8/alpine:3.9.5;;
+        x86_64)         image=alpine:3.11.6;;
+        i386|i586|i686) image=i386/alpine:3.11.6;;
+        armv6l)         image=arm32v6/alpine:3.11.6;;
+        armv7l)         image=arm32v7/alpine:3.11.6;;
+        aarch64)        image=arm64v8/alpine:3.11.6;;
         *)
           >&2 echo '[error] unable to infer docker image'
           >&2 echo 'Please specify explicitly with `-i IMAGE`.'
