@@ -117,7 +117,7 @@ function gitstatus_start() {
 
     { <$req_fifo >"$GITSTATUS_DAEMON_LOG" 2>&1 3>$resp_fifo \
         _gitstatus_daemon="$daemon" bash -cx "
-          cd /
+          builtin cd /
           trap 'kill %1 &>/dev/null' SIGINT SIGTERM EXIT
           \"\$_gitstatus_daemon\" ${daemon_args[*]} 0<&0 1>&3 2>&2 &
           wait %1
