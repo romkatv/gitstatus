@@ -1,7 +1,5 @@
 #!/bin/sh
 #
-# Usage: build [-m ARCH] [-c CPU] [-i IMAGE] [-d CMD]
-#
 # Type `build -h` for help and see https://github.com/romkatv/gitstatus
 # for full documentation.
 
