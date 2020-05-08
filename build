@@ -144,17 +144,21 @@ git checkout "$libgit2_ref"
 mkdir build
 cd build
 
-CFLAGS="$libgit2_cflags" cmake \
-  -DCMAKE_BUILD_TYPE=Release   \
-  -DTHREADSAFE=ON              \
-  -DUSE_BUNDLED_ZLIB=ON        \
-  -DREGEX_BACKEND=builtin      \
-  -DBUILD_CLAR=OFF             \
-  -DUSE_SSH=OFF                \
-  -DUSE_HTTPS=OFF              \
-  -DBUILD_SHARED_LIBS=OFF      \
-  -DZERO_NSEC=ON               \
-  $libgit2_cmake_flags         \
+CFLAGS="$libgit2_cflags" cmake     \
+  -DCMAKE_BUILD_TYPE=Release       \
+  -DZERO_NSEC=ON                   \
+  -DTHREADSAFE=ON                  \
+  -DUSE_BUNDLED_ZLIB=ON            \
+  -DREGEX_BACKEND=builtin          \
+  -DUSE_HTTP_PARSER=builtin        \
+  -DUSE_SSH=OFF                    \
+  -DUSE_HTTPS=OFF                  \
+  -DBUILD_CLAR=OFF                 \
+  -DUSE_GSSAPI=OFF                 \
+  -DUSE_NTLMCLIENT=OFF             \
+  -DBUILD_SHARED_LIBS=OFF          \
+  -DENABLE_REPRODUCIBLE_BUILDS=OFF \
+  $libgit2_cmake_flags             \
   ..
 make -j "$cpus" VERBOSE=1
 
