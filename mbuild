@@ -40,7 +40,7 @@
 # - Install 64-bit and 32-bit msys2: https://www.msys2.org/.
 # - Install 64-bit and 32-bit cygwin: https://cygwin.com/install.html.
 #   - Choose to install 32-bit to c:/cygwin32 instead of the default c:/cygwin.
-#   - Select these packages: binutils, cmake, gcc-core, gcc-g++, git, make.
+#   - Select these packages: binutils, cmake, gcc-core, gcc-g++, git, make, wget.
 # - Install OpenSSH: https://docs.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse.
 #   ps> Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
 #   ps> Start-Service sshd

@@ -1,4 +1,3 @@
 # This file is used by Makefile and build.
 version="v1.0.0"
-libgit2_url="https://github.com/romkatv/libgit2.git"
-libgit2_ref="bb77509f4436901f3958e30272026f63d2247d7d"
+libgit2_tag="tag-81ae1b9a28a490c7dc9bbe9b986607c92341ae57"

@@ -59,7 +59,7 @@ appname=gitstatusd-"$GITSTATUS_KERNEL"-"$GITSTATUS_ARCH"
 
 cleanup() {
   cd /
-  rm -rf -- "$workdir" "$outdir"/usrbin/"$appname".tmp
+  rm -rf -- "$workdir" "$outdir"/usrbin/"$appname".$$ "$outdir"/deps/libgit2.$$
   trap - INT QUIT TERM EXIT ILL PIPE
 }
 trap cleanup INT QUIT TERM EXIT ILL PIPE
@@ -100,7 +100,7 @@ case "$GITSTATUS_KERNEL" in
       >&2 echo "[error] please install homebrew from https://brew.sh/ and retry"
       exit 1
     fi
-    brew install libiconv cmake git
+    brew install libiconv cmake git wget
     mkdir -- "$workdir"/lib
     ln -s -- /usr/local/opt/libiconv/lib/libiconv.a "$workdir"/lib
     libgit2_cmake_flags="$libgit2_cmake_flags -DUSE_ICONV=ON"
@@ -115,7 +115,7 @@ case "$GITSTATUS_KERNEL" in
     gitstatus_ldflags="$gitstatus_ldflags -static"
   ;;
   cygwin*)
-    for cmd in cmake gcc g++ git ld make; do
+    for cmd in cmake gcc g++ git ld make wget; do
       if ! command -v "$cmd" >/dev/null 2>&1; then
         >&2 echo "[error] command not found: $cmd"
         >&2 echo ""
@@ -138,11 +138,22 @@ case "$GITSTATUS_KERNEL" in
 esac
 
 . "$outdir"/build.info
-git clone -- "$libgit2_url" "$workdir"/libgit2
-cd -- "$workdir"/libgit2
-git checkout "$libgit2_ref"
-mkdir build
-cd build
+if [ -z "$libgit2_tag" ]; then
+  >&2 echo "[internal error] libgit2_tag not set"
+  exit 1
+fi
+libgit2_url=https://github.com/romkatv/libgit2/archive/"$libgit2_tag".tar.gz
+libgit2_tarball="$outdir"/deps/libgit2-"$libgit2_tag".tar.gz
+if [ ! -e "$libgit2_tarball" ]; then
+  wget -O "$outdir"/deps/libgit2.$$ -- "$libgit2_url"
+  mv -f -- "$outdir"/deps/libgit2.$$ "$libgit2_tarball"
+fi
+
+cd -- "$workdir"
+tar -xzf "$libgit2_tarball"
+mv -- libgit2-"$libgit2_tag" libgit2
+mkdir libgit2/build
+cd libgit2/build
 
 CFLAGS="$libgit2_cflags" cmake     \
   -DCMAKE_BUILD_TYPE=Release       \
@@ -162,7 +173,7 @@ CFLAGS="$libgit2_cflags" cmake     \
   ..
 make -j "$cpus" VERBOSE=1
 
-APPNAME="$appname".tmp           \
+APPNAME="$appname".$$            \
   OBJDIR="$workdir"/gitstatus    \
   CXX="$gitstatus_cxx"           \
   CXXFLAGS="$gitstatus_cxxflags" \
@@ -172,20 +183,20 @@ APPNAME="$appname".tmp           \
 
 app="$outdir"/usrbin/"$appname"
 
-strip "$app".tmp
+strip "$app".$$
 
 mkdir -- "$workdir"/repo
 git -C "$workdir"/repo init --
 git -C "$workdir"/repo config user.email "you@example.com"
 git -C "$workdir"/repo commit --allow-empty --allow-empty-message -m ''
 
-resp="$(printf "hello\037$workdir/repo\036" | "$app".tmp)"
+resp="$(printf "hello\037$workdir/repo\036" | "$app".$$)"
 [ -n "$resp" -a -z "${resp##hello*1*$workdir/repo*master*}" ]
 
-resp="$(printf 'hello\037\036' | "$app".tmp)"
+resp="$(printf 'hello\037\036' | "$app".$$)"
 [ -n "$resp" -a -z "${resp##hello*0*}" ]
 
-mv -f -- "$app".tmp "$app"
+mv -f -- "$app".$$ "$app"
 
 cleanup
 
