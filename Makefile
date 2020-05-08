@@ -3,7 +3,7 @@ OBJDIR ?= obj
 
 CXX ?= g++
 
-VERSION ?= $(shell . ./build.info && printf "%s" "$$version")
+VERSION ?= $(shell . ./build.info && printf "%s" "$$gitstatus_version")
 
 # Note: -fsized-deallocation is not used to avoid binary compatibility issues on macOS.
 #
