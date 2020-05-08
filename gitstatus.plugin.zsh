@@ -526,6 +526,12 @@ function gitstatus_start() {
     return 1
   fi
 
+  local GITSTATUS_AUTO_INSTALL=$GITSTATUS_AUTO_INSTALL
+  local GITSTATUS_DAEMON=$GITSTATUS_DAEMON
+  local GITSTATUS_NUM_THREADS=$GITSTATUS_NUM_THREADS
+  local GITSTATUS_LOG_LEVEL=$GITSTATUS_LOG_LEVEL
+  source $_gitstatus_plugin_dir/rc.zsh
+
   local -i lock_fd resp_fd stderr_fd
   local file_prefix xtrace=/dev/null daemon_log=/dev/null
   if (( _GITSTATUS_STATE_$name )); then
