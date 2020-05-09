@@ -189,7 +189,7 @@ function build-windows() {
     cd -- $tmp
     $build ${2##*-} ${(j: :)${(@q)flags}}
     exit"
-  scp $1:c:/tmp/gitstatus/usrbin/gitstatusd-$2 $binaries/
+  scp $1:$c/tmp/gitstatus/usrbin/gitstatusd-$2 $binaries/
   chmod +x $binaries/gitstatusd-$2
 }
 
