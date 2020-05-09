@@ -15,4 +15,4 @@ gitstatus_version="v1.0.0"
 #
 # Once downloaded, the tarball is stored at the path indicated
 # above so that repeated builds don't consume network bandwidth.
-libgit2_version="tag-81ae1b9a28a490c7dc9bbe9b986607c92341ae57"
+libgit2_version="tag-005f77dca6dbe8788e55139fa1199fc94cc04f9a"
