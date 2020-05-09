@@ -37,7 +37,7 @@
 #
 # - Disable Windows Defender (optional).
 #   ps> Set-MpPreference -DisableRealtimeMonitoring $true
-# - Install 64-bit and 32-bit msys2: https://www.msys2.org/.
+# - Install 64-bit and 32-bit msys2: https://www.msys2.org/wiki/MSYS2-installation/.
 # - Install 64-bit and 32-bit cygwin: https://cygwin.com/install.html.
 #   - Choose to install 32-bit to c:/cygwin32 instead of the default c:/cygwin.
 #   - Select these packages: binutils, cmake, gcc-core, gcc-g++, git, make, wget.
