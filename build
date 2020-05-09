@@ -83,7 +83,13 @@ if [ -n "$gitstatus_install_tools" ]; then
         >&2 echo "[error] please install homebrew from https://brew.sh/ and retry"
         exit 1
       fi
-      brew install libiconv cmake git wget
+      for formula in libiconv cmake git wget; do
+        if brew list "$formula" &>/dev/null; then
+          brew upgrade "$formula"
+        else
+          brew install "$formula"
+        fi
+      done
     ;;
     msys*|mingw*)
       pacman -Syu --noconfirm
