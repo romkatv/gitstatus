@@ -349,67 +349,27 @@ function _gitstatus_process_response() {
 }
 
 function _gitstatus_daemon() {
-  # Close stdin to work around bugs in Cygwin 32-bit.
-  exec 0<&- 2>>$daemon_log || return
+  local -i pipe_fd
+  exec 0<&- {pipe_fd}>&1 1>>$daemon_log 2>&1 || return
   local pgid=$sysparams[pid]
   [[ $pgid == <1-> ]] || return
-  builtin cd -q / || return
+  builtin cd -q /     || return
 
   {
     {
       trap '' PIPE
 
-      if [[ -z $GITSTATUS_DAEMON || $GITSTATUS_NUM_THREADS != <1-> ]]; then
-        local kernel
-        kernel="${(L)$(uname -s)}" || return
-        [[ -n $kernel ]]           || return
-      fi
-
-      if [[ $GITSTATUS_DAEMON == /* ]]; then
-        local daemons=($GITSTATUS_DAEMON)
-      elif (( $+commands[$GITSTATUS_DAEMON] )); then
-        local daemons=($commands[$GITSTATUS_DAEMON])
-      elif [[ -n $GITSTATUS_DAEMON ]]; then
-        local daemons=($_gitstatus_plugin_dir/{usrbin,bin}/$GITSTATUS_DAEMON)
-      else
-        local -aU os=($kernel)
-        case $kernel in
-          linux)
-            local os_flavor
-            os_flavor="${(L)$(uname -o 2>/dev/null)}" && os+=(${(M)os_flavor:#android})
-          ;;
-          cygwin_nt-*)  os+=(cygwin_nt-10.0);;
-          msys_nt-*)    os+=(msys_nt-10.0);;
-          mingw32_nt-*) os+=(msys_nt-10.0);;
-          mingw64_nt-*) os+=(msys_nt-10.0);;
-        esac
-        local arch
-        arch="${(L)$(uname -m)}" || return
-        [[ -n $arch ]]           || return
-        local daemons=(
-          $_gitstatus_plugin_dir/{usrbin,bin}/gitstatusd-${^os}-$arch{,-static})
-      fi
-
-      local files=(${^daemons}(N:A))
-      daemons=(${^files}(N*))
-
-      if (( stderr_fd && $#daemons != $#files )); then
-        unsetopt xtrace
-        print -ru2   -- ''
-        print -ru2   -- 'ERROR: missing execute permissions on gitstatusd file(s):'
-        print -ru2   -- ''
-        print -ru2   -- '  '${(pj:\n  :)${files:|daemons}}
-        print -ru2   -- ''
-        setopt xtrace
-      fi
-
-      (( $#daemons )) || return
+      local uname_sm
+      uname_sm="${(L)$(uname -sm)}"          || return
+      [[ $uname_sm == [^' ']##' '[^' ']## ]] || return
+      local uname_s=${uname_sm% *}
+      local uname_m=${uname_sm#* }
 
       if [[ $GITSTATUS_NUM_THREADS == <1-> ]]; then
         args+=(-t $GITSTATUS_NUM_THREADS)
       else
         local cpus
-        if (( ! $+commands[sysctl] )) || [[ $kernel == linux ]] ||
+        if (( ! $+commands[sysctl] )) || [[ $uname_s == linux ]] ||
             ! cpus="$(sysctl -n hw.ncpu)"; then
           if (( ! $+commands[getconf] )) || ! cpus="$(getconf _NPROCESSORS_ONLN)"; then
             cpus=8
@@ -418,17 +378,44 @@ function _gitstatus_daemon() {
         args+=(-t $((cpus > 16 ? 32 : cpus > 0 ? 2 * cpus : 16)))
       fi
 
-      mkfifo -- $file_prefix.fifo || return
-      print -rn -- ${(l:20:)pgid} || return
-      exec <$file_prefix.fifo     || return
-      zf_rm -- $file_prefix.fifo  || return
+      local _gitstatus_zsh_daemon _gitstatus_zsh_version _gitstatus_zsh_downloaded
 
-      local daemon
-      for daemon in $daemons; do
-        $daemon "${(@)args}"
+      function _gitstatus-set-daemon() {
+        _gitstatus_zsh_daemon="$1"
+        _gitstatus_zsh_version="$2"
+        _gitstatus_zsh_downloaded="$3"
+      }
+
+      set -- -d $_gitstatus_plugin_dir -s $uname_s -m $uname_m -- _gitstatus-set-daemon
+      [[ $GITSTATUS_AUTO_INSTALL == (|-|+)<1-> ]] || set -- -n "$@"
+      source $_gitstatus_plugin_dir/install       || return
+      [[ -n $_gitstatus_zsh_daemon ]]             || return
+      [[ -n $_gitstatus_zsh_version ]]            || return
+      [[ $_gitstatus_zsh_downloaded == [01] ]]    || return
+
+      mkfifo -- $file_prefix.fifo           || return
+      print -rnu $pipe_fd -- ${(l:20:)pgid} || return
+      exec <$file_prefix.fifo               || return
+      zf_rm -- $file_prefix.fifo            || return
+
+      if [[ -x $_gitstatus_zsh_daemon ]]; then
+        $_gitstatus_zsh_daemon -G $_gitstatus_zsh_version "${(@)args}" >&$pipe_fd
         local -i ret=$?
-        (( ret == 0 || ret == 10 || ret > 128 )) && return ret
-      done
+        [[ $ret == (0|129|130|131|137|141|143) ]] && return ret
+      fi
+
+      (( ! _gitstatus_zsh_downloaded ))           || return
+      [[ $GITSTATUS_AUTO_INSTALL == (|-|+)<1-> ]] || return
+      set -- -f "$@"
+      _gitstatus_zsh_daemon=
+      _gitstatus_zsh_version=
+      _gitstatus_zsh_downloaded=
+      source $_gitstatus_plugin_dir/install || return
+      [[ -n $_gitstatus_zsh_daemon ]]       || return
+      [[ -n $_gitstatus_zsh_version ]]      || return
+      [[ $_gitstatus_zsh_downloaded == 1 ]] || return
+
+      $_gitstatus_zsh_daemon -G $_gitstatus_zsh_version "${(@)args}" >&$pipe_fd
     } always {
       local -i ret=$?
       zf_rm -f -- $file_prefix.lock $file_prefix.fifo
@@ -526,11 +513,17 @@ function gitstatus_start() {
     return 1
   fi
 
+  local GITSTATUS_STOP_ON_EXEC=$GITSTATUS_STOP_ON_EXEC
   local GITSTATUS_AUTO_INSTALL=$GITSTATUS_AUTO_INSTALL
   local GITSTATUS_DAEMON=$GITSTATUS_DAEMON
+  local GITSTATUS_DAEMON_VERSION=$GITSTATUS_DAEMON_VERSION
   local GITSTATUS_NUM_THREADS=$GITSTATUS_NUM_THREADS
   local GITSTATUS_LOG_LEVEL=$GITSTATUS_LOG_LEVEL
-  source $_gitstatus_plugin_dir/rc.zsh
+  local GITSTATUS_CACHE_DIR=$GITSTATUS_CACHE_DIR
+  if ! source $_gitstatus_plugin_dir/gitstatusrc; then
+    print -ru2 -- "gitstatus_start: failed to source gitstatusrc"
+    return 1
+  fi
 
   local -i lock_fd resp_fd stderr_fd
   local file_prefix xtrace=/dev/null daemon_log=/dev/null

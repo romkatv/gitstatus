@@ -60,40 +60,49 @@ function gitstatus_start() {
 
   [[ -z "${GITSTATUS_DAEMON_PID:-}" ]] || return 0  # already started
 
+  if [[ "${BASH_SOURCE[0]}" == */* ]]; then
+    local gitstatus_plugin_dir="${BASH_SOURCE[0]%/*}"
+  else
+    local gitstatus_plugin_dir=.
+  fi
+
+  local GITSTATUS_STOP_ON_EXEC="${GITSTATUS_STOP_ON_EXEC:-}"
+  local GITSTATUS_AUTO_INSTALL="${GITSTATUS_AUTO_INSTALL:-}"
+  local GITSTATUS_DAEMON="${GITSTATUS_DAEMON:-}"
+  local GITSTATUS_DAEMON_VERSION="${GITSTATUS_DAEMON_VERSION:-}"
+  local GITSTATUS_NUM_THREADS="${GITSTATUS_NUM_THREADS:-}"
+  local GITSTATUS_LOG_LEVEL="${GITSTATUS_LOG_LEVEL:-}"
+  local GITSTATUS_CACHE_DIR="${GITSTATUS_CACHE_DIR:-}"
+  if ! source "$gitstatus_plugin_dir"/gitstatusrc; then
+    >&2 echo "[gitstatus] error: failed to source gitstatusrc"
+    return 1
+  fi
+
   local req_fifo resp_fifo
 
   function gitstatus_start_impl() {
     local log_level="${GITSTATUS_LOG_LEVEL:-}"
     [[ -n "$log_level" || "${GITSTATUS_ENABLE_LOGGING:-0}" != 1 ]] || log_level=INFO
 
-    local daemon="${GITSTATUS_DAEMON:-}" os
-    if [[ -z "$daemon" ]]; then
-      os=$(uname -s)                                    || return
-      local arch && arch=$(uname -m)                    || return
-      local dir  &&  dir=$(dirname "${BASH_SOURCE[0]}") || return
-      [[ "${os,,}" != cygwin_nt-*  ]] || os=cygwin_nt-10.0
-      [[ "${os,,}" != msys_nt-*    ]] || os=msys_nt-10.0
-      [[ "${os,,}" != mingw32_nt-* ]] || os=msys_nt-10.0
-      [[ "${os,,}" != mingw64_nt-* ]] || os=msys_nt-10.0
-      daemon="$dir/bin/gitstatusd-${os,,}-${arch,,}"
+    local uname_sm
+    uname_sm="$(uname -sm)" || return
+    uname_sm="${uname_sm,,}"
+    local uname_s="${uname_sm% *}"
+    local uname_m="${uname_sm#* }"
+
+    if [[ "${GITSTATUS_NUM_THREADS:-0}" -gt 0 ]]; then
+      local threads="$GITSTATUS_NUM_THREADS"
+    else
+      local cpus
+      if ! command -v sysctl &>/dev/null || [[ "$uname_s" == linux ]] ||
+         ! cpus="$(sysctl -n hw.ncpu)"; then
+        if ! command -v getconf &>/dev/null || ! cpus="$(getconf _NPROCESSORS_ONLN)"; then
+          cpus=8
+        fi
+      fi
+      local threads=$((cpus > 16 ? 32 : cpus > 0 ? 2 * cpus : 16))
     fi
 
-    local threads="${GITSTATUS_NUM_THREADS:-0}"
-    if (( threads <= 0 )); then
-      case "${os:-$(uname -s)}" in
-        FreeBSD) threads=$(sysctl -n hw.ncpu)         || return;;
-        *)       threads=$(getconf _NPROCESSORS_ONLN) || return;;
-      esac
-      (( threads *=  2 ))
-      (( threads >=  2 )) || threads=2
-      (( threads <= 32 )) || threads=32
-    fi
-
-    req_fifo=$(mktemp -u "${TMPDIR:-/tmp}"/gitstatus.$$.pipe.req.XXXXXXXXXX)   || return
-    resp_fifo=$(mktemp -u "${TMPDIR:-/tmp}"/gitstatus.$$.pipe.resp.XXXXXXXXXX) || return
-    mkfifo "$req_fifo" "$resp_fifo"                                            || return
-
-    local d="${GITSTATUS_DAEMON:-}"
     local daemon_args=(
       --parent-pid="$$"
       --num-threads="$threads"
@@ -111,22 +120,78 @@ function gitstatus_start() {
       GITSTATUS_DAEMON_LOG=/dev/null
     fi
 
-    local IFS=
-    [[ "${daemon_args[*]}" =~ ^[a-zA-Z0-9=-]*$ ]] || return
-    IFS=' '
+    req_fifo=$(mktemp -u "${TMPDIR:-/tmp}"/gitstatus.$$.pipe.req.XXXXXXXXXX)   || return
+    resp_fifo=$(mktemp -u "${TMPDIR:-/tmp}"/gitstatus.$$.pipe.resp.XXXXXXXXXX) || return
+    mkfifo "$req_fifo" "$resp_fifo"                                            || return
 
-    { <$req_fifo >"$GITSTATUS_DAEMON_LOG" 2>&1 3>$resp_fifo \
-        _gitstatus_daemon="$daemon" bash -cx "
-          builtin cd /
-          trap 'kill %1 &>/dev/null' SIGINT SIGTERM EXIT
-          \"\$_gitstatus_daemon\" ${daemon_args[*]} 0<&0 1>&3 2>&2 &
-          wait %1
-          echo -nE $'bye\x1f0\x1e' >&3" & } 2>/dev/null
-    disown
-    GITSTATUS_DAEMON_PID=$!
+    {
+      (
+        builtin cd /
+        (
+          local fd_in fd_out
+          exec {fd_in}<"$req_fifo" {fd_out}>"$resp_fifo" || exit
+          echo "$BASHPID" >&"$fd_out"
+
+          local _gitstatus_bash_daemon _gitstatus_bash_version _gitstatus_bash_downloaded
+
+          function _gitstatus_set_daemon() {
+            _gitstatus_bash_daemon="$1"
+            _gitstatus_bash_version="$2"
+            _gitstatus_bash_downloaded="$3"
+          }
+
+          set -- -d "$gitstatus_plugin_dir" -s "$uname_s" -m "$uname_m" -- _gitstatus_set_daemon
+          [[ "${GITSTATUS_AUTO_INSTALL:-1}" -ne 0 ]]  || set -- -n "$@"
+          source "$gitstatus_plugin_dir"/install      || return
+          [[ -n "$_gitstatus_bash_daemon" ]]          || return
+          [[ -n "$_gitstatus_bash_version" ]]         || return
+          [[ "$_gitstatus_bash_downloaded" == [01] ]] || return
+
+          local sig=(INT QUIT TERM EXIT ILL PIPE)
+
+          if [[ -x "$_gitstatus_bash_daemon" ]]; then
+            "$_gitstatus_bash_daemon" \
+              -G "$_gitstatus_bash_version" "${daemon_args[@]}" <&"$fd_in" >&"$fd_out" &
+            local pid=$!
+            trap "trap - ${sig[*]}; kill $pid &>/dev/null" ${sig[@]}
+            wait "$pid"
+            local ret=$?
+            trap - ${sig[@]}
+            case "$ret" in
+              0|129|130|131|137|141|143)
+                echo -nE $'bye\x1f0\x1e' >&"$fd_out"
+                exit "$ret"
+              ;;
+            esac
+          fi
+
+          (( ! _gitstatus_bash_downloaded ))         || return
+          [[ "${GITSTATUS_AUTO_INSTALL:-1}" -ne 0 ]] || return
+          set -- -f "$@"
+          _gitstatus_bash_daemon=
+          _gitstatus_bash_version=
+          _gitstatus_bash_downloaded=
+          source "$gitstatus_plugin_dir"/install  || return
+          [[ -n "$_gitstatus_bash_daemon" ]]       || return
+          [[ -n "$_gitstatus_bash_version" ]]      || return
+          [[ "$_gitstatus_bash_downloaded" == 1 ]] || return
+
+          "$_gitstatus_bash_daemon" \
+            -G "$_gitstatus_bash_version" "${daemon_args[@]}" <&"$fd_in" >&"$fd_out" &
+          local pid=$!
+          trap "trap - ${sig[*]}; kill $pid &>/dev/null" ${sig[@]}
+          wait "$pid"
+          trap - ${sig[@]}
+          echo -nE $'bye\x1f0\x1e' >&"$fd_out"
+        ) &
+      )  & disown
+    } 0</dev/null &>/dev/null
 
     exec {_GITSTATUS_REQ_FD}>"$req_fifo" {_GITSTATUS_RESP_FD}<"$resp_fifo" || return
     command rm "$req_fifo" "$resp_fifo"                                    || return
+
+    IFS='' read -r -u $_GITSTATUS_RESP_FD GITSTATUS_DAEMON_PID || return
+    [[ $GITSTATUS_DAEMON_PID == [1-9]* ]] || return
 
     local reply
     echo -nE $'hello\x1f\x1e' >&$_GITSTATUS_REQ_FD                     || return
