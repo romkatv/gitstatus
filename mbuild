@@ -145,19 +145,23 @@ local build='
   $sh -x ./build -m '
 
 function build-unix() {
-  local intro
-  [[ $2 != darwin-* ]] || intro='PATH="/usr/local/bin:$PATH"'
+  local intro flags=(-sw)
+  case $2 in
+    darwin-*) intro='PATH="/usr/local/bin:$PATH"';;
+    linux-*)  flags+=(-d docker);;
+  esac
   ssh $1 -- /bin/sh -uex <<<"
     $intro
     cd /tmp
-    $build ${2##*-}"
+    $build ${2##*-} ${(j: :)${(@q)flags}}"
   scp $1:/tmp/gitstatus/usrbin/gitstatusd-$2 $binaries/
 }
 
 function build-windows() {
-  local tmp env bin intro
+  local tmp env bin intro flags=(-w)
   case $2 in
     msys_nt-10.0-*)
+      flags+=(-s)
       tmp='/c/tmp'
       env='MSYSTEM=MSYS'
       intro='pacman -Syu --noconfirm; pacman -S --needed --noconfirm git'
@@ -175,7 +179,7 @@ function build-windows() {
     $intro
     mkdir -p -- $tmp
     cd -- $tmp
-    $build ${2##*-}"
+    $build ${2##*-} ${(j: :)${(@q)flags}}"
   scp $1:c:/tmp/gitstatus/usrbin/gitstatusd-$2 $binaries/
   chmod +x $binaries/gitstatusd-$2
 }
@@ -186,6 +190,9 @@ function build() (
   print -n >>$locks/$machine
   zsystem flock $locks/$machine
   build-${protocol[(k)$platform]} $machine $platform
+  local tmp=gitstatusd-$platform.tmp.$$.tar.gz
+  ( cd -q -- $binaries; GZIP=-9 tar -czf $tmp gitstatusd-$platform )
+  mv -f -- $binaries/$tmp $binaries/gitstatusd-$platform.tar.gz
 )
 
 function mbuild() {
