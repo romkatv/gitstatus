@@ -83,7 +83,7 @@ local -rA assets=(
   linux-aarch64          build-linux-aarch64
   linux-armv6l           build-linux-armv7l
   linux-armv7l           build-linux-armv7l
-  linux-i386             build-linux-x86_64
+  linux-i686             build-linux-x86_64
   linux-x86_64           build-linux-x86_64
 )
 
