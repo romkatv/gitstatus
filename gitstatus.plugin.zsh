@@ -55,7 +55,7 @@ autoload -Uz add-zsh-hook        || return
 zmodload zsh/datetime zsh/system || return
 zmodload -F zsh/files b:zf_rm    || return
 
-typeset -g _gitstatus_plugin_dir=${${(%):-%x}:A:h}
+typeset -g _gitstatus_plugin_dir"${1:-}"="${${(%):-%x}:A:h}"
 
 # Retrives status of a git repo from a directory under its working tree.
 #
@@ -138,8 +138,10 @@ typeset -g _gitstatus_plugin_dir=${${(%):-%x}:A:h}
 #
 # It's illegal to call gitstatus_query if the last asynchronous call with the same NAME hasn't
 # completed yet. If you need to issue concurrent requests, use different NAME arguments.
-function gitstatus_query() {
+function gitstatus_query"${1:-}"() {
   emulate -L zsh -o no_aliases -o extended_glob -o typeset_silent
+
+  local fsuf=${${(%):-%N}#gitstatus_query}
 
   unset VCS_STATUS_RESULT
 
@@ -192,10 +194,10 @@ function gitstatus_query() {
 
   if (( timeout == 0 )); then
     typeset -g VCS_STATUS_RESULT=tout
-    _gitstatus_clear
+    _gitstatus_clear$fsuf
   else
     while true; do
-      _gitstatus_process_response $name $timeout $req_id || return
+      _gitstatus_process_response$fsuf $name $timeout $req_id || return
       [[ $VCS_STATUS_RESULT == *-async ]] || break
     done
   fi
@@ -215,8 +217,11 @@ function gitstatus_query() {
 #
 # If a callback gets called, VCS_STATUS_* parameters are set as in gitstatus_query.
 # VCS_STATUS_RESULT is either norepo-async or ok-async.
-function gitstatus_process_results() {
+function gitstatus_process_results"${1:-}"() {
   emulate -L zsh -o no_aliases -o extended_glob -o typeset_silent
+
+  local fsuf=${${(%):-%N}#gitstatus_process_results}
+
   local opt OPTARG
   local -i OPTIND
   local -F timeout=-1
@@ -249,18 +254,18 @@ function gitstatus_process_results() {
   (( _GITSTATUS_STATE_$name == 2 )) || return
 
   while (( _GITSTATUS_NUM_INFLIGHT_$name )); do
-    _gitstatus_process_response $name $timeout '' || return
+    _gitstatus_process_response$fsuf $name $timeout '' || return
     [[ $VCS_STATUS_RESULT == *-async ]] || break
   done
 
   return 0
 }
 
-function _gitstatus_clear() {
+function _gitstatus_clear"${1:-}"() {
   unset VCS_STATUS_{WORKDIR,COMMIT,LOCAL_BRANCH,REMOTE_BRANCH,REMOTE_NAME,REMOTE_URL,ACTION,INDEX_SIZE,NUM_STAGED,NUM_UNSTAGED,NUM_CONFLICTED,NUM_UNTRACKED,HAS_STAGED,HAS_UNSTAGED,HAS_CONFLICTED,HAS_UNTRACKED,COMMITS_AHEAD,COMMITS_BEHIND,STASHES,TAG,NUM_UNSTAGED_DELETED,NUM_STAGED_NEW,NUM_STAGED_DELETED,PUSH_REMOTE_NAME,PUSH_REMOTE_URL,PUSH_COMMITS_AHEAD,PUSH_COMMITS_BEHIND,NUM_SKIP_WORKTREE,NUM_ASSUME_UNCHANGED}
 }
 
-function _gitstatus_process_response() {
+function _gitstatus_process_response"${1:-}"() {
   local name=$1 timeout req_id=$3 buf
   local -i resp_fd=_GITSTATUS_RESP_FD_$name
   local -i dirty_max_index_size=_GITSTATUS_DIRTY_MAX_INDEX_SIZE_$name
@@ -270,17 +275,17 @@ function _gitstatus_process_response() {
     if (( $? == 4 )); then
       if [[ -n $req_id ]]; then
         typeset -g VCS_STATUS_RESULT=tout
-        _gitstatus_clear
+        _gitstatus_clear$fsuf
       fi
       return 0
     else
-      gitstatus_stop $name
+      gitstatus_stop$fsuf $name
       return 1
     fi
   }
   while [[ $buf != *$'\x1e' ]]; do
     if ! sysread -i $resp_fd 'buf[$#buf+1]'; then
-      gitstatus_stop $name
+      gitstatus_stop$fsuf $name
       return 1
     fi
   done
@@ -339,7 +344,7 @@ function _gitstatus_process_response() {
       else
         typeset -g VCS_STATUS_RESULT=norepo-async
       fi
-      _gitstatus_clear
+      _gitstatus_clear$fsuf
     fi
     (( --_GITSTATUS_NUM_INFLIGHT_$name ))
     [[ $VCS_STATUS_RESULT == *-async ]] && emulate zsh -c "${resp[1]#* }"
@@ -348,7 +353,7 @@ function _gitstatus_process_response() {
   return 0
 }
 
-function _gitstatus_daemon() {
+function _gitstatus_daemon"${1:-}"() {
   local -i pipe_fd
   exec 0<&- {pipe_fd}>&1 1>>$daemon_log 2>&1 || return
   local pgid=$sysparams[pid]
@@ -380,18 +385,20 @@ function _gitstatus_daemon() {
 
       local _gitstatus_zsh_daemon _gitstatus_zsh_version _gitstatus_zsh_downloaded
 
-      function _gitstatus-set-daemon() {
+      function _gitstatus_set_daemon$fsuf() {
         _gitstatus_zsh_daemon="$1"
         _gitstatus_zsh_version="$2"
         _gitstatus_zsh_downloaded="$3"
       }
 
-      set -- -d $_gitstatus_plugin_dir -s $uname_s -m $uname_m -- _gitstatus-set-daemon
-      [[ $GITSTATUS_AUTO_INSTALL == (|-|+)<1-> ]] || set -- -n "$@"
-      source $_gitstatus_plugin_dir/install       || return
-      [[ -n $_gitstatus_zsh_daemon ]]             || return
-      [[ -n $_gitstatus_zsh_version ]]            || return
-      [[ $_gitstatus_zsh_downloaded == [01] ]]    || return
+      local gitstatus_plugin_dir_var=_gitstatus_plugin_dir$fsuf
+      local gitstatus_plugin_dir=${(P)gitstatus_plugin_dir_var}
+      set -- -d $gitstatus_plugin_dir -s $uname_s -m $uname_m -- _gitstatus_set_daemon$fsuf
+      [[ ${GITSTATUS_AUTO_INSTALL:-1} == (|-|+)<1-> ]] || set -- -n "$@"
+      source $gitstatus_plugin_dir/install     || return
+      [[ -n $_gitstatus_zsh_daemon ]]          || return
+      [[ -n $_gitstatus_zsh_version ]]         || return
+      [[ $_gitstatus_zsh_downloaded == [01] ]] || return
 
       mkfifo -- $file_prefix.fifo           || return
       print -rnu $pipe_fd -- ${(l:20:)pgid} || return
@@ -404,13 +411,13 @@ function _gitstatus_daemon() {
         [[ $ret == (0|129|130|131|137|141|143) ]] && return ret
       fi
 
-      (( ! _gitstatus_zsh_downloaded ))           || return
-      [[ $GITSTATUS_AUTO_INSTALL == (|-|+)<1-> ]] || return
+      (( ! _gitstatus_zsh_downloaded ))                || return
+      [[ ${GITSTATUS_AUTO_INSTALL:-1} == (|-|+)<1-> ]] || return
       set -- -f "$@"
       _gitstatus_zsh_daemon=
       _gitstatus_zsh_version=
       _gitstatus_zsh_downloaded=
-      source $_gitstatus_plugin_dir/install || return
+      source $gitstatus_plugin_dir/install  || return
       [[ -n $_gitstatus_zsh_daemon ]]       || return
       [[ -n $_gitstatus_zsh_version ]]      || return
       [[ $_gitstatus_zsh_downloaded == 1 ]] || return
@@ -465,9 +472,11 @@ function _gitstatus_daemon() {
 #
 #   -D        Unless this option is specified, report zero staged, unstaged and conflicted
 #             changes for repositories with bash.showDirtyState = false.
-function gitstatus_start() {
+function gitstatus_start"${1:-}"() {
   emulate -L zsh -o no_aliases -o no_bg_nice -o extended_glob -o typeset_silent || return
   print -rnu2 || return
+
+  local fsuf=${${(%):-%N}#gitstatus_start}
 
   local opt OPTARG
   local -i OPTIND
@@ -510,18 +519,6 @@ function gitstatus_start() {
   local name=$*[OPTIND]
   if [[ $name != [[:IDENT:]]## ]]; then
     print -ru2 -- "gitstatus_start: invalid positional argument: $name"
-    return 1
-  fi
-
-  local GITSTATUS_STOP_ON_EXEC=$GITSTATUS_STOP_ON_EXEC
-  local GITSTATUS_AUTO_INSTALL=$GITSTATUS_AUTO_INSTALL
-  local GITSTATUS_DAEMON=$GITSTATUS_DAEMON
-  local GITSTATUS_DAEMON_VERSION=$GITSTATUS_DAEMON_VERSION
-  local GITSTATUS_NUM_THREADS=$GITSTATUS_NUM_THREADS
-  local GITSTATUS_LOG_LEVEL=$GITSTATUS_LOG_LEVEL
-  local GITSTATUS_CACHE_DIR=$GITSTATUS_CACHE_DIR
-  if ! source $_gitstatus_plugin_dir/gitstatusrc; then
-    print -ru2 -- "gitstatus_start: failed to source gitstatusrc"
     return 1
   fi
 
@@ -572,7 +569,6 @@ function gitstatus_start() {
       fi
 
       typeset -gi _GITSTATUS_LOCK_FD_$name=lock_fd
-      typeset -gi GITSTATUS_DAEMON_PID_$name="${sysparams[procsubstpid]:--1}"
 
       if [[ -n $USERPROFILE && -d /cygdrive && -d /proc/self/fd ]]; then
         # Work around bugs in Cygwin 32-bit.
@@ -587,16 +583,18 @@ function gitstatus_start() {
         #
         #   sysopen -r -u fd <(:)
         local -i fd
-        exec {fd}< <(_gitstatus_daemon)                       || return
+        exec {fd}< <(_gitstatus_daemon$fsuf)                       || return
         {
-          [[ -r /proc/self/fd/$fd ]]                          || return
-          sysopen -r -o cloexec -u resp_fd /proc/self/fd/$fd  || return
+          [[ -r /proc/self/fd/$fd ]]                               || return
+          sysopen -r -o cloexec -u resp_fd /proc/self/fd/$fd       || return
         } always {
-          exec {fd} >&-                                       || return
+          exec {fd} >&-                                            || return
         }
       else
-        sysopen -r -o cloexec -u resp_fd <(_gitstatus_daemon) || return
+        sysopen -r -o cloexec -u resp_fd <(_gitstatus_daemon$fsuf) || return
       fi
+
+      typeset -gi GITSTATUS_DAEMON_PID_$name="${sysparams[procsubstpid]:--1}"
 
       [[ $resp_fd == <1-> ]] || return
       typeset -gi _GITSTATUS_RESP_FD_$name=resp_fd
@@ -618,28 +616,32 @@ function gitstatus_start() {
       [[ $req_fd == <1-> ]]                                || return
       typeset -gi _GITSTATUS_REQ_FD_$name=req_fd
 
-      function _gitstatus_process_response_$name() {
+      function _gitstatus_process_response_$name-$fsuf() {
         emulate -L zsh -o no_aliases -o extended_glob -o typeset_silent
-        local name=${${(%):-%N}#_gitstatus_process_response_}
+        local pair=${${(%):-%N}#_gitstatus_process_response_}
+        local name=${pair%%-*}
+        local fsuf=${pair#*-}
         if (( ARGC == 1 )); then
-          _gitstatus_process_response $name 0 ''
+          _gitstatus_process_response$fsuf $name 0 ''
         else
-          gitstatus_stop $name
+          gitstatus_stop$fsuf $name
         fi
       }
-      if ! zle -F $resp_fd _gitstatus_process_response_$name; then
-        unfunction _gitstatus_process_response_$name
+      if ! zle -F $resp_fd _gitstatus_process_response_$name-$fsuf; then
+        unfunction _gitstatus_process_response_$name-$fsuf
         return 1
       fi
 
-      function _gitstatus_cleanup_$name() {
+      function _gitstatus_cleanup_$name-$fsuf() {
         emulate -L zsh -o no_aliases -o extended_glob -o typeset_silent
-        local name=${${(%):-%N}#_gitstatus_cleanup_}
+        local pair=${${(%):-%N}#_gitstatus_cleanup_}
+        local name=${pair%%-*}
+        local fsuf=${pair#*-}
         (( _GITSTATUS_CLIENT_PID_$name == sysparams[pid] )) || return
-        gitstatus_stop $name
+        gitstatus_stop$fsuf $name
       }
-      if ! add-zsh-hook zshexit _gitstatus_cleanup_$name; then
-        unfunction _gitstatus_cleanup_$name
+      if ! add-zsh-hook zshexit _gitstatus_cleanup_$name-$fsuf; then
+        unfunction _gitstatus_cleanup_$name-$fsuf
         return 1
       fi
 
@@ -665,7 +667,7 @@ function gitstatus_start() {
   (( stderr_fd )) && exec 2>&$stderr_fd {stderr_fd}>&-
   (( err == 0  )) && return
 
-  gitstatus_stop $name
+  gitstatus_stop$fsuf $name
 
   setopt prompt_percent no_prompt_subst no_prompt_bang
   print -Pru2  -- '[%F{red}ERROR%f]: gitstatus failed to initialize.'
@@ -706,6 +708,12 @@ function gitstatus_start() {
     if [[ -n $GITSTATUS_DAEMON ]]; then
       env+=" GITSTATUS_DAEMON=${(q)GITSTATUS_DAEMON}"
     fi
+    if [[ -n $GITSTATUS_AUTO_INSTALL ]]; then
+      env+=" GITSTATUS_AUTO_INSTALL=${(q)GITSTATUS_AUTO_INSTALL}"
+    fi
+    if [[ -n $GITSTATUS_CACHE_DIR ]]; then
+      env+=" GITSTATUS_CACHE_DIR=${(q)GITSTATUS_CACHE_DIR}"
+    fi
     print -nru2  -- "    ${env} gitstatus_start ${(@q-)*}"
     print -Pru2  -- '%f'
     print -ru2   -- ''
@@ -723,8 +731,10 @@ function gitstatus_start() {
 # Stops gitstatusd if it's running.
 #
 # Usage: gitstatus_stop NAME.
-function gitstatus_stop() {
+function gitstatus_stop"${1:-}"() {
   emulate -L zsh -o no_aliases -o extended_glob -o typeset_silent
+
+  local fsuf=${${(%):-%N}#gitstatus_stop}
 
   if (( ARGC != 1 )); then
     print -ru2 -- "gitstatus_stop: exactly one positional argument is required"
@@ -753,8 +763,8 @@ function gitstatus_stop() {
   local daemon_pid=${(P)daemon_pid_var}
   local file_prefix=${(P)file_prefix_var}
 
-  local cleanup=_gitstatus_cleanup_$name
-  local process=_gitstatus_process_response_$name
+  local cleanup=_gitstatus_cleanup_$name-$fsuf
+  local process=_gitstatus_process_response_$name-$fsuf
 
   if (( $+functions[$cleanup] )); then
     add-zsh-hook -d zshexit $cleanup
@@ -776,15 +786,17 @@ function gitstatus_stop() {
   unset $inflight_var $file_prefix_var $dirty_max_index_size_var
 
   unset VCS_STATUS_RESULT
-  _gitstatus_clear
+  _gitstatus_clear$fsuf
 }
 
 # Usage: gitstatus_check NAME.
 #
 # Returns 0 if and only if `gitstatus_start NAME` has succeeded previously.
 # If it returns non-zero, gitstatus_query NAME is guaranteed to return non-zero.
-function gitstatus_check() {
+function gitstatus_check"${1:-}"() {
   emulate -L zsh -o no_aliases -o extended_glob -o typeset_silent
+
+  local fsuf=${${(%):-%N}#gitstatus_check}
 
   if (( ARGC != 1 )); then
     print -ru2 -- "gitstatus_check: exactly one positional argument is required"

@@ -66,18 +66,6 @@ function gitstatus_start() {
     local gitstatus_plugin_dir=.
   fi
 
-  local GITSTATUS_STOP_ON_EXEC="${GITSTATUS_STOP_ON_EXEC:-}"
-  local GITSTATUS_AUTO_INSTALL="${GITSTATUS_AUTO_INSTALL:-}"
-  local GITSTATUS_DAEMON="${GITSTATUS_DAEMON:-}"
-  local GITSTATUS_DAEMON_VERSION="${GITSTATUS_DAEMON_VERSION:-}"
-  local GITSTATUS_NUM_THREADS="${GITSTATUS_NUM_THREADS:-}"
-  local GITSTATUS_LOG_LEVEL="${GITSTATUS_LOG_LEVEL:-}"
-  local GITSTATUS_CACHE_DIR="${GITSTATUS_CACHE_DIR:-}"
-  if ! source "$gitstatus_plugin_dir"/gitstatusrc; then
-    >&2 echo "[gitstatus] error: failed to source gitstatusrc"
-    return 1
-  fi
-
   local req_fifo resp_fifo
 
   function gitstatus_start_impl() {

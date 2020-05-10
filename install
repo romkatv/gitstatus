@@ -15,7 +15,7 @@ _gitstatus_install_main() {
   local no_check= no_install= uname_s= uname_m= gitstatus_dir=
   local opt= OPTARG= OPTIND=1
 
-  while getopts ':s:m:d:fh' opt "$@"; do
+  while getopts ':s:m:d:fnh' opt "$@"; do
     case "$opt" in
       h)
         command cat <<\END
@@ -111,46 +111,34 @@ END
     uname_m="$(printf '%s' "$uname_m" | command tr '[A-Z]' '[a-z]')" || return
   fi
 
-  local GITSTATUS_STOP_ON_EXEC="${GITSTATUS_STOP_ON_EXEC:-}"
-  local GITSTATUS_AUTO_INSTALL="${GITSTATUS_AUTO_INSTALL:-}"
-  local GITSTATUS_DAEMON="${GITSTATUS_DAEMON:-}"
-  local GITSTATUS_DAEMON_VERSION="${GITSTATUS_DAEMON_VERSION:-}"
-  local GITSTATUS_NUM_THREADS="${GITSTATUS_NUM_THREADS:-}"
-  local GITSTATUS_LOG_LEVEL="${GITSTATUS_LOG_LEVEL:-}"
-  local GITSTATUS_CACHE_DIR="${GITSTATUS_CACHE_DIR:-}"
-  if ! . "$gitstatus_dir"/gitstatusrc; then
-    >&2 echo "[gitstatus] error: failed to source gitstatusrc"
-    return 1
-  fi
+  local daemon="${GITSTATUS_DAEMON:-}"
+  local cache_dir="${GITSTATUS_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/gitstatus}"
 
   if [ -z "$no_check" ]; then
-    if [ -n "${GITSTATUS_DAEMON##/*}" ]; then
-      >&2 echo "[gitstatus] error: GITSTATUS_DAEMON is not absolute path: $GITSTATUS_DAEMON"
+    if [ -n "${daemon##/*}" ]; then
+      >&2 echo "[gitstatus] error: GITSTATUS_DAEMON is not absolute path: $daemon"
       return 1
     fi
-    if [ -z "$GITSTATUS_DAEMON" ]; then
-      GITSTATUS_DAEMON="$gitstatus_dir"/usrbin/gitstatusd
-      if [ ! -e "$GITSTATUS_DAEMON" ]; then
-        GITSTATUS_DAEMON="$GITSTATUS_DAEMON"-"$uname_s"-"$uname_m"
-        if [ ! -e "$GITSTATUS_DAEMON" ]; then
-          GITSTATUS_DAEMON=
+    if [ -z "$daemon" ]; then
+      daemon="$gitstatus_dir"/usrbin/gitstatusd
+      if [ ! -e "$daemon" ]; then
+        daemon="$daemon"-"$uname_s"-"$uname_m"
+        if [ ! -e "$daemon" ]; then
+          daemon=
         fi
       fi
     fi
-    if [ -n "$GITSTATUS_DAEMON" ]; then
-      if [ -z "$GITSTATUS_DAEMON_VERSION" ]; then
-        local gitstatus_version= libgit2_version=
-        if ! . "$gitstatus_dir"/build.info; then
-          >&2 echo "[gitstatus] internal error: failed to source build.info"
-          return 1
-        fi
-        if [ -z "$gitstatus_version" ]; then
-          >&2 echo "[gitstatus] internal error: empty gitstatus_version in build.info"
-          return 1
-        fi
-        GITSTATUS_DAEMON_VERSION="$gitstatus_version"
+    if [ -n "$daemon" ]; then
+      local gitstatus_version= libgit2_version=
+      if ! . "$gitstatus_dir"/build.info; then
+        >&2 echo "[gitstatus] internal error: failed to source build.info"
+        return 1
       fi
-      [ $# = 0 ] || "$@" "$GITSTATUS_DAEMON" "$GITSTATUS_DAEMON_VERSION" 0
+      if [ -z "$gitstatus_version" ]; then
+        >&2 echo "[gitstatus] internal error: empty gitstatus_version in build.info"
+        return 1
+      fi
+      [ $# = 0 ] || "$@" "$daemon" "$gitstatus_version" 0
       return
     fi
   fi
@@ -180,16 +168,15 @@ END
 
     if [ -z "$no_check" ]; then
       # Check if there is suitable gitstatusd already exists.
-      GITSTATUS_DAEMON="$GITSTATUS_CACHE_DIR"/"$file"
-      if [ ! -e "$GITSTATUS_DAEMON" ]; then
-        GITSTATUS_DAEMON="$gitstatus_dir"/bin/"$file"
-        if [ ! -e "$GITSTATUS_DAEMON" ]; then
-          GITSTATUS_DAEMON=
+      local daemon="$cache_dir"/"$file"
+      if [ ! -e "$daemon" ]; then
+        daemon="$gitstatus_dir"/bin/"$file"
+        if [ ! -e "$daemon" ]; then
+          daemon=
         fi
       fi
-      if [ -n "$GITSTATUS_DAEMON" ]; then
-        : "${GITSTATUS_DAEMON_VERSION:=$version}"
-        [ $# = 0 ] || "$@" "$GITSTATUS_DAEMON" "$GITSTATUS_DAEMON_VERSION" 0
+      if [ -n "$daemon" ]; then
+        [ $# = 0 ] || "$@" "$daemon" "$version" 0
         return
       fi
     fi
@@ -201,17 +188,16 @@ END
       return 1
     fi
 
-    GITSTATUS_DAEMON="$GITSTATUS_CACHE_DIR"/"$file"
+    local daemon="$cache_dir"/"$file"
 
-    : "${GITSTATUS_CACHE_DIR:=${XDG_CACHE_HOME:-$HOME/.cache}/gitstatus}"
-    if [ -n "${GITSTATUS_CACHE_DIR##/*}" ]; then
-      >&2 echo "[gitstatus] error: GITSTATUS_CACHE_DIR is not absolute: $GITSTATUS_CACHE_DIR"
+    if [ -n "${cache_dir##/*}" ]; then
+      >&2 echo "[gitstatus] error: GITSTATUS_CACHE_DIR is not absolute: $cache_dir"
       return 1
     fi
-    [ -d "$GITSTATUS_CACHE_DIR" ] || mkdir -p -- "$GITSTATUS_CACHE_DIR" || return
+    [ -d "$cache_dir" ] || mkdir -p -- "$cache_dir" || return
 
     local url="https://github.com/romkatv/gitstatus/releases/download/$version/$file.tar.gz"
-    local archive="$GITSTATUS_CACHE_DIR"/"$file".tmp.$$.tar.gz
+    local archive="$cache_dir"/"$file".tmp.$$.tar.gz
     if command -v curl >/dev/null 2>&1; then
       if ! err="$(command curl -fsSLo "$archive" -- "$url" 2>&1)"; then
         >&2 echo "[gitstatus] error: failed to download gitstatusd: $url"
@@ -231,20 +217,20 @@ END
 
     (
       if [ -n "${ZSH_VERSION:-}" ]; then
-        builtin cd -q -- "$GITSTATUS_CACHE_DIR" || return
+        builtin cd -q -- "$cache_dir" || return
       else
-        cd -- "$GITSTATUS_CACHE_DIR" || return
+        cd -- "$cache_dir" || return
       fi
 
       local old=
-      if [ -e "$GITSTATUS_DAEMON" ]; then
+      if [ -e "$daemon" ]; then
         local i=1
         while :; do
-          old="$GITSTATUS_DAEMON"."$i"
+          old="$daemon"."$i"
           [ -e "$old" ] || break
           i="$((i+1))"
         done
-        command mv -f -- "$GITSTATUS_DAEMON" "$old" || return
+        command mv -f -- "$daemon" "$old" || return
       fi
 
       command tar -xzf "$archive"
@@ -254,13 +240,13 @@ END
         if [ "$ret" = 0 ]; then
           command rm -f -- "$old" 2>/dev/null
         else
-          command mv -f -- "$old" "$GITSTATUS_DAEMON"
+          command mv -f -- "$old" "$daemon"
         fi
       fi
       exit "$ret"
     ) || return
 
-    [ $# = 0 ] || "$@" "$GITSTATUS_DAEMON" "$version" 1
+    [ $# = 0 ] || "$@" "$daemon" "$version" 1
     return
   done <"$gitstatus_dir"/install.info
 
