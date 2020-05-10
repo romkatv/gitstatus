@@ -1,10 +1,10 @@
 # Fast directory listing
 
-In order to find untracked files in a git repository,
-[gitstatusd](https://github.com/romkatv/gitstatus) needs to list the contents of every directory.
-gitstatusd does it 27% faster than a reasonable implementation that a seasoned C/C++ practitioner
-might write. This document explains the optimizations that went into it. As directory listing is a
-common operation, many other projects can benefit from applying these optimizations.
+In order to find untracked files in a git repository, [gitstatusd](../README.md) needs to list the
+contents of every directory. gitstatusd does it 27% faster than a reasonable implementation that a
+seasoned C/C++ practitioner might write. This document explains the optimizations that went into it.
+As directory listing is a common operation, many other projects can benefit from applying these
+optimizations.
 
 ## v1
 
@@ -323,7 +323,8 @@ makes the minimum possible number of system calls and these calls are optimal (t
 of my knowledge), it puts the upper bound on possible future performance improvements at just 3%.
 There is almost nothing left in `ListDir()` to optimize.
 
-![ListDir() CPU profile](https://raw.githubusercontent.com/romkatv/gitstatus/master/docs/cpu-profile-listdir.png)
+![ListDir() CPU profile](
+  https://raw.githubusercontent.com/romkatv/gitstatus/1ac366952366d89980b3f3484f270b4fa5ae4293/cpu-profile-listdir.png)
 
 (The CPU profile was created with [gperftools](https://github.com/gperftools/gperftools) and
 rendered with [pprof](https://github.com/google/pprof)).

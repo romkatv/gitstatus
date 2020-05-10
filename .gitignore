@@ -1,6 +1,5 @@
 *.zwc
 /core
-/gitstatusd
 /locks
 /logs
 /obj

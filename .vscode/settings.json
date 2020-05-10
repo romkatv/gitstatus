@@ -1,8 +1,11 @@
 {
   "files.exclude": {
+    "*.zwc": true,
+    "core": true,
+    "locks/": true,
+    "logs/": true,
     "obj/": true,
-    "gitstatusd": true,
-    "core": true
+    "usrbin/": true,
   },
   "files.associations": {
     "array": "cpp",

@@ -3,12 +3,12 @@
 **gitstatus** is a 10x faster alternative to `git status` and `git describe`. Its primary use
 case is to enable fast git prompt in interactive shells.
 
-Heavy lifting is done by **gitstatusd** -- a custom binary written in C++. It comes with ZSH and
+Heavy lifting is done by **gitstatusd** -- a custom binary written in C++. It comes with Zsh and
 Bash bindings for integration with shell.
 
 ## Table of Contents
 
-1. [Using from ZSH](#using-from-zsh)
+1. [Using from Zsh](#using-from-zsh)
 1. [Using from Bash](#using-from-bash)
 2. [Using from other shells](#using-from-other-shells)
 1. [How it works](#how-it-works)
@@ -18,17 +18,17 @@ Bash bindings for integration with shell.
 1. [Compiling](#compiling)
 1. [License](#license)
 
-## Using from ZSH
+## Using from Zsh
 
-The easiest way to take advantage of gitstatus from ZSH is to use a theme that's already integrated
+The easiest way to take advantage of gitstatus from Zsh is to use a theme that's already integrated
 with it. For example, [Powerlevel10k](https://github.com/romkatv/powerlevel10k) is a flexible and
 fast theme with first-class gitstatus integration.
 
-![Powerlevel10k ZSH Theme](https://raw.githubusercontent.com/romkatv/powerlevel10k/master/powerlevel10k.png)
+![Powerlevel10k Zsh Theme](
+  https://raw.githubusercontent.com/romkatv/powerlevel10k-media/master/prompt-styles-high-contrast.png)
 
 For those who wish to use gitstatus without a theme, there is
-[gitstatus.prompt.zsh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.prompt.zsh).
-Install it as follows:
+[gitstatus.prompt.zsh](gitstatus.prompt.zsh). Install it as follows:
 
 ```zsh
 git clone --depth=1 https://github.com/romkatv/gitstatus.git ~/gitstatus
@@ -38,10 +38,9 @@ echo 'source ~/gitstatus/gitstatus.prompt.zsh' >>! ~/.zshrc
 _Make sure to disable your current theme if you have one._
 
 This will give you a basic yet functional prompt with git status in it. It's
-[over 10x faster](https://github.com/romkatv/gitstatus/#benchmarks) than any alternative that can
-give you comparable prompt. In order to customize it, set `PROMPT` and/or `RPROMPT` at the end of
-`~/.zshrc` after sourcing `gitstatus.prompt.zsh`. Insert `${GITSTATUS_PROMPT}` where you want git
-status to go. For example:
+[over 10x faster](#benchmarks) than any alternative that can give you comparable prompt. In order
+to customize it, set `PROMPT` and/or `RPROMPT` at the end of `~/.zshrc` after sourcing
+`gitstatus.prompt.zsh`. Insert `${GITSTATUS_PROMPT}` where you want git status to go. For example:
 
 ```zsh
 source ~/gitstatus/gitstatus.prompt.zsh
@@ -69,13 +68,13 @@ The expansion of `${GITSTATUS_PROMPT}` can contain the following bits:
 | `?9`        | there are 9 untracked files                           |
 
 `$GITSTATUS_PROMPT_LEN` tells you how long `$GITSTATUS_PROMPT` is when printed to the console.
-[gitstatus.prompt.zsh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.prompt.zsh) has
-an example of using it to truncate the current directory.
+[gitstatus.prompt.zsh](gitstatus.prompt.zsh) has an example of using it to truncate the current
+directory.
 
 If you'd like to change the format of git status, or want to have greater control over the
 process of assembling `PROMPT`, you can copy and modify parts of
-[gitstatus.prompt.zsh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.prompt.zsh)
-instead of sourcing the script. Your `~/.zshrc` might look something like this:
+[gitstatus.prompt.zsh](gitstatus.prompt.zsh) instead of sourcing the script. Your `~/.zshrc`
+might look something like this:
 
 ```zsh
 source ~/gitstatus/gitstatus.plugin.zsh
@@ -91,7 +90,7 @@ function my_set_prompt() {
     (( $VCS_STATUS_NUM_UNTRACKED )) && RPROMPT+='?'
   fi
 
-  setopt noprompt{bang,subst} promptpercent  # enable/disable correct prompt expansions
+  setopt no_prompt_{bang,subst} prompt_percent  # enable/disable correct prompt expansions
 }
 
 gitstatus_stop 'MY' && gitstatus_start -s -1 -u -1 -c -1 -d -1 'MY'
@@ -103,20 +102,16 @@ This snippet is sourcing `gitstatus.plugin.zsh` rather than `gitstatus.prompt.zs
 defines low-level bindings that communicate with gitstatusd over pipes. The latter is a simple
 script that uses these bindings to assemble git prompt.
 
-Unlike [Powerlevel10k](https://github.com/romkatv/powerlevel10k),
-code based on
-[gitstatus.prompt.zsh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.prompt.zsh) is
-communicating with gitstatusd synchronously. This can make your prompt slow when working in a large
-git repository or on a slow machine. To avoid this problem, call `gitstatus_query`
-asynchronously as documented in
-[gitstatus.plugin.zsh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.plugin.zsh). This
-can be quite challenging.
+Unlike [Powerlevel10k](https://github.com/romkatv/powerlevel10k), code based on
+[gitstatus.prompt.zsh](gitstatus.prompt.zsh) is communicating with gitstatusd synchronously. This
+can make your prompt slow when working in a large git repository or on a slow machine. To avoid
+this problem, call `gitstatus_query` asynchronously as documented in
+[gitstatus.plugin.zsh](gitstatus.plugin.zsh). This can be quite challenging.
 
 ## Using from Bash
 
 The easiest way to take advantage of gitstatus from Bash is via
-[gitstatus.prompt.sh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.prompt.sh).
-Install it as follows:
+[gitstatus.prompt.sh](gitstatus.prompt.sh). Install it as follows:
 
 ```bash
 git clone --depth=1 https://github.com/romkatv/gitstatus.git ~/gitstatus
@@ -124,10 +119,10 @@ echo 'source ~/gitstatus/gitstatus.prompt.sh' >> ~/.bashrc
 ```
 
 This will give you a basic yet functional prompt with git status in it. It's
-[over 10x faster](https://github.com/romkatv/gitstatus/#benchmarks) than any alternative that can
-give you comparable prompt.
+[over 10x faster](#benchmarks) than any alternative that can give you comparable prompt.
 
-![Bash Prompt with GitStatus](https://raw.githubusercontent.com/romkatv/gitstatus/master/docs/bash-prompt.png)
+![Bash Prompt with GitStatus](
+  https://raw.githubusercontent.com/romkatv/gitstatus/1ac366952366d89980b3f3484f270b4fa5ae4293/bash-prompt.png)
 
 In order to customize your prompt, set `PS1` at the end of `~/.bashrc` after sourcing
 `gitstatus.prompt.sh`. Insert `${GITSTATUS_PROMPT}` where you want git status to go. For example:
@@ -158,8 +153,8 @@ The expansion of `${GITSTATUS_PROMPT}` can contain the following bits:
 
 If you'd like to change the format of git status, or want to have greater control over the
 process of assembling `PS1`, you can copy and modify parts of
-[gitstatus.prompt.sh](https://github.com/romkatv/gitstatus/blob/master/gitstatus.prompt.sh)
-instead of sourcing the script. Your `~/.bashrc` might look something like this:
+[gitstatus.prompt.sh](gitstatus.prompt.sh) instead of sourcing the script. Your `~/.bashrc` might
+look something like this:
 
 ```bash
 source ~/gitstatus/gitstatus.plugin.sh
@@ -191,13 +186,13 @@ This snippet is sourcing `gitstatus.plugin.sh` rather than `gitstatus.prompt.sh`
 defines low-level bindings that communicate with gitstatusd over pipes. The latter is a simple
 script that uses these bindings to assemble git prompt.
 
-Note: Bash bindings, unlike ZSH bindings, don't support asynchronous calls.
+Note: Bash bindings, unlike Zsh bindings, don't support asynchronous calls.
 
 ## Using from other shells
 
 If there are no gitstatusd bindings for your shell, you'll need to get your hands dirty.
 Use the existing bindings for inspiration; run `gitstatusd --help` or read the same thing in
-[options.cc](https://github.com/romkatv/gitstatus/blob/master/src/options.cc).
+[options.cc](src/options.cc).
 
 ## How it works
 
@@ -206,11 +201,10 @@ a directory. Responses contain the same ID and machine-readable git status for t
 gitstatusd keeps some state in memory for the directories it has seen in order to serve future
 requests faster.
 
-[ZSH bindings](https://github.com/romkatv/gitstatus/blob/master/gitstatus.plugin.zsh) and
-[Bash bindings](https://github.com/romkatv/gitstatus/blob/master/gitstatus.plugin.sh) start
-gitstatusd in the background and communicate with it via pipes.
-Themes such as [Powerlevel10k](https://github.com/romkatv/powerlevel10k) uses these bindings to put
-git status in `PROMPT`.
+[Zsh bindings](gitstatus.plugin.zsh) and [Bash bindings](gitstatus.plugin.sh) start gitstatusd in
+the background and communicate with it via pipes. Themes such as
+[Powerlevel10k](https://github.com/romkatv/powerlevel10k) use these bindings to put git status in
+`PROMPT`.
 
 Note that gitstatus cannot be used as a drop-in replacement for `git status` command as it doesn't
 produce output in the same format. It does perform the same computation though.
@@ -328,7 +322,8 @@ form of work directory traversal.
 Let's see how `git_diff_index_to_workdir` from libgit2 accomplishes these tasks. Here's its CPU
 profile from 200 hot runs over chromium repository.
 
-![libgit2 CPU profile (hot)](https://raw.githubusercontent.com/romkatv/gitstatus/master/docs/cpu-profile-libgit2.png)
+![libgit2 CPU profile (hot)](
+  https://raw.githubusercontent.com/romkatv/gitstatus/1ac366952366d89980b3f3484f270b4fa5ae4293/cpu-profile-libgit2.png)
 
 (The CPU profile was created with [gperftools](https://github.com/gperftools/gperftools) and
 rendered with [pprof](https://github.com/google/pprof)).
@@ -341,7 +336,8 @@ strings, sorting arrays, etc.
 
 Now let's take a look at the CPU profile of gitstatusd on the same task.
 
-![gitstatusd CPU profile (hot)](https://raw.githubusercontent.com/romkatv/gitstatus/master/docs/cpu-profile-gitstatusd-hot.png)
+![gitstatusd CPU profile (hot)](
+  https://raw.githubusercontent.com/romkatv/gitstatus/1ac366952366d89980b3f3484f270b4fa5ae4293/cpu-profile-gitstatusd-hot.png)
 
 The first impression is that this profile looks pruned. This isn't an artifact. The profile was
 generated with the same tools and the same flags as the profile of libgit2.
@@ -396,7 +392,8 @@ To summarize, here's what gitstatusd was doing when the CPU profile was captured
 
 Here's how the very first scan of a repository looks like in gitstatusd:
 
-![gitstatusd CPU profile (cold)](https://raw.githubusercontent.com/romkatv/gitstatus/master/docs/cpu-profile-gitstatusd-cold.png)
+![gitstatusd CPU profile (cold)](
+  https://raw.githubusercontent.com/romkatv/gitstatus/1ac366952366d89980b3f3484f270b4fa5ae4293/cpu-profile-gitstatusd-cold.png)
 
 (Some glibc functions are mislabel on this profile. `explicit_bzero` and `__nss_passwd_lookup` are
 in reality `strcmp` and `memcmp`.)
@@ -404,7 +401,7 @@ in reality `strcmp` and `memcmp`.)
 This is a superset of the previous -- hot -- profile, with an extra `syscall` and string sorting for
 directory listing. gitstatusd uses `getdents64` Linux system call directly, bypassing the glibc
 wrapper that libgit2 uses. This is 23% faster. The details of this optimization can be found in a
-[separate document](https://github.com/romkatv/gitstatus/blob/master/docs/listdir.md).
+[separate document](docs/listdir.md).
 
 ### Multithreading
 
@@ -439,42 +436,76 @@ _WARNING: Changes to libgit2 are extensive but the testing they underwent isn't.
 
 ## Requirements
 
-* To compile: C++14 compiler, GNU make, cmake.
-* To run: Linux, macOS, FreeBSD, Android, WSL, Cygwin, MinGW or MSYS.
+* To compile: binutils, cmake, gcc, g++, git and GNU make.
+* To run: Linux, macOS, FreeBSD, Android, WSL, Cygwin or MSYS2.
 
 ## Compiling
 
-There are prebuilt `gitstatusd` binaries in
-[bin](https://github.com/romkatv/gitstatus/tree/master/bin). When using the official shell
-bindings provided by gitstatus, the right binary for your architecture is picked up automatically.
+There are prebuilt `gitstatusd` binaries in [releases](
+  https://github.com/romkatv/gitstatus/releases). When using the official shell bindings
+provided by gitstatus, the right binary for your architecture gets downloaded automatically.
 
 If prebuilt binaries don't work for you, you'll need to get your hands dirty.
 
+### Compiling for personal use
+
 ```zsh
-cd /tmp
-git clone --recursive --shallow-submodules --depth=1 https://github.com/romkatv/gitstatus.git
+git clone --depth=1 -https://github.com/romkatv/gitstatus.git
 cd gitstatus
-./build
+./build -m -s -d docker
 ```
 
-If everything goes well, the newly built binary will appear in `./usrbin`.
+- If it says that `-d docker` is not supported on your OS, remove this flag.
+- If it says that `-s` is not supported on your OS, remove this flag.
+- If it tell you to install docker but you cannot or don't want to, remove `-d docker`.
+- If it says that some command is missing, install it.
 
-Copy the binary to `usrbin` subdirectory (create it if necessary) of your gitstatus installation.
-For example:
+If everything goes well, the newly built binary will appear in `./usrbin`. It'll be picked up
+by shell bindings automatically.
+
+When you update shell bindings, they may refuse to work with the binary you've built earlier. In
+this case you'll need to rebuild.
+
+### Compiling for distribution
+
+If you want to package gitstatus, it's best to do it based off releases. You also probably don't
+want to build in docker (`-d docker`) or to allow automatic downloading of libgit2 tarballs (`-w`).
+
+The following code should work. If it doesn't, please open an issue.
 
 ```zsh
-mkdir -p ~/powerlevel10k/gitstatus/usrbin
-cp ./usrbin/gitstatusd-* ~/powerlevel10k/gitstatus/usrbin/
+curl -fsSLO https://github.com/romkatv/gitstatus/archive/v1.0.0.tar.gz
+tar -xzf v1.0.0.tar.gz
+cd gitstatus-v1.0.0
+(
+  . ./build.info
+  curl -fsSLo                              \
+    deps/libgit2-"$libgit2_version".tar.gz \
+    https://github.com/romkatv/libgit2/archive/"$libgit2_version".tar.gz
+)
+./build
+rm deps/libgit2-*.tar.gz
+for file in gitstatus.plugin.zsh gitstatus.prompt.zsh install; do
+  zsh -fc "zcompile -R -- $file.zwc $file"
+done
 ```
 
-When using gitstatus from Zsh, this binary will be picked up automatically. With Bash you need to
-set `GITSTATUS_DAEMON` pointing to the gitstatusd binary.
+This needs binutils, cmake, gcc, g++, git, GNU make and zsh.
 
-*IMPORTANT*: You must rebuild the binary every time you update gitstatus. The new version of shell
-bindings may not work with the old binary.
+Depending on your workflow, it might be easier to store the URL to the libgit2 tarball in the
+same place where you are going to put the main gitstatus tarball URL. You'll need to update both
+URLs at the same time when bumping package version.
+
+Once build completes, *do not delete or move any files*. Package the whole directory as is. Don't
+add it (or any of its subdirectories) to `PATH`.
+
+Note that Powerlevel10k has an embedded version of gitstatus. It must stay that way. The embedded
+gitstatus won't conflict with the standalone version. They can have different versions and can
+coexist within the same Zsh process. Do not attempt to surgically remove gitstatus from
+Powerlevel10k, package the result and then somehow force Powerlevel10k to use a separately packaged
+gitstatus.
 
 ## License
 
-GNU General Public License v3.0. See
-[LICENSE](https://github.com/romkatv/gitstatus/blob/master/LICENSE). Contributions are covered by
-the same license.
+GNU General Public License v3.0. See [LICENSE](LICENSE). Contributions are covered by the same
+license.
