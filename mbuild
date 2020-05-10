@@ -38,9 +38,18 @@
 # - Disable Windows Defender (optional).
 #   ps> Set-MpPreference -DisableRealtimeMonitoring $true
 # - Install 64-bit and 32-bit msys2: https://www.msys2.org/wiki/MSYS2-installation/.
+#   - Open each of them after installation, type `pacman -Syu --noconfirm` and close the window.
+#   - Then run in powershell while having no msys2 or cygwin windows open:
+#     ps> C:\msys32\autorebase.bat
+#     ps> C:\msys64\autorebase.bat
 # - Install 64-bit and 32-bit cygwin: https://cygwin.com/install.html.
 #   - Choose to install 32-bit to c:/cygwin32 instead of the default c:/cygwin.
 #   - Select these packages: binutils, cmake, gcc-core, gcc-g++, git, make, wget.
+#
+# IMPORTANT: Install msys2 and cygwin one at a time.
+#
+# Option 1: OpenSSH for Windows
+#
 # - Install OpenSSH: https://docs.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse.
 #   ps> Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
 #   ps> Start-Service sshd
@@ -56,6 +65,25 @@
 #       # Match Group administrators
 #       #   AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys
 #   ps> Restart-Service sshd
+#
+# Option 2: OpenSSH from WSL
+#
+# - Install WSL.
+# - Install Ubuntu.
+# - Install sshd.
+#   $ sudo apt install openssh-server
+#   $ sudo dpkg-reconfigure openssh-server
+#   $ sudo tee /etc/ssh/sshd_config <<\END
+#     ClientAliveInterval 60
+#     AcceptEnv TERM LANG LC_*
+#     PermitRootLogin no
+#     AllowTcpForwarding no
+#     AllowAgentForwarding no
+#     AllowStreamLocalForwarding no
+#     AuthenticationMethods publickey
+#   END
+#   sudo service ssh --full-restart
+# - Add your public ssh key to ~/.ssh/authorized_keys.
 
 'emulate' '-L' 'zsh' '-o' 'no_aliases' '-o' 'err_return'
 setopt no_unset extended_glob pipe_fail prompt_percent typeset_silent \
