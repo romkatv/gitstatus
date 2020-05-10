@@ -48,6 +48,8 @@
 #
 # IMPORTANT: Install msys2 and cygwin one at a time.
 #
+# IMPORTANT: msys2 builder can reboot the build machine.
+#
 # Option 1: OpenSSH for Windows
 #
 # - Install OpenSSH: https://docs.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse.
@@ -195,21 +197,36 @@ function build-windows() {
 
   local tmp env bin intro flags=(-w)
   case $2 in
+    msys_nt-10.0-i686)     bin='msys32/usr/bin';|
+    msys_nt-10.0-x86_64)   bin='msys64/usr/bin';|
+    cygwin_nt-10.0-i686)   bin='cygwin32/bin'  ;|
+    cygwin_nt-10.0-x86_64) bin='cygwin64/bin'  ;|
     msys_nt-10.0-*)
       flags+=(-s)
       tmp='/c/tmp'
       env='MSYSTEM=MSYS'
+      while true; do
+        local out
+        out="$(ssh $1 cmd.exe "$c/${bin%%/*}/autorebase.bat" 2>&1)"
+        [[ $out == *"The following DLLs couldn't be rebased"* ]] || break
+        ssh $1 powershell.exe <<<'Restart-Computer -Force'
+        sleep 30
+        while ! ssh $1 <<<''; do sleep 5; done
+      done
+      while ssh $1 $c/$bin/env.exe $env c:/$bin/bash.exe -l <<<"pacman -Syu --noconfirm" 2>&1 |
+            grep -qF "warning: terminate MSYS2"; do
+        ssh $1 powershell.exe <<<'Restart-Computer -Force'
+        sleep 30
+        while ! ssh $1 <<<''; do sleep 5; done
+      done
       intro='pacman -Syu --noconfirm; pacman -S --needed --noconfirm git; '
       intro+='PATH="$PATH:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl"'
-    ;|
+    ;;
     cygwin_nt-10.0-*)
       tmp='/cygdrive/c/tmp'
-    ;|
-    msys_nt-10.0-i686)     bin='msys32/usr/bin';;
-    msys_nt-10.0-x86_64)   bin='msys64/usr/bin';;
-    cygwin_nt-10.0-i686)   bin='cygwin32/bin'  ;;
-    cygwin_nt-10.0-x86_64) bin='cygwin64/bin'  ;;
+    ;;
   esac
+
   ssh $1 $c/$bin/env.exe $env c:/$bin/bash.exe -l <<<"
     set -uex
     $intro
