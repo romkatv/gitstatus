@@ -485,12 +485,16 @@ cd gitstatus-v1.0.0
 )
 ./build
 rm deps/libgit2-*.tar.gz
+for file in gitstatus.plugin.zsh gitstatus.prompt.zsh install; do
+  zsh -fc "zcompile -R -- $file.zwc $file"
+done
 ```
 
-This needs binutils, cmake, gcc, g++, git and GNU make.
+This needs binutils, cmake, gcc, g++, git, GNU make and zsh.
 
 Depending on your workflow, it might be easier to store the URL to the libgit2 tarball in the
-same place where you are going to put the main gitstatus tarball URL.
+same place where you are going to put the main gitstatus tarball URL. You'll need to update both
+URLs at the same time when bumping package version.
 
 Once build completes, *do not delete or move any files*. Package the whole directory as is. Don't
 add it (or any of its subdirectories) to `PATH`.
