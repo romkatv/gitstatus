@@ -1,5 +1,7 @@
 #!/usr/bin/env zsh
 #
+# This script does not have a stable API.
+#
 # Usage: mbuild [-b git-ref] [kernel-arch]...
 #
 # Builds a bunch of gitstatusd-* binaries. Without arguments builds binaries
@@ -73,9 +75,9 @@
 # - Install WSL.
 # - Install Ubuntu.
 # - Install sshd.
-#   $ sudo apt install openssh-server
-#   $ sudo dpkg-reconfigure openssh-server
-#   $ sudo tee /etc/ssh/sshd_config <<\END
+#   $ apt install openssh-server
+#   $ dpkg-reconfigure openssh-server
+#   $ cat >/etc/ssh/sshd_config <<\END
 #     ClientAliveInterval 60
 #     AcceptEnv TERM LANG LC_*
 #     PermitRootLogin no
@@ -84,8 +86,9 @@
 #     AllowStreamLocalForwarding no
 #     AuthenticationMethods publickey
 #   END
-#   sudo service ssh --full-restart
+#   service ssh --full-restart
 # - Add your public ssh key to ~/.ssh/authorized_keys.
+# - Make `sshd` start when Windows boots.
 
 'emulate' '-L' 'zsh' '-o' 'no_aliases' '-o' 'err_return'
 setopt no_unset extended_glob pipe_fail prompt_percent typeset_silent \
