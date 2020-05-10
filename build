@@ -10,7 +10,7 @@ if [ -n "${ZSH_VERSION:-}" ]; then
 fi
 
 usage="$(cat <<\END
-Usage: build [-m ARCH] [-c CPU] [-i IMAGE] [-d CMD]
+Usage: build [-m ARCH] [-c CPU] [-d CMD] [-i IMAGE] [-s] [-w]
 
 Options:
 

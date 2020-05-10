@@ -3,12 +3,12 @@
 **gitstatus** is a 10x faster alternative to `git status` and `git describe`. Its primary use
 case is to enable fast git prompt in interactive shells.
 
-Heavy lifting is done by **gitstatusd** -- a custom binary written in C++. It comes with ZSH and
+Heavy lifting is done by **gitstatusd** -- a custom binary written in C++. It comes with Zsh and
 Bash bindings for integration with shell.
 
 ## Table of Contents
 
-1. [Using from ZSH](#using-from-zsh)
+1. [Using from Zsh](#using-from-zsh)
 1. [Using from Bash](#using-from-bash)
 2. [Using from other shells](#using-from-other-shells)
 1. [How it works](#how-it-works)
@@ -18,13 +18,13 @@ Bash bindings for integration with shell.
 1. [Compiling](#compiling)
 1. [License](#license)
 
-## Using from ZSH
+## Using from Zsh
 
-The easiest way to take advantage of gitstatus from ZSH is to use a theme that's already integrated
+The easiest way to take advantage of gitstatus from Zsh is to use a theme that's already integrated
 with it. For example, [Powerlevel10k](https://github.com/romkatv/powerlevel10k) is a flexible and
 fast theme with first-class gitstatus integration.
 
-![Powerlevel10k ZSH Theme](
+![Powerlevel10k Zsh Theme](
   https://raw.githubusercontent.com/romkatv/powerlevel10k-media/master/prompt-styles-high-contrast.png)
 
 For those who wish to use gitstatus without a theme, there is
@@ -90,7 +90,7 @@ function my_set_prompt() {
     (( $VCS_STATUS_NUM_UNTRACKED )) && RPROMPT+='?'
   fi
 
-  setopt noprompt{bang,subst} promptpercent  # enable/disable correct prompt expansions
+  setopt no_prompt_{bang,subst} prompt_percent  # enable/disable correct prompt expansions
 }
 
 gitstatus_stop 'MY' && gitstatus_start -s -1 -u -1 -c -1 -d -1 'MY'
@@ -186,7 +186,7 @@ This snippet is sourcing `gitstatus.plugin.sh` rather than `gitstatus.prompt.sh`
 defines low-level bindings that communicate with gitstatusd over pipes. The latter is a simple
 script that uses these bindings to assemble git prompt.
 
-Note: Bash bindings, unlike ZSH bindings, don't support asynchronous calls.
+Note: Bash bindings, unlike Zsh bindings, don't support asynchronous calls.
 
 ## Using from other shells
 
@@ -201,7 +201,7 @@ a directory. Responses contain the same ID and machine-readable git status for t
 gitstatusd keeps some state in memory for the directories it has seen in order to serve future
 requests faster.
 
-[ZSH bindings](gitstatus.plugin.zsh) and [Bash bindings](gitstatus.plugin.sh) start gitstatusd in
+[Zsh bindings](gitstatus.plugin.zsh) and [Bash bindings](gitstatus.plugin.sh) start gitstatusd in
 the background and communicate with it via pipes. Themes such as
 [Powerlevel10k](https://github.com/romkatv/powerlevel10k) use these bindings to put git status in
 `PROMPT`.
@@ -436,38 +436,70 @@ _WARNING: Changes to libgit2 are extensive but the testing they underwent isn't.
 
 ## Requirements
 
-* To compile: C++14 compiler, GNU make, cmake.
-* To run: Linux, macOS, FreeBSD, Android, WSL, Cygwin, MinGW or MSYS.
+* To compile: binutils, cmake, gcc, g++, git and GNU make.
+* To run: Linux, macOS, FreeBSD, Android, WSL, Cygwin or MSYS2.
 
 ## Compiling
 
-There are prebuilt `gitstatusd` binaries in [bin](bin). When using the official shell bindings
-provided by gitstatus, the right binary for your architecture is picked up automatically.
+There are prebuilt `gitstatusd` binaries in [releases](
+  https://github.com/romkatv/gitstatus/releases). When using the official shell bindings
+provided by gitstatus, the right binary for your architecture gets downloaded automatically.
 
 If prebuilt binaries don't work for you, you'll need to get your hands dirty.
 
+### Compiling for personal use
+
 ```zsh
-cd /tmp
-git clone --recursive --shallow-submodules --depth=1 https://github.com/romkatv/gitstatus.git
+git clone --depth=1 -https://github.com/romkatv/gitstatus.git
 cd gitstatus
-./build
+./build -m -s -d docker
 ```
 
-If everything goes well, the newly built binary will appear in `./usrbin`.
+- If it says that `-d docker` is not supported on your OS, remove this flag.
+- If it says that `-s` is not supported on your OS, remove this flag.
+- If it tell you to install docker but you cannot or don't want to, remove `-d docker`.
+- If it says that some command is missing, install it.
 
-Copy the binary to `usrbin` subdirectory (create it if necessary) of your gitstatus installation.
-For example:
+If everything goes well, the newly built binary will appear in `./usrbin`. It'll be picked up
+by shell bindings automatically.
+
+When you update shell bindings, they may refuse to work with the binary you've built earlier. In
+this case you'll need to rebuild.
+
+### Compiling for distribution
+
+If you want to package gitstatus, it's best to do it based off releases. You also probably don't
+want to build in docker (`-d docker`) or to allow automatic downloading of libgit2 tarballs (`-w`).
+
+The following code should work. If it doesn't, please open an issue.
 
 ```zsh
-mkdir -p ~/powerlevel10k/gitstatus/usrbin
-cp ./usrbin/gitstatusd-* ~/powerlevel10k/gitstatus/usrbin/
+curl -fsSLO https://github.com/romkatv/gitstatus/archive/v1.0.0.tar.gz
+tar -xzf v1.0.0.tar.gz
+cd gitstatus-v1.0.0
+(
+  . ./build.info
+  curl -fsSLo                              \
+    deps/libgit2-"$libgit2_version".tar.gz \
+    https://github.com/romkatv/libgit2/archive/"$libgit2_version".tar.gz
+)
+./build
+rm deps/libgit2-*.tar.gz
 ```
 
-When using gitstatus from Zsh, this binary will be picked up automatically. With Bash you need to
-set `GITSTATUS_DAEMON` pointing to the gitstatusd binary.
+This needs binutils, cmake, gcc, g++, git and GNU make.
 
-*IMPORTANT*: You must rebuild the binary every time you update gitstatus. The new version of shell
-bindings may not work with the old binary.
+Depending on your workflow, it might be easier to store the URL to the libgit2 tarball in the
+same place where you are going to put the main gitstatus tarball URL.
+
+Once build completes, *do not delete or move any files*. Package the whole directory as is. Don't
+add it (or any of its subdirectories) to `PATH`.
+
+Note that Powerlevel10k has an embedded version of gitstatus. It must stay that way. The embedded
+gitstatus won't conflict with the standalone version. They can have different versions and can
+coexist within the same Zsh process. Do not attempt to surgically remove gitstatus from
+Powerlevel10k, package the result and then somehow force Powerlevel10k to use a separately packaged
+gitstatus.
 
 ## License
 
