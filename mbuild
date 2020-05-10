@@ -212,16 +212,37 @@ function build-windows() {
         local out
         out="$(ssh $1 cmd.exe "$c/${bin%%/*}/autorebase.bat" 2>&1)"
         [[ $out == *"The following DLLs couldn't be rebased"* ]] || break
-        ssh $1 powershell.exe <<<'Restart-Computer -Force'
+        # Reboot to get rid of whatever is using those DLLs.
+        ssh $1 powershell.exe <<<'Restart-Computer -Force' || true
         sleep 30
         while ! ssh $1 <<<''; do sleep 5; done
       done
-      while ssh $1 $c/$bin/env.exe $env c:/$bin/bash.exe -l <<<"pacman -Syu --noconfirm" 2>&1 |
-            grep -qF "warning: terminate MSYS2"; do
-        ssh $1 powershell.exe <<<'Restart-Computer -Force'
-        sleep 30
-        while ! ssh $1 <<<''; do sleep 5; done
-      done
+      () {
+        while true; do
+          local -i fd
+          exec {fd}< <(
+            ssh $1 $c/$bin/env.exe $env c:/$bin/bash.exe -l 2>&1 <<<"
+              pacman -Syu --noconfirm
+              exit")
+          {
+            local line
+            while true; do
+              IFS= read -u $fd -r line || return 0
+              if [[ $line == *"warning: terminate MSYS2"* ]]; then
+                # At this point the machine is hosed. Rogue process with corrupted name
+                # is eating all CPU. The top SSH connection won't terminate on its own.
+                ssh $1 powershell.exe <<<'Restart-Computer -Force' || true
+                sleep 30
+                while ! ssh $1 <<<''; do sleep 5; done
+                break
+              fi
+            done
+          } always {
+            exec {fd}<&-
+            kill -- -$sysparams[procsubstpid] 2>/dev/null || true
+          }
+        done
+      } "$@"
       intro='pacman -Syu --noconfirm; pacman -S --needed --noconfirm git; '
       intro+='PATH="$PATH:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl"'
     ;;
@@ -242,6 +263,7 @@ function build-windows() {
 }
 
 function build() (
+  setopt xtrace
   local platform=$1
   local machine=$assets[$platform]
   print -n >>$locks/$machine
