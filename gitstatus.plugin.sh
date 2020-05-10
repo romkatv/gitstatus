@@ -62,8 +62,11 @@ function gitstatus_start() {
 
   if [[ "${BASH_SOURCE[0]}" == */* ]]; then
     local gitstatus_plugin_dir="${BASH_SOURCE[0]%/*}"
+    if [[ "$gitstatus_plugin_dir" != /* ]]; then
+      gitstatus_plugin_dir="$PWD"/"$gitstatus_plugin_dir"
+    fi
   else
-    local gitstatus_plugin_dir=.
+    local gitstatus_plugin_dir="$PWD"
   fi
 
   local req_fifo resp_fifo
