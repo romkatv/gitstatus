@@ -450,9 +450,9 @@ If prebuilt binaries don't work for you, you'll need to get your hands dirty.
 ### Compiling for personal use
 
 ```zsh
-git clone --depth=1 -https://github.com/romkatv/gitstatus.git
+git clone --depth=1 https://github.com/romkatv/gitstatus.git
 cd gitstatus
-./build -m -s -d docker
+./build -w -s -d docker
 ```
 
 - If it says that `-d docker` is not supported on your OS, remove this flag.
@@ -476,7 +476,7 @@ The following code should work. If it doesn't, please open an issue.
 ```zsh
 curl -fsSLO https://github.com/romkatv/gitstatus/archive/v1.0.0.tar.gz
 tar -xzf v1.0.0.tar.gz
-cd gitstatus-v1.0.0
+cd gitstatus-1.0.0
 (
   . ./build.info
   curl -fsSLo                              \
