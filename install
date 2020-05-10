@@ -167,16 +167,24 @@ END
     # Found a match. The while loop will terminate during this iteration.
 
     if [ -z "$no_check" ]; then
-      # Check if there is suitable gitstatusd already exists.
+      # Check if a suitable gitstatusd already exists.
       local daemon="$cache_dir"/"$file"
-      if [ ! -e "$daemon" ]; then
-        daemon="$gitstatus_dir"/bin/"$file"
-        if [ ! -e "$daemon" ]; then
-          daemon=
-        fi
-      fi
-      if [ -n "$daemon" ]; then
+      if [ -e "$daemon" ]; then
         [ $# = 0 ] || "$@" "$daemon" "$version" 0
+        return
+      fi
+      daemon="$daemon"-"$uname_s"-"$uname_m"
+      if [ -e "$daemon" ]; then
+        local gitstatus_version= libgit2_version=
+        if ! . "$gitstatus_dir"/build.info; then
+          >&2 echo "[gitstatus] internal error: failed to source build.info"
+          return 1
+        fi
+        if [ -z "$gitstatus_version" ]; then
+          >&2 echo "[gitstatus] internal error: empty gitstatus_version in build.info"
+          return 1
+        fi
+        [ $# = 0 ] || "$@" "$daemon" "$gitstatus_version" 0
         return
       fi
     fi
