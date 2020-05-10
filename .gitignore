@@ -1,7 +1,8 @@
 *.zwc
 /core
+/deps/libgit2-*.tar.gz
 /locks
 /logs
 /obj
-/usrbin
+/usrbin/gitstatusd*
 /.vscode/ipch
