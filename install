@@ -249,9 +249,9 @@ END
       fetch() {
         local trapped=
         trap 'trapped=1' $sig
+        # TODO: enable this after adding sha256 verification.
+        [ "$1" = 1 ] || return
         if [ "$1" != 1 ] && command -v sleep >/dev/null 2>/dev/null; then
-          # TODO: enable this after adding sha256 verification.
-          return 1
           sleep "$1"
         fi
         $fetch "$tmp"."$1".tar.gz -- "$2" 2>/dev/null &
