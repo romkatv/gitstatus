@@ -648,7 +648,7 @@ function gitstatus_start"${1:-}"() {
 
       print -nru $req_fd -- $'hello\x1f\x1e' || return
       local expected=$'hello\x1f0\x1e' actual
-      if (( $+functions[p10k] )) && [[ ! -t 1 ]]; then
+      if (( $+functions[p10k] )) && [[ ! -t 1 && ! -t 0 ]]; then
         local -F deadline='EPOCHREALTIME + 4'
       else
         local -F deadline='1'
@@ -690,7 +690,7 @@ function gitstatus_start"${1:-}"() {
         if [[ -t 2 ]]; then
           print -Pru2 -- $'\b[%2Fok%f]'
         else
-          print -u2
+          print -ru2 -- ' [ok]'
         fi
         if [[ $xtrace != /dev/null && -o no_xtrace ]]; then
           exec {stderr_fd}>&2 || return

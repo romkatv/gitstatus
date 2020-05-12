@@ -213,7 +213,7 @@ function gitstatus_start() {
       if [[ -t 2 ]]; then
         >&2 printf '\b[\033[32mok\033[0m]\n'
       else
-        >&2 echo
+        >&2 echo ' [ok]'
       fi
     fi
 
