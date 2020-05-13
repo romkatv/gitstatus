@@ -499,7 +499,7 @@ new versions are released.*
 
 ```zsh
 # Download and extract gitstatus tarball.
-gitstatus_version=1.0.0  # IMPORTANT: CHANGE VERSION TO WHAT YOU WANT
+gitstatus_version=1.1.0  # IMPORTANT: CHANGE VERSION TO WHAT YOU WANT
 wget https://github.com/romkatv/gitstatus/archive/v"$gitstatus_version".tar.gz
 tar -xzf v"$gitstatus_version".tar.gz
 cd gitstatus-"$gitstatus_version"
@@ -528,7 +528,7 @@ libgit2 tarball manually and invoke `./build` without `-w`.
 
 ```zsh
 # Download and extract gitstatus tarball.
-gitstatus_version=1.0.0  # IMPORTANT: CHANGE VERSION TO WHAT YOU WANT
+gitstatus_version=1.1.0  # IMPORTANT: CHANGE VERSION TO WHAT YOU WANT
 wget https://github.com/romkatv/gitstatus/archive/v"$gitstatus_version".tar.gz
 tar -xzf v"$gitstatus_version".tar.gz
 cd gitstatus-"$gitstatus_version"
