@@ -117,7 +117,7 @@ function gitstatus_start() {
 
     {
       (
-        trap '' INT
+        trap '' INT QUIT TSTP
         [[ "$GITSTATUS_DAEMON_LOG" == /dev/null ]] || set -x
         builtin cd /
 
@@ -142,7 +142,7 @@ function gitstatus_start() {
           [[ -n "$_gitstatus_bash_version" ]]         || return
           [[ "$_gitstatus_bash_downloaded" == [01] ]] || return
 
-          local sig=(QUIT TERM EXIT ILL PIPE)
+          local sig=(TERM ILL PIPE)
 
           if [[ -x "$_gitstatus_bash_daemon" ]]; then
             "$_gitstatus_bash_daemon" \
@@ -166,7 +166,7 @@ function gitstatus_start() {
           _gitstatus_bash_daemon=
           _gitstatus_bash_version=
           _gitstatus_bash_downloaded=
-          source "$gitstatus_plugin_dir"/install  || return
+          source "$gitstatus_plugin_dir"/install   || return
           [[ -n "$_gitstatus_bash_daemon" ]]       || return
           [[ -n "$_gitstatus_bash_version" ]]      || return
           [[ "$_gitstatus_bash_downloaded" == 1 ]] || return
