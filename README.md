@@ -468,8 +468,8 @@ this case you'll need to rebuild.
 
 ### Compiling for distribution
 
-If you want to package gitstatus, it's best to do it based off releases. You probably don't want to
-build in docker, so don't pass `-d` to `./build`.
+If you want to package gitstatus, it's best to do it based off [releases](
+  https://github.com/romkatv/gitstatus/releases).
 
 The following code should work without patching anything in gitstatus sources. If it doesn't, please
 open an issue.
@@ -488,7 +488,7 @@ cd gitstatus-"$gitstatus_version"
 ./build -w
 
 # Post-process.
-rm deps/libgit2-*.tar.gz
+rm ./deps/libgit2-*.tar.gz
 for file in *.zsh install; do
   zsh -fc "emulate zsh -o no_aliases && zcompile -R -- $file.zwc $file"
 done
@@ -498,6 +498,8 @@ This needs binutils, cmake, gcc, g++, git, GNU make, wget, zsh and either shasum
 
 Once build completes, *do not delete or move any files*. Package the whole directory as is. Don't
 add the directory or any of its subdirectories to `PATH`.
+
+You probably don't want to build in docker, so don't pass `-d` to `./build`.
 
 gitstatus depends on a [custom fork of libgit2](https://github.com/romkatv/libgit2/). When you run
 `./build -w`, it'll automatically download the appropriate libgit2 tarball and verify its sha256.
@@ -521,7 +523,7 @@ wget -O "$libgit2_path" "$libgit2_url"
 ./build
 
 # Post-process.
-rm deps/libgit2-*.tar.gz
+rm ./deps/libgit2-*.tar.gz
 for file in *.zsh install; do
   zsh -fc "emulate zsh -o no_aliases && zcompile -R -- $file.zwc $file"
 done
@@ -530,8 +532,9 @@ done
 Note that the URL and the content of the libgit2 tarball are fully defined by the main gitstatus
 tarball. Thus, you can set URLs and sha256 checksums of the two tarball in the same place (package
 definition) and update them at the same time when bumping package version. In other words, you don't
-have to extract `libgit2_version` programmatically. You can manually copy it from `build.info` to
-your package definition, if you prefer.
+have to extract `libgit2_version` programmatically. You can manually copy it from [build.info](
+  https://github.com/romkatv/gitstatus/blob/master/build.info) to your package definition, if you
+prefer.
 
 [Powerlevel10k](https://github.com/romkatv/powerlevel10k) has an embedded version of gitstatus. It
 must stay that way. If you decide to package both of them, follow the respective instructions from
