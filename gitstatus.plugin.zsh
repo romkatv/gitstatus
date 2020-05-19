@@ -683,6 +683,7 @@ function gitstatus_start"${1:-}"() {
           local pair=${${(%):-%N}#_gitstatus_process_response_}
           local name=${pair%%-*}
           local fsuf=${pair#*-}
+          [[ $name == POWERLEVEL9K && $fsuf == _p9k_ ]] && eval $__p9k_intro_base
           if (( ARGC == 1 )); then
             _gitstatus_process_response$fsuf $name 0 ''
           else
