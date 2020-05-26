@@ -725,6 +725,7 @@ function gitstatus_start"${1:-}"() {
     gitstatus_stop$fsuf $name
 
     setopt prompt_percent no_prompt_subst no_prompt_bang
+    (( $+functions[p10k] )) && p10k clear-instant-prompt
     print -ru2  -- ''
     print -Pru2 -- '[%F{red}ERROR%f]: gitstatus failed to initialize.'
     print -ru2  -- ''
