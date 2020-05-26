@@ -110,19 +110,17 @@ cpus="$(command getconf _NPROCESSORS_ONLN 2>/dev/null)" ||
   cpus=8
 
 case "$gitstatus_cpu" in
-  ppc64le)
-    archflag="-mcpu"
-  ;;
-  *)
-    archflag="-march"
-  ;;
+  ppc64le) archflag="-mcpu";;
+  *)       archflag="-march";;
 esac
 
+cflags="$archflag=$gitstatus_cpu -fno-plt -mtune=generic"
+
 libgit2_cmake_flags=
-libgit2_cflags="$archflag=$gitstatus_cpu -fno-plt -mtune=generic"
+libgit2_cflags="$cflags"
 
 gitstatus_cxx=g++
-gitstatus_cxxflags="$libgit2_cflags -I${workdir}/libgit2/include -DGITSTATUS_ZERO_NSEC -D_GNU_SOURCE"
+gitstatus_cxxflags="$cflags -I${workdir}/libgit2/include -DGITSTATUS_ZERO_NSEC -D_GNU_SOURCE"
 gitstatus_ldflags="-L${workdir}/libgit2/build"
 gitstatus_ldlibs=
 gitstatus_make=make
