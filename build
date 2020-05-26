@@ -131,14 +131,17 @@ case "$gitstatus_kernel" in
     if [ -n "$docker_cmd" ]; then
       gitstatus_ldflags="$gitstatus_ldflags -static"
     fi
+    libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
   ;;
   freebsd)
     gitstatus_make=gmake
     gitstatus_ldflags="$gitstatus_ldflags -static"
+    libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
   ;;
   netbsd)
     gitstatus_make=gmake
     gitstatus_ldflags="$gitstatus_ldflags -static"
+    libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
   ;;
   darwin)
     command mkdir -- "$workdir"/lib
@@ -148,12 +151,15 @@ case "$gitstatus_kernel" in
     gitstatus_cxxflags="$gitstatus_cxxflags -I/usr/local/opt/libiconv/include"
     gitstatus_ldlibs="$gitstatus_ldlibs -liconv"
     gitstatus_ldflags="$gitstatus_ldflags -L${workdir}/lib"
+    libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=OFF"
   ;;
   msys*|mingw*)
     gitstatus_ldflags="$gitstatus_ldflags -static"
+    libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
   ;;
   cygwin*)
     gitstatus_ldflags="$gitstatus_ldflags -static"
+    libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
   ;;
   *)
     >&2 echo "[internal error] unhandled kernel: $gitstatus_kernel"
@@ -253,7 +259,6 @@ CFLAGS="$libgit2_cflags" command cmake \
   -DUSE_GSSAPI=OFF                     \
   -DUSE_NTLMCLIENT=OFF                 \
   -DBUILD_SHARED_LIBS=OFF              \
-  -DENABLE_REPRODUCIBLE_BUILDS=ON      \
   $libgit2_cmake_flags                 \
   ..
 command make -j "$cpus" VERBOSE=1
