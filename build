@@ -157,12 +157,10 @@ case "$gitstatus_kernel" in
   ;;
   msys*|mingw*)
     gitstatus_ldflags="$gitstatus_ldflags -static"
-    gitstatus_ldflags="$gitstatus_ldflags -Wl,-O1,--sort-common,--as-needed,-z,relro,-z,now"
     libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
   ;;
   cygwin*)
     gitstatus_ldflags="$gitstatus_ldflags -static"
-    gitstatus_ldflags="$gitstatus_ldflags -Wl,-O1,--sort-common,--as-needed,-z,relro,-z,now"
     libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
   ;;
   *)
