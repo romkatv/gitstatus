@@ -129,7 +129,9 @@ gitstatus_make=make
 
 case "$gitstatus_kernel" in
   linux)
-    gitstatus_ldflags="$gitstatus_ldflags -static"
+    if [ -n "$docker_cmd" ]; then
+      gitstatus_ldflags="$gitstatus_ldflags -static"
+    fi
   ;;
   freebsd)
     gitstatus_make=gmake
@@ -490,6 +492,8 @@ fi
 
 if [ -n "$docker_cmd" ]; then
   "$docker_cmd" run                                       \
+    -e docker_cmd="$docker_cmd"                           \
+    -e docker_image="$docker_image"                       \
     -e gitstatus_kernel="$gitstatus_kernel"               \
     -e gitstatus_arch="$gitstatus_arch"                   \
     -e gitstatus_cpu="$gitstatus_cpu"                     \
