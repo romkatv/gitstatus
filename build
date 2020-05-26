@@ -114,7 +114,11 @@ case "$gitstatus_cpu" in
   *)       archflag="-march";;
 esac
 
-cflags="$archflag=$gitstatus_cpu -fno-plt -mtune=generic"
+cflags="$archflag=$gitstatus_cpu -fno-plt"
+
+if [ "$gitstatus_cpu" = x86-64 ]; then
+  cflags="$cflags -mtune=generic"
+fi
 
 libgit2_cmake_flags=
 libgit2_cflags="$cflags"
