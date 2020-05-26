@@ -119,10 +119,10 @@ case "$gitstatus_cpu" in
 esac
 
 libgit2_cmake_flags=
-libgit2_cflags="$archflag=$gitstatus_cpu"
+libgit2_cflags="$archflag=$gitstatus_cpu -fno-plt -mtune=generic"
 
 gitstatus_cxx=g++
-gitstatus_cxxflags="-I${workdir}/libgit2/include -DGITSTATUS_ZERO_NSEC -D_GNU_SOURCE $archflag=$gitstatus_cpu"
+gitstatus_cxxflags="$libgit2_cflags -I${workdir}/libgit2/include -DGITSTATUS_ZERO_NSEC -D_GNU_SOURCE"
 gitstatus_ldflags="-L${workdir}/libgit2/build"
 gitstatus_ldlibs=
 gitstatus_make=make
