@@ -274,7 +274,7 @@ function build() (
   zsystem flock $locks/$machine
   build-${protocol[(k)$platform]} $machine $platform
   local tmp=gitstatusd-$platform.tmp.$$.tar.gz
-  ( cd -q -- $binaries; tar -owner=0 --group=0 -I 'gzip -9' -czf $tmp gitstatusd-$platform )
+  ( cd -q -- $binaries; tar --owner=0 --group=0 -I 'gzip -9' -cf $tmp gitstatusd-$platform )
   mv -f -- $binaries/$tmp $binaries/gitstatusd-$platform.tar.gz
 )
 
