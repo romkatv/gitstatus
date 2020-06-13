@@ -68,8 +68,16 @@ trap cleanup INT QUIT TERM ILL PIPE
 if [ -n "$gitstatus_install_tools" ]; then
   case "$gitstatus_kernel" in
     linux)
-      command apk update
-      command apk add binutils cmake gcc g++ git make musl-dev perl-utils
+      if command -v apk >/dev/null 2>&1; then
+        command apk update
+        command apk add binutils cmake gcc g++ git make musl-dev perl-utils
+      elif command -v apt-get >/dev/null 2>&1; then
+        apt-get update
+        apt-get install -y binutils cmake gcc g++ make wget
+      else
+        >&2 echo "[error] -s is not supported on this system"
+        exit 1
+      fi
     ;;
     freebsd)
       command pkg install -y cmake gmake binutils gcc git perl5
@@ -110,8 +118,8 @@ cpus="$(command getconf _NPROCESSORS_ONLN 2>/dev/null)" ||
   cpus=8
 
 case "$gitstatus_cpu" in
-  ppc64le) archflag="-mcpu";;
-  *)       archflag="-march";;
+  powerpc64le) archflag="-mcpu";;
+  *)           archflag="-march";;
 esac
 
 cflags="$archflag=$gitstatus_cpu -fno-plt"
@@ -446,9 +454,6 @@ case "$gitstatus_kernel" in
           ;;
         esac
       fi
-    elif [ -n "$gitstatus_install_tools" ]; then
-      >&2 echo '[error] -s without -d is not supported on linux'
-      exit 1
     fi
   ;;
   freebsd|netbsd|darwin)
