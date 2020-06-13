@@ -139,9 +139,7 @@ gitstatus_make=make
 
 case "$gitstatus_kernel" in
   linux)
-    if [ -n "$docker_cmd" ]; then
-      gitstatus_ldflags="$gitstatus_ldflags -static"
-    fi
+    gitstatus_ldflags="$gitstatus_ldflags -static"
     gitstatus_ldflags="$gitstatus_ldflags -Wl,-O1,--sort-common,--as-needed,-z,relro,-z,now"
     libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
   ;;
