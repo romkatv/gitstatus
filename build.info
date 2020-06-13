@@ -2,7 +2,7 @@
 # read by ./Makefile. `gitstatusd --version` reports it back.
 #
 # This value is also read by shell bindings (indirectly, through
-# ./install) when gitstatusd is from ./usrbin.
+# ./install) when using GITSTATUS_DAEMON or usrbin/gitstatusd.
 gitstatus_version="v1.2.0"
 
 # libgit2 is a build time dependency of gitstatusd. The values of

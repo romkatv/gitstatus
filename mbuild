@@ -189,7 +189,7 @@ function build-unix() {
     $intro
     cd /tmp
     $build ${2##*-} ${(j: :)${(@q)flags}}"
-  scp $1:/tmp/gitstatus/usrbin/gitstatusd-$2 $binaries/
+  scp $1:/tmp/gitstatus/usrbin/gitstatusd $binaries/gitstatusd-$2
 }
 
 function build-windows() {
@@ -238,7 +238,7 @@ function build-windows() {
             while true; do
               IFS= read -u $fd -r line || return 0
               if [[ $line == *"warning: terminate MSYS2"* ]]; then
-                # At this point the machine is hosed. Rogue process with corrupted name
+                # At this point the machine is hosed. A rogue process with a corrupted name
                 # is eating all CPU. The top SSH connection won't terminate on its own.
                 ssh $1 powershell.exe <<<'Restart-Computer -Force' || true
                 sleep 30
@@ -262,7 +262,7 @@ function build-windows() {
     cd -- $tmp
     $build ${2##*-} ${(j: :)${(@q)flags}}
     exit"
-  scp $1:$c/tmp/gitstatus/usrbin/gitstatusd-$2 $binaries/
+  scp $1:$c/tmp/gitstatus/usrbin/gitstatusd $binaries/gitstatusd-$2
   chmod +x $binaries/gitstatusd-$2
 }
 

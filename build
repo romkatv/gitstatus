@@ -52,7 +52,7 @@ if [ "$(narg $workdir)" != 1 -o -z "${workdir##*:*}" ]; then
   exit 1
 fi
 
-appname=gitstatusd-"$gitstatus_kernel"-"$gitstatus_arch"
+appname=gitstatusd
 libgit2_tmp="$outdir"/deps/"$appname".libgit2.tmp
 
 cleanup() {
