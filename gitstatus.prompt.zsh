@@ -1,4 +1,5 @@
 # Simple Zsh prompt with Git status.
+# No rights reserved for this file.
 
 # Source gitstatus.plugin.zsh from $GITSTATUS_DIR or from the same directory
 # in which the current script resides if the variable isn't set.

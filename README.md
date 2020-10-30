@@ -525,5 +525,7 @@ gitstatus are released. This may change in the future but not soon.
 
 ## License
 
-GNU General Public License v3.0. See [LICENSE](LICENSE). Contributions are covered by the same
+Most of the repository is covered by GNU General Public License v3.0. See [LICENSE](LICENSE). Contributions are covered by the same
 license.
+
+`gitstatus.prompt.sh` and `gitstatus.prompt.zsh` are part of the public domain.
