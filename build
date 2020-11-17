@@ -11,6 +11,12 @@ fi
 
 export LC_ALL=C
 
+if [ -z "${ZSH_VERSION-}" ] && command -v zsh >/dev/null 2>&1; then
+  case "${BASH_VERSION-}" in
+    [0-3].*) exec zsh "$0" "$@";;
+  esac
+fi
+
 usage="$(command cat <<\END
 Usage: build [-m ARCH] [-c CPU] [-d CMD] [-i IMAGE] [-s] [-w]
 
