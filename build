@@ -29,7 +29,7 @@ Options:
             succeed; on some operating systems this option is not
             supported; on others it can have partial effect
   -w        automatically download tarballs for dependencies if they
-            don't already exist in ./deps; dependencies are described
+            do not already exist in ./deps; dependencies are described
             in ./build.info
 END
 )"
