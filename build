@@ -159,10 +159,11 @@ case "$gitstatus_kernel" in
   ;;
   darwin)
     command mkdir -- "$workdir"/lib
-    command ln -s -- /usr/local/opt/libiconv/lib/libiconv.a "$workdir"/lib
+    brew_prefix="$(command brew --prefix)"
+    command ln -s -- "$brew_prefix"/opt/libiconv/lib/libiconv.a "$workdir"/lib
     libgit2_cmake_flags="$libgit2_cmake_flags -DUSE_ICONV=ON"
-    libgit2_cflags="$libgit2_cflags -I/usr/local/opt/libiconv/include"
-    gitstatus_cxxflags="$gitstatus_cxxflags -I/usr/local/opt/libiconv/include"
+    libgit2_cflags="$libgit2_cflags -I"$brew_prefix"/opt/libiconv/include"
+    gitstatus_cxxflags="$gitstatus_cxxflags -I"$brew_prefix"/opt/libiconv/include"
     gitstatus_ldlibs="$gitstatus_ldlibs -liconv"
     gitstatus_ldflags="$gitstatus_ldflags -L${workdir}/lib"
     libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=OFF"
