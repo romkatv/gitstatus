@@ -2,6 +2,45 @@
 #
 # This script does not have a stable API.
 
+_gitstatus_install_daemon_found() {
+  local installed="$1"
+  shift
+
+  case "$daemon" in
+    *-darwin-x86_64);;
+    *)
+      [ $# = 0 ] || "$@" "$daemon" "$version" "$installed"
+      return
+    ;;
+  esac
+
+  local cpu
+  if [ "$uname_sm" != 'darwin arm64' ]                                       ||
+     [ -e /Library/Apple/System/Library/LaunchDaemons/com.apple.oahd.plist ] ||
+     [ ! -x /usr/sbin/softwareupdate ]                                       ||
+     ! cpu="$(/usr/sbin/sysctl -n machdep.cpu.brand_string)"; then
+    [ $# = 0 ] || "$@" "$daemon" "$version" "$installed"
+    return
+  fi
+
+  case "$cpu" in
+    *Intel*);;
+    *)
+      [ $# = 0 ] || "$@" "$daemon" "$version" "$installed"
+      return
+    ;;
+  esac
+
+  >&"$e" printf 'Please run the following command to install Rosetta:\n'
+  >&"$e" printf '\n'
+  >&"$e" printf '    \033[32m/usr/sbin/softwareupdate\033[0m --install-rosetta\n'
+  >&"$e" printf '\n'
+  >&"$e" printf 'See for details: \033[4mhttps://support.apple.com/en-us/HT211861\033[0m\n'
+  >&"$e" printf '\n'
+  >&"$e" printf 'Once Rosetta is installed, restart your shell.\n'
+  return 1
+}
+
 _gitstatus_install_main() {
   if [ -n "${ZSH_VERSION:-}" ]; then
     emulate -L sh -o no_unset
@@ -157,7 +196,8 @@ END
         >&2 echo "[gitstatus] internal error: empty gitstatus_version in build.info"
         return 1
       fi
-      [ $# = 0 ] || "$@" "$daemon" "$gitstatus_version" 0
+      local version="$gitstatus_version"
+      _gitstatus_install_daemon_found 0 "$@"
       return
     fi
   fi
@@ -197,7 +237,7 @@ END
         [ -e "$daemon" ] || daemon=
       fi
       if [ -n "$daemon" ]; then
-        [ $# = 0 ] || "$@" "$daemon" "$version" 0
+        _gitstatus_install_daemon_found 0 "$@"
         return
       fi
     fi
@@ -222,15 +262,11 @@ END
           if [ ! -d "$dir" ]; then
             >&"$e" printf 'Not a directory: \033[4;31m%s\033[0m\n' "$dir"
             >&"$e" printf '\n'
-            >&"$e" printf 'Delete it, then restart zsh with this command:\n'
-            >&"$e" printf '\n'
-            >&"$e" printf '    \033[4;32mexec\033[0m \033[32mzsh\033[0m\n'
+            >&"$e" printf 'Delete it, then restart your shell.\n'
           elif [ ! -w "$dir" ]; then
             >&"$e" printf 'Directory is not writable: \033[4;31m%s\033[0m\n' "$dir"
             >&"$e" printf '\n'
-            >&"$e" printf 'Make it writable, then restart zsh with this command:\n'
-            >&"$e" printf '\n'
-            >&"$e" printf '    \033[4;32mexec\033[0m \033[32mzsh\033[0m\n'
+            >&"$e" printf 'Make it writable, then restart your shell.\n'
           fi
           break
         fi
@@ -256,30 +292,22 @@ END
         if [ ! -e "$dir" ]; then
           >&"$e" printf 'Temporary '"$label"' does not exist: \033[4;31m%s\033[0m\n' "$dir"
           >&"$e" printf '\n'
-          >&"$e" printf 'Create it, then restart zsh with this command:\n'
-          >&"$e" printf '\n'
-          >&"$e" printf '    \033[4;32mexec\033[0m \033[32mzsh\033[0m\n'
+          >&"$e" printf 'Create it, then restart your shell.\n'
         elif [ ! -d "$dir" ]; then
           >&"$e" printf 'Not a '"$label"': \033[4;31m%s\033[0m\n' "$dir"
           >&"$e" printf '\n'
-          >&"$e" printf 'Make it a directory, then restart zsh with this command:\n'
-          >&"$e" printf '\n'
-          >&"$e" printf '    \033[4;32mexec\033[0m \033[32mzsh\033[0m\n'
+          >&"$e" printf 'Make it a directory, then restart your shell.\n'
         elif [ ! -w "$dir" ]; then
           >&"$e" printf 'Temporary '"$label"' is not writable: \033[4;31m%s\033[0m\n' "$dir"
           >&"$e" printf '\n'
-          >&"$e" printf 'Make it writable, then restart zsh with this command:\n'
-          >&"$e" printf '\n'
-          >&"$e" printf '    \033[4;32mexec\033[0m \033[32mzsh\033[0m\n'
+          >&"$e" printf 'Make it writable, then restart your shell.\n'
         fi
         return 1
       fi
     fi
 
     if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
-      >&"$e" printf 'Please install \033[32mcurl\033[0m or \033[32mwget\033[0m, then restart zsh with this command:\n'
-      >&"$e" printf '\n'
-      >&"$e" printf '    \033[4;32mexec\033[0m \033[32mzsh\033[0m\n'
+      >&"$e" printf 'Please install \033[32mcurl\033[0m or \033[32mwget\033[0m, then restart your shell.\n'
       return 1
     fi
 
@@ -435,9 +463,7 @@ END
         >&"$e" printf '  1. \033[4m%s\033[0m\n' "$url1"
         >&"$e" printf '  2. \033[4m%s\033[0m\n' "$url2"
         >&"$e" printf '\n'
-        >&"$e" printf 'Check your internet connection, then restart zsh with this command:\n'
-        >&"$e" printf '\n'
-        >&"$e" printf '    \033[4;32mexec\033[0m \033[32mzsh\033[0m\n'
+        >&"$e" printf 'Check your internet connection, then restart your shell.\n'
         exit 1
       fi
 
@@ -461,7 +487,7 @@ END
     command rm -rf -- "$tmpdir"
     [ "$ret" = 0 ] || return
 
-    [ $# = 0 ] || "$@" "$daemon" "$version" 1
+    _gitstatus_install_daemon_found 1 "$@"
     return
   done <"$gitstatus_dir"/install.info
 

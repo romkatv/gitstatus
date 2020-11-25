@@ -402,27 +402,6 @@ function _gitstatus_daemon"${1:-}"() {
         _gitstatus_zsh_downloaded="$3"
       }
 
-      function _gitstatus_run() {
-        local proc
-        if [[ $_gitstatus_zsh_daemon == *-darwin-x86_64 && $uname_sm == 'darwin arm64' ]] &&
-           [[ ! -e /Library/Apple/System/Library/LaunchDaemons/com.apple.oahd.plist ]]    &&
-           [[ -x /usr/sbin/softwareupdate ]]                                              &&
-           proc=$(/usr/sbin/sysctl -n machdep.cpu.brand_string)                           &&
-           [[ $proc != *Intel* ]]; then
-          print -Pru $pipe_fd -- 'Please run the following command to install Rosetta:'
-          print -Pru $pipe_fd -- ''
-          print -Pru $pipe_fd -- '    %2F/usr/sbin/softwareupdate%f --install-rosetta'
-          print -Pru $pipe_fd -- ''
-          print -Pru $pipe_fd -- 'See for details: %Uhttps://support.apple.com/en-us/HT211861%u'
-          print -Pru $pipe_fd -- ''
-          print -Pru $pipe_fd -- 'Once Rosetta is installed, restart zsh with this command:'
-          print -Pru $pipe_fd -- ''
-          print -Pru $pipe_fd -- '    %2F%Uexec%u zsh%f'
-          return 130
-        fi
-        HOME=$home $_gitstatus_zsh_daemon -G $_gitstatus_zsh_version "${(@)args}" >&$pipe_fd
-      }
-
       local gitstatus_plugin_dir_var=_gitstatus_plugin_dir$fsuf
       local gitstatus_plugin_dir=${(P)gitstatus_plugin_dir_var}
       builtin set -- -d $gitstatus_plugin_dir -s $uname_s -m $uname_m \
@@ -443,7 +422,7 @@ function _gitstatus_daemon"${1:-}"() {
       fi
 
       if [[ -x $_gitstatus_zsh_daemon ]]; then
-        _gitstatus_run
+        HOME=$home $_gitstatus_zsh_daemon -G $_gitstatus_zsh_version "${(@)args}" >&$pipe_fd
         local -i ret=$?
         [[ $ret == (0|129|130|131|137|141|143|159) ]] && return ret
       fi
@@ -462,7 +441,7 @@ function _gitstatus_daemon"${1:-}"() {
       [[ -n $_gitstatus_zsh_version ]]             || return
       [[ $_gitstatus_zsh_downloaded == 1 ]]        || return
 
-      _gitstatus_run
+      HOME=$home $_gitstatus_zsh_daemon -G $_gitstatus_zsh_version "${(@)args}" >&$pipe_fd
     } always {
       local -i ret=$?
       zf_rm -f -- $file_prefix.lock $file_prefix.fifo
