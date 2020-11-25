@@ -128,12 +128,12 @@ END
   fi
 
   if [ -z "$uname_s" ]; then
-    uname_s="$(command uname -s 2>&"$e")" || return
-    uname_s="$(printf '%s' "$uname_s" | command tr '[A-Z]' '[a-z]' 2>&"$e")" || return
+    uname_s="$(command uname -s)" || return
+    uname_s="$(printf '%s' "$uname_s" | command tr '[A-Z]' '[a-z]')" || return
   fi
   if [ -z "$uname_m" ]; then
-    uname_m="$(command uname -m 2>&"$e")" || return
-    uname_m="$(printf '%s' "$uname_m" | command tr '[A-Z]' '[a-z]' 2>&"$e")" || return
+    uname_m="$(command uname -m)" || return
+    uname_m="$(printf '%s' "$uname_m" | command tr '[A-Z]' '[a-z]')" || return
   fi
 
   local daemon="${GITSTATUS_DAEMON:-}"
@@ -141,7 +141,7 @@ END
 
   if [ -z "$no_check" ]; then
     if [ -n "${daemon##/*}" ]; then
-      >&"$e" echo "[gitstatus] error: GITSTATUS_DAEMON is not absolute path: $daemon"
+      >&2 echo "[gitstatus] error: GITSTATUS_DAEMON is not absolute path: $daemon"
       return 1
     fi
     if [ -z "$daemon" -a -e "$gitstatus_dir"/usrbin/gitstatusd ]; then
@@ -150,11 +150,11 @@ END
     if [ -n "$daemon" ]; then
       local gitstatus_version= libgit2_version=
       if ! . "$gitstatus_dir"/build.info; then
-        >&"$e" echo "[gitstatus] internal error: failed to source build.info"
+        >&2 echo "[gitstatus] internal error: failed to source build.info"
         return 1
       fi
       if [ -z "$gitstatus_version" ]; then
-        >&"$e" echo "[gitstatus] internal error: empty gitstatus_version in build.info"
+        >&2 echo "[gitstatus] internal error: empty gitstatus_version in build.info"
         return 1
       fi
       [ $# = 0 ] || "$@" "$daemon" "$gitstatus_version" 0
@@ -167,14 +167,14 @@ END
     [ -n "$line" ] || continue
 
     local uname_s_glob= uname_m_glob= file= version= sha256=
-    eval "$line" 2>&"$e" || return
+    eval "$line" || return
 
     if [ -z "$uname_s_glob" -o \
          -z "$uname_m_glob" -o \
          -z "$file"         -o \
          -z "$version"      -o \
          -z "$sha256" ]; then
-      >&"$e" echo "[gitstatus] internal error: invalid install.info line: $line"
+      >&2 echo "[gitstatus] internal error: invalid install.info line: $line"
       return 1
     fi
 
@@ -205,27 +205,81 @@ END
     # No suitable gitstatusd exists. Need to download.
 
     if [ -n "$no_install" ]; then
-      >&"$e" echo "[gitstatus] error: no gitstatusd found and installation is disabled"
+      >&2 echo "[gitstatus] error: no gitstatusd found and installation is disabled"
       return 1
     fi
 
     local daemon="$cache_dir"/"$file"
 
     if [ -n "${cache_dir##/*}" ]; then
-      >&"$e" echo "[gitstatus] error: GITSTATUS_CACHE_DIR is not absolute: $cache_dir"
+      >&2 echo "[gitstatus] error: GITSTATUS_CACHE_DIR is not absolute: $cache_dir"
       return 1
     fi
-    [ -d "$cache_dir" ] || mkdir -p -- "$cache_dir" 2>&"$e" || return
+    if [ ! -d "$cache_dir" ] && ! mkdir -p -- "$cache_dir" || [ ! -w "$cache_dir" ]; then
+      local dir="$cache_dir"
+      while true; do
+        if [ -e "$dir" ]; then
+          if [ ! -d "$dir" ]; then
+            >&"$e" printf 'Not a directory: \033[4;31m%s\033[0m\n' "$dir"
+            >&"$e" printf '\n'
+            >&"$e" printf 'Delete it, then restart zsh with this command:\n'
+            >&"$e" printf '\n'
+            >&"$e" printf '    \033[4;32mexec\033[0m \033[32mzsh\033[0m\n'
+          elif [ ! -w "$dir" ]; then
+            >&"$e" printf 'Directory is not writable: \033[4;31m%s\033[0m\n' "$dir"
+            >&"$e" printf '\n'
+            >&"$e" printf 'Make it writable, then restart zsh with this command:\n'
+            >&"$e" printf '\n'
+            >&"$e" printf '    \033[4;32mexec\033[0m \033[32mzsh\033[0m\n'
+          fi
+          break
+        fi
+        if [ "$dir" = / ] || [ "$dir" = . ]; then
+          break
+        fi
+        dir="$(dirname -- "$dir")"
+      done
+      return 1
+    fi
 
     local tmpdir
     if ! command -v mktemp >/dev/null 2>&1 ||
-        ! tmpdir="$(command mktemp -d "${TMPDIR:-/tmp}"/gitstatus-install.XXXXXXXXXX)"; then
+       ! tmpdir="$(command mktemp -d "${TMPDIR:-/tmp}"/gitstatus-install.XXXXXXXXXX)"; then
       tmpdir="${TMPDIR:-/tmp}/gitstatus-install.tmp.$$"
-      mkdir -p -- "$tmpdir" 2>&"$e" || return
+      if ! mkdir -p -- "$tmpdir"; then
+        local dir="${TMPDIR:-/tmp}"
+        if [ -z "${TMPDIR:-}" ]; then
+          local label='directory'
+        else
+          local label='directory (\033[1mTMPDIR\033[m)'
+        fi
+        if [ ! -e "$dir" ]; then
+          >&"$e" printf 'Temporary '"$label"' does not exist: \033[4;31m%s\033[0m\n' "$dir"
+          >&"$e" printf '\n'
+          >&"$e" printf 'Create it, then restart zsh with this command:\n'
+          >&"$e" printf '\n'
+          >&"$e" printf '    \033[4;32mexec\033[0m \033[32mzsh\033[0m\n'
+        elif [ ! -d "$dir" ]; then
+          >&"$e" printf 'Not a '"$label"': \033[4;31m%s\033[0m\n' "$dir"
+          >&"$e" printf '\n'
+          >&"$e" printf 'Make it a directory, then restart zsh with this command:\n'
+          >&"$e" printf '\n'
+          >&"$e" printf '    \033[4;32mexec\033[0m \033[32mzsh\033[0m\n'
+        elif [ ! -w "$dir" ]; then
+          >&"$e" printf 'Temporary '"$label"' is not writable: \033[4;31m%s\033[0m\n' "$dir"
+          >&"$e" printf '\n'
+          >&"$e" printf 'Make it writable, then restart zsh with this command:\n'
+          >&"$e" printf '\n'
+          >&"$e" printf '    \033[4;32mexec\033[0m \033[32mzsh\033[0m\n'
+        fi
+        return 1
+      fi
     fi
 
     if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
-      >&"$e" echo "[gitstatus] error: please install curl or wget"
+      >&"$e" printf 'Please install \033[32mcurl\033[0m or \033[32mwget\033[0m, then restart zsh with this command:\n'
+      >&"$e" printf '\n'
+      >&"$e" printf '    \033[4;32mexec\033[0m \033[32mzsh\033[0m\n'
       return 1
     fi
 
@@ -376,14 +430,18 @@ END
       trap - $sig
 
       if [ -z "$n" ]; then
-        >&"$e" echo "[gitstatus] error: failed to download gitstatusd from any mirror"
-        >&"$e" echo ""
-        >&"$e" echo "  1. $url1"
-        >&"$e" echo "  2. $url2"
+        >&"$e" printf 'Failed to download \033[32m%s\033[0m from any mirror:\n' "$file"
+        >&"$e" printf '\n'
+        >&"$e" printf '  1. \033[4m%s\033[0m\n' "$url1"
+        >&"$e" printf '  2. \033[4m%s\033[0m\n' "$url2"
+        >&"$e" printf '\n'
+        >&"$e" printf 'Check your internet connection, then restart zsh with this command:\n'
+        >&"$e" printf '\n'
+        >&"$e" printf '    \033[4;32mexec\033[0m \033[32mzsh\033[0m\n'
         exit 1
       fi
 
-      command tar -C "$tmpdir" -xzf "$tmpdir"/"$n".tar.gz 2>&"$e" || exit
+      command tar -C "$tmpdir" -xzf "$tmpdir"/"$n".tar.gz || exit
 
       local tmpfile
       if ! command -v mktemp >/dev/null 2>&1 ||
@@ -391,10 +449,10 @@ END
         tmpfile="$cache_dir"/gitstatusd.tmp.$$
       fi
 
-      command mv -f -- "$tmpdir"/gitstatusd-* "$tmpfile" 2>&"$e" || exit
+      command mv -f -- "$tmpdir"/"$file" "$tmpfile" || exit
       command mv -f -- "$tmpfile" "$cache_dir"/"$file" && exit
       command rm -f -- "$cache_dir"/"$file"
-      command mv -f -- "$tmpfile" "$cache_dir"/"$file" 2>&"$e" && exit
+      command mv -f -- "$tmpfile" "$cache_dir"/"$file" && exit
       command rm -f -- "$tmpfile"
       exit 1
     )
@@ -407,9 +465,9 @@ END
     return
   done <"$gitstatus_dir"/install.info
 
-  >&"$e" echo "[gitstatus] error: no gitstatusd found for $uname_s $uname_m"
-  >&"$e" echo ""
-  >&"$e" echo "See: https://github.com/romkatv/gitstatus#compiling"
+  >&"$e" printf 'There is no prebuilt \033[32mgitstatusd\033[0m for \033[1m%s\033[0m.\n' "$uname_s $uname_m"
+  >&"$e" printf '\n'
+  >&"$e" printf 'See: \033[4mhttps://github.com/romkatv/gitstatus#compiling\033[0m\n'
   return 1
 }
 

@@ -405,15 +405,19 @@ function _gitstatus_daemon"${1:-}"() {
       function _gitstatus_run() {
         local proc
         if [[ $_gitstatus_zsh_daemon == *-darwin-x86_64 && $uname_sm == 'darwin arm64' ]] &&
-           [[ ! -e /Library/Apple/System/Library/LaunchDaemons/com.apple.oahd.plist ]] &&
-           [[ -x /usr/sbin/softwareupdate ]] &&
-           proc=$(/usr/sbin/sysctl -n machdep.cpu.brand_string 2>/dev/null) &&
+           [[ ! -e /Library/Apple/System/Library/LaunchDaemons/com.apple.oahd.plist ]]    &&
+           [[ -x /usr/sbin/softwareupdate ]]                                              &&
+           proc=$(/usr/sbin/sysctl -n machdep.cpu.brand_string)                           &&
            [[ $proc != *Intel* ]]; then
-          print -Pru $pipe_fd -- 'Please run the following command to install Rosetta2:'
+          print -Pru $pipe_fd -- 'Please run the following command to install Rosetta:'
           print -Pru $pipe_fd -- ''
-          print -Pru $pipe_fd -- '  %2F/usr/sbin/softwareupdate%f --install-rosetta'
+          print -Pru $pipe_fd -- '    %2F/usr/sbin/softwareupdate%f --install-rosetta'
           print -Pru $pipe_fd -- ''
           print -Pru $pipe_fd -- 'See for details: %Uhttps://support.apple.com/en-us/HT211861%u'
+          print -Pru $pipe_fd -- ''
+          print -Pru $pipe_fd -- 'Once Rosetta is installed, restart zsh with this command:'
+          print -Pru $pipe_fd -- ''
+          print -Pru $pipe_fd -- '    %2F%Uexec%u zsh%f'
           return 130
         fi
         HOME=$home $_gitstatus_zsh_daemon -G $_gitstatus_zsh_version "${(@)args}" >&$pipe_fd
@@ -559,7 +563,7 @@ function gitstatus_start"${1:-}"() {
   fi
 
   local -i lock_fd resp_fd stderr_fd
-  local file_prefix xtrace=/dev/null daemon_log=/dev/null
+  local file_prefix xtrace=/dev/null daemon_log=/dev/null culprit
 
   {
     if (( _GITSTATUS_STATE_$name )); then
@@ -670,7 +674,7 @@ function gitstatus_start"${1:-}"() {
             while sysread -t $timeout -i $resp_fd 'actual[$#actual+1]'; do
               [[ -t $resp_fd ]]
             done
-            print -rnu2 -- $'\n\n'$actual
+            culprit=$actual
             return 1
           fi
           (( EPOCHREALTIME < deadline )) && continue
@@ -771,7 +775,10 @@ function gitstatus_start"${1:-}"() {
     print -ru2  -- ''
     print -Pru2 -- '[%F{red}ERROR%f]: gitstatus failed to initialize.'
     print -ru2  -- ''
-    print -ru2  -- '  Your Git prompt may disappear or become slow.'
+    if [[ -n $culprit ]]; then
+      print -ru2 -- $culprit
+      return err
+    fi
     if [[ -s $xtrace ]]; then
       print -ru2  -- ''
       print -Pru2 -- "  Zsh log (%U${xtrace//\%/%%}%u):"
