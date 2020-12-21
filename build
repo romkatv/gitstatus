@@ -99,7 +99,7 @@ if [ -n "$gitstatus_install_tools" ]; then
         exit 1
       fi
       if command -v port >/dev/null 2>&1; then
-        port -N install libiconv cmake wget
+        sudo port -N install libiconv cmake wget
       elif command -v brew >/dev/null 2>&1; then
         for formula in libiconv cmake git wget; do
           if command brew list "$formula" &>/dev/null; then
