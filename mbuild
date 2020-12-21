@@ -183,7 +183,7 @@ function build-unix() {
   case $2 in
     linux-ppc64le) ;;
     linux-*)       flags+=(-d docker);;
-    darwin-arm64)  intro='PATH="/opt/homebrew/bin:$PATH"';;
+    darwin-arm64)  intro='PATH="/opt/local/bin:$PATH"';;
     darwin-*)      intro='PATH="/usr/local/bin:$PATH"';;
   esac
   ssh $1 -- /bin/sh -uex <<<"
