@@ -102,7 +102,7 @@ if [ -n "$gitstatus_install_tools" ]; then
         sudo port -N install libiconv cmake wget
       elif command -v brew >/dev/null 2>&1; then
         for formula in libiconv cmake git wget; do
-          if command brew list "$formula" &>/dev/null; then
+          if command brew ls --version "$formula" &>/dev/null; then
             command brew upgrade "$formula"
           else
             command brew install "$formula"
