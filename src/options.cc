@@ -239,7 +239,7 @@ const char* Version() {
 Options ParseOptions(int argc, char** argv) {
   const struct option opts[] = {{"help", no_argument, nullptr, 'h'},
                                 {"version", no_argument, nullptr, 'V'},
-                                {"version-glob", no_argument, nullptr, 'G'},
+                                {"version-glob", required_argument, nullptr, 'G'},
                                 {"lock-fd", required_argument, nullptr, 'l'},
                                 {"parent-pid", required_argument, nullptr, 'p'},
                                 {"num-threads", required_argument, nullptr, 't'},
