@@ -266,7 +266,7 @@ function gitstatus_start() {
 
   unset -f gitstatus_start_impl
 
-  if [[ "${GITSTATUS_STOP_ON_EXEC:-1}" == 1 ]]; then
+  if [[ "${GITSTATUS_STOP_ON_EXEC:-0}" == 1 ]]; then
     type -t _gitstatus_exec &>/dev/null    || function _gitstatus_exec()    { exec    "$@"; }
     type -t _gitstatus_builtin &>/dev/null || function _gitstatus_builtin() { builtin "$@"; }
 
