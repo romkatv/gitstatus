@@ -264,50 +264,18 @@ function gitstatus_start() {
     return 1
   fi
 
+  export _GITSTATUS_CLIENT_PID _GITSTATUS_REQ_FD _GITSTATUS_RESP_FD GITSTATUS_DAEMON_PID
   unset -f gitstatus_start_impl
-
-  if [[ "${GITSTATUS_STOP_ON_EXEC:-1}" == 1 ]]; then
-    type -t _gitstatus_exec &>/dev/null    || function _gitstatus_exec()    { exec    "$@"; }
-    type -t _gitstatus_builtin &>/dev/null || function _gitstatus_builtin() { builtin "$@"; }
-
-    function _gitstatus_exec_wrapper() {
-      (( ! $# )) || gitstatus_stop
-      local ret=0
-      _gitstatus_exec "$@" || ret=$?
-      [[ -n "${GITSTATUS_DAEMON_PID:-}" ]] || gitstatus_start || true
-      return $ret
-    }
-
-    function _gitstatus_builtin_wrapper() {
-      while [[ "${1:-}" == builtin ]]; do shift; done
-      if [[ "${1:-}" == exec ]]; then
-        _gitstatus_exec_wrapper "${@:2}"
-      else
-        _gitstatus_builtin "$@"
-      fi
-    }
-
-    alias exec=_gitstatus_exec_wrapper
-    alias builtin=_gitstatus_builtin_wrapper
-
-    _GITSTATUS_EXEC_HOOK=1
-  else
-    unset _GITSTATUS_EXEC_HOOK
-  fi
 }
 
 # Stops gitstatusd if it's running.
 function gitstatus_stop() {
-  [[ "${_GITSTATUS_CLIENT_PID:-$BASHPID}" == "$BASHPID" ]]                         || return 0
-  [[ -z "${_GITSTATUS_REQ_FD:-}"    ]] || exec {_GITSTATUS_REQ_FD}>&-              || true
-  [[ -z "${_GITSTATUS_RESP_FD:-}"   ]] || exec {_GITSTATUS_RESP_FD}>&-             || true
-  [[ -z "${GITSTATUS_DAEMON_PID:-}" ]] || kill "$GITSTATUS_DAEMON_PID" &>/dev/null || true
-  if [[ -n "${_GITSTATUS_EXEC_HOOK:-}" ]]; then
-    unalias exec builtin &>/dev/null || true
-    function _gitstatus_exec_wrapper()    { _gitstatus_exec    "$@"; }
-    function _gitstatus_builtin_wrapper() { _gitstatus_builtin "$@"; }
+  if [[ "${_GITSTATUS_CLIENT_PID:-$BASHPID}" == "$BASHPID" ]]; then
+    [[ -z "${_GITSTATUS_REQ_FD:-}"    ]] || exec {_GITSTATUS_REQ_FD}>&-              || true
+    [[ -z "${_GITSTATUS_RESP_FD:-}"   ]] || exec {_GITSTATUS_RESP_FD}>&-             || true
+    [[ -z "${GITSTATUS_DAEMON_PID:-}" ]] || kill "$GITSTATUS_DAEMON_PID" &>/dev/null || true
   fi
-  unset _GITSTATUS_REQ_FD _GITSTATUS_RESP_FD GITSTATUS_DAEMON_PID _GITSTATUS_EXEC_HOOK
+  unset _GITSTATUS_REQ_FD _GITSTATUS_RESP_FD GITSTATUS_DAEMON_PID
   unset _GITSTATUS_DIRTY_MAX_INDEX_SIZE _GITSTATUS_CLIENT_PID
 }
 
