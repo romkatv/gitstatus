@@ -300,6 +300,8 @@ function gitstatus_stop() {
 #   VCS_STATUS_WORKDIR              Git repo working directory. Not empty.
 #   VCS_STATUS_COMMIT               Commit hash that HEAD is pointing to. Either 40 hex digits or
 #                                   empty if there is no HEAD (empty repo).
+#   VCS_STATUS_COMMIT_ENCODING      Encoding of the HEAD's commit message. Empty value means UTF-8.
+#   VCS_STATUS_COMMIT_SUMMARY       The first paragraph of the HEAD's commit message as one line.
 #   VCS_STATUS_LOCAL_BRANCH         Local branch name or empty if not on a branch.
 #   VCS_STATUS_REMOTE_NAME          The remote name, e.g. "upstream" or "origin".
 #   VCS_STATUS_REMOTE_BRANCH        Upstream branch name. Can be empty.
@@ -403,6 +405,8 @@ function gitstatus_query() {
     VCS_STATUS_PUSH_COMMITS_BEHIND="${resp[24]:-0}"
     VCS_STATUS_NUM_SKIP_WORKTREE="${resp[25]:-0}"
     VCS_STATUS_NUM_ASSUME_UNCHANGED="${resp[26]:-0}"
+    VCS_STATUS_COMMIT_ENCODING="${resp[27]-}"
+    VCS_STATUS_COMMIT_SUMMARY="${resp[28]-}"
     VCS_STATUS_HAS_STAGED=$((VCS_STATUS_NUM_STAGED > 0))
     if (( _GITSTATUS_DIRTY_MAX_INDEX_SIZE >= 0 &&
           VCS_STATUS_INDEX_SIZE > _GITSTATUS_DIRTY_MAX_INDEX_SIZE_ )); then
@@ -445,6 +449,8 @@ function gitstatus_query() {
     unset VCS_STATUS_PUSH_COMMITS_BEHIND
     unset VCS_STATUS_NUM_SKIP_WORKTREE
     unset VCS_STATUS_NUM_ASSUME_UNCHANGED
+    unset VCS_STATUS_COMMIT_ENCODING
+    unset VCS_STATUS_COMMIT_SUMMARY
   fi
 }
 
