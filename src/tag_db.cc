@@ -223,12 +223,17 @@ void TagDb::ParsePack() {
   // can just sort them. What's worse is that refs cannot be assumed
   // to be fully-peeled. We don't want to peel them, so we just drop
   // all tags.
-  if (*p != '#') return;
+  if (*p != '#') {
+    LOG(WARN) << "packed-refs doesn't have a header. Won't resolve tags.";
+    return;
+  }
 
   char* eol = std::strchr(p, '\n');
   if (!eol) return;
   *eol = 0;
-  if (!std::strstr(p, " fully-peeled") || !std::strstr(p, " sorted")) return;
+  if (!std::strstr(p, " fully-peeled") || !std::strstr(p, " sorted")) {
+    LOG(WARN) << "packed-refs has unexpected header. Won't resolve tags.";
+  }
   p = eol + 1;
 
   name2id_.reserve(pack_.size() / 128);
@@ -261,6 +266,7 @@ void TagDb::ParsePack() {
   }
 
   if (!std::is_sorted(name2id_.begin(), name2id_.end(), ByName)) {
+    // "sorted" in the header of packed-refs promisses that this won't trigger.
     std::sort(name2id_.begin(), name2id_.end(), ByName);
   }
 
