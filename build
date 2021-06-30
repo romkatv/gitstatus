@@ -459,6 +459,7 @@ if [ -z "$gitstatus_cpu" ]; then
     riscv64)        gitstatus_cpu=rv64imafdc;;
     x86_64|amd64)   gitstatus_cpu=x86-64;;
     x86)            gitstatus_cpu=i586;;
+    s390x)          gitstatus_cpu=z900;;
     i386|i586|i686) gitstatus_cpu="$gitstatus_arch";;
     *)
       >&2 echo '[error] unable to infer target CPU architecture'
@@ -493,6 +494,7 @@ case "$gitstatus_kernel" in
           armv7l)             docker_image=arm32v7/alpine:3.11.6;;
           aarch64)            docker_image=arm64v8/alpine:3.11.6;;
           ppc64le)            docker_image=ppc64le/alpine:3.11.6;;
+          s390x)              docker_image=s390x/alpine:3.11.6;;
           *)
             >&2 echo '[error] unable to infer docker image'
             >&2 echo 'Please specify explicitly with `-i IMAGE`.'
