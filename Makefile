@@ -40,7 +40,7 @@ zwc:
 minify:
 	rm -rf -- .git .vscode deps docs src usrbin/.gitkeep .clang-format .gitattributes .gitignore LICENSE Makefile README.md build mbuild
 
-pkg: zwc minify
+pkg: zwc
 	GITSTATUS_DAEMON= GITSTATUS_CACHE_DIR=$(shell pwd)/usrbin ./install -f
 
 -include $(OBJS:.o=.dep)
