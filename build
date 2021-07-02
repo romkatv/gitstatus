@@ -55,7 +55,7 @@ workdir="$(command pwd)"
 
 narg() { echo $#; }
 
-if [ "$(narg $workdir)" != 1 -o -z "${workdir##*:*}" ]; then
+if [ "$(narg $workdir)" != 1 -o -z "${workdir##*:*}" -o -z "${workdir##*=*}" ]; then
   >&2 echo "[error] cannot build in this directory: $workdir"
   exit 1
 fi
@@ -137,6 +137,14 @@ case "$gitstatus_cpu" in
 esac
 
 cflags="$archflag=$gitstatus_cpu -fno-plt"
+
+command touch "$workdir"/file-prefix-map-test.c
+if 2>/dev/null "${CC:-/bin/cc}"           \
+     -ffile-prefix-map=x=y                \
+     -c "$workdir"/file-prefix-map-test.c \
+     -o "$workdir"/file-prefix-map-test.o; then
+  cflags="$cflags -ffile-prefix-map=$workdir/="
+fi
 
 if [ "$gitstatus_cpu" = x86-64 ]; then
   cflags="$cflags -mtune=generic"
