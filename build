@@ -339,7 +339,7 @@ command make -j "$cpus" VERBOSE=1
 
 APPNAME="$appname".tmp           \
   OBJDIR="$workdir"/gitstatus    \
-  CXX="$gitstatus_cxx"           \
+  CXX="${CXX:-$gitstatus_cxx}"   \
   CXXFLAGS="$gitstatus_cxxflags" \
   LDFLAGS="$gitstatus_ldflags"   \
   LDLIBS="$gitstatus_ldlibs"     \
