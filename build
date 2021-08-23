@@ -277,11 +277,14 @@ if [ ! -e "$libgit2_tarball" ]; then
     libgit2_url=https://github.com/romkatv/libgit2/archive/"$libgit2_version".tar.gz
     if ! >"$libgit2_tmp" command wget --no-config -qO- -- "$libgit2_url" &&
        ! >"$libgit2_tmp" command wget             -qO- -- "$libgit2_url"; then
-      command which wget
-      command ls -lAd -- "$outdir"
-      command ls -lA -- "$outdir"
-      command ls -lAd -- "$outdir"/deps
-      command ls -lA -- "$outdir"/deps
+      set -x
+      >&2 command which wget
+      >&2 command ls -lAd -- "$(command which wget)"
+      >&2 command ls -lAd -- "$outdir"
+      >&2 command ls -lA -- "$outdir"
+      >&2 command ls -lAd -- "$outdir"/deps
+      >&2 command ls -lA -- "$outdir"/deps
+      set +x
       exit 1
     fi
     command mv -f -- "$libgit2_tmp" "$libgit2_tarball"
