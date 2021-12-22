@@ -185,9 +185,9 @@ function gitstatus_query"${1:-}"() {
   (( _GITSTATUS_STATE_$name == 2 )) || return
 
   if [[ -z $GIT_DIR ]]; then
-    [[ $dir == /* ]] || dir=${(%):-%/}/$dir
+    [[ $dir == /* ]] || dir=${(g:oce:)${(%):-%/}}/$dir
   else
-    [[ $GIT_DIR == /* ]] && dir=:$GIT_DIR || dir=:${(%):-%/}/$GIT_DIR
+    [[ $GIT_DIR == /* ]] && dir=:$GIT_DIR || dir=:${(g:oce:)${(%):-%/}}/$GIT_DIR
   fi
 
   if [[ $dir != (|:)/* ]]; then
