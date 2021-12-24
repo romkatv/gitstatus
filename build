@@ -104,7 +104,7 @@ if [ -n "$gitstatus_install_tools" ]; then
       command pkg install -y cmake gmake binutils git perl5 wget
     ;;
     openbsd)
-      command pkg_add install cmake gmake gcc git wget
+      command pkg_add cmake gmake gcc g++ git wget
     ;;
     netbsd)
       command pkgin -y install cmake gmake binutils git
