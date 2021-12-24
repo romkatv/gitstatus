@@ -12,9 +12,22 @@ fi
 export LC_ALL=C
 
 if [ -z "${ZSH_VERSION-}" ] && command -v zsh >/dev/null 2>&1; then
+  # Avoid bash 3.*.
   case "${BASH_VERSION-}" in
     [0-3].*) exec zsh "$0" "$@";;
   esac
+fi
+
+# Avoid ksh: https://github.com/romkatv/gitstatus/issues/282.
+if [ -n "${KSH_VERSION-}" ]; then
+  if [ -z "${ZSH_VERSION-}" ] && command -v zsh >/dev/null 2>&1; then
+    exec zsh "$0" "$@"
+  elif [ -z "${BASH_VERSION-}" ] && command -v bash >/dev/null 2>&1 &&
+       bash_version="$(bash --version 2>&1)"; then
+    case "$bash_version" in
+      *version\ [4-9]*|*version\ [1-9][0-9]*) exec bash "$0" "$@";;
+    esac
+  fi
 fi
 
 usage="$(command cat <<\END
