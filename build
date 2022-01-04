@@ -522,6 +522,7 @@ if [ -z "$gitstatus_cpu" ]; then
     arm64|aarch64)  gitstatus_cpu=armv8-a;;
     ppc64le)        gitstatus_cpu=powerpc64le;;
     riscv64)        gitstatus_cpu=rv64imafdc;;
+    loongarch64)    gitstatus_cpu=loongarch64;;
     x86_64|amd64)   gitstatus_cpu=x86-64;;
     x86)            gitstatus_cpu=i586;;
     s390x)          gitstatus_cpu=z900;;
