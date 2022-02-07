@@ -103,6 +103,9 @@ if [ -n "$gitstatus_install_tools" ]; then
     freebsd)
       command pkg install -y cmake gmake binutils git perl5 wget
     ;;
+    dragonfly)
+      command pkg install -y cmake gmake binutils git perl5 wget
+    ;;
     openbsd)
       command pkg_add cmake gmake gcc g++ git wget
     ;;
@@ -152,7 +155,15 @@ case "$gitstatus_cpu" in
     archflag="-march"
   ;;
 esac
-
+case "$gitstatus_kernel" in
+  # -fstack-clash-protection flag is not enabled in Clang12 on DragonflyBSD
+  dragonfly)
+  export FCP=
+  ;;
+  *)
+  export FCP=-fstack-clash-protection
+  ;;
+esac
 cflags="$archflag=$gitstatus_cpu -fno-plt -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security -fpie"
 ldflags=
 static_pie=
@@ -175,11 +186,11 @@ fi
 
 command rm -f -- "$workdir"/cc-test "$workdir"/cc-test.o
 if 2>/dev/null "$CC"                    \
-     -fstack-clash-protection -fcf-protection \
+     $FCP -fcf-protection \
      -Werror                                  \
      -c "$workdir"/cc-test.c                  \
      -o "$workdir"/cc-test.o; then
-  cflags="$cflags -fstack-clash-protection -fcf-protection"
+  cflags="$cflags $FCP -fcf-protection"
 fi
 
 command rm -f -- "$workdir"/cc-test "$workdir"/cc-test.o
@@ -220,6 +231,12 @@ case "$gitstatus_kernel" in
   ;;
   freebsd)
     gitstatus_cxx=clang++
+    gitstatus_make=gmake
+    gitstatus_ldflags="$gitstatus_ldflags ${static_pie:--static}"
+    libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
+  ;;
+  dragonfly)
+    gitstatus_cxx=clang++12
     gitstatus_make=gmake
     gitstatus_ldflags="$gitstatus_ldflags ${static_pie:--static}"
     libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=ON"
@@ -574,7 +591,7 @@ case "$gitstatus_kernel" in
       fi
     fi
   ;;
-  freebsd|openbsd|netbsd|darwin)
+  freebsd|openbsd|netbsd|darwin|dragonfly)
     if [ -n "$docker_cmd" ]; then
       >&2 echo "[error] docker (-d) is not supported on $gitstatus_kernel"
       exit 1
