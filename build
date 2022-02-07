@@ -100,10 +100,7 @@ if [ -n "$gitstatus_install_tools" ]; then
         exit 1
       fi
     ;;
-    freebsd)
-      command pkg install -y cmake gmake binutils git perl5 wget
-    ;;
-    dragonfly)
+    freebsd|dragonfly)
       command pkg install -y cmake gmake binutils git perl5 wget
     ;;
     openbsd)
@@ -144,7 +141,7 @@ if [ -n "$gitstatus_install_tools" ]; then
 fi
 
 cpus="$(command getconf _NPROCESSORS_ONLN 2>/dev/null)" ||
-  cpus="$(command sysctl -n hw.ncpu 2>/dev/null)" ||
+  cpus="$(command sysctl -n hw.ncpu 2>/dev/null)"       ||
   cpus=8
 
 case "$gitstatus_cpu" in
@@ -155,15 +152,7 @@ case "$gitstatus_cpu" in
     archflag="-march"
   ;;
 esac
-case "$gitstatus_kernel" in
-  # -fstack-clash-protection flag is not enabled in Clang12 on DragonflyBSD
-  dragonfly)
-  export FCP=
-  ;;
-  *)
-  export FCP=-fstack-clash-protection
-  ;;
-esac
+
 cflags="$archflag=$gitstatus_cpu -fno-plt -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security -fpie"
 ldflags=
 static_pie=
@@ -185,12 +174,21 @@ if 2>/dev/null "$CC"   \
 fi
 
 command rm -f -- "$workdir"/cc-test "$workdir"/cc-test.o
-if 2>/dev/null "$CC"                    \
-     $FCP -fcf-protection \
-     -Werror                                  \
-     -c "$workdir"/cc-test.c                  \
+if 2>/dev/null "$CC"          \
+     -fstack-clash-protection \
+     -Werror                  \
+     -c "$workdir"/cc-test.c  \
      -o "$workdir"/cc-test.o; then
-  cflags="$cflags $FCP -fcf-protection"
+  cflags="$cflags -fstack-clash-protection"
+fi
+
+command rm -f -- "$workdir"/cc-test "$workdir"/cc-test.o
+if 2>/dev/null "$CC"         \
+     -fcf-protection         \
+     -Werror                 \
+     -c "$workdir"/cc-test.c \
+     -o "$workdir"/cc-test.o; then
+  cflags="$cflags -fcf-protection"
 fi
 
 command rm -f -- "$workdir"/cc-test "$workdir"/cc-test.o
