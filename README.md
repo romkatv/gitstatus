@@ -20,8 +20,10 @@ Bash bindings for integration with shell.
 
 ## Using from Zsh
 
-The easiest way to take advantage of gitstatus from Zsh is to use a theme that already includes it. For example, [Powerlevel10k](https://github.com/romkatv/powerlevel10k) is a flexible and
-fast theme with that includes gitstatus in its distribution.
+The easiest way to take advantage of gitstatus from Zsh is to use a theme that's already integrated
+with it. For example, [Powerlevel10k](https://github.com/romkatv/powerlevel10k) is a flexible and
+fast theme with first-class gitstatus integration. If you install Powerlevel10k, you don't need to
+install gitstatus.
 
 ![Powerlevel10k Zsh Theme](
   https://raw.githubusercontent.com/romkatv/powerlevel10k-media/master/prompt-styles-high-contrast.png)
