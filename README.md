@@ -255,7 +255,7 @@ repository was checked out to an ext4 filesystem on M.2 SSD.
 Three functionally equivalent tools for computing git status were benchmarked:
 
 * `gitstatusd`
-* `git` with untracked cache enabled
+* `git` with `core.untrackedcache` enabled and `core.fsmonitor` disabled
 * `lg2` -- a demo/example executable from [libgit2](https://github.com/romkatv/libgit2) that
   implements a subset of `git` functionality on top of libgit2 API; for the purposes of this
   benchmark the subset is sufficient to generate the same data as the other tools
