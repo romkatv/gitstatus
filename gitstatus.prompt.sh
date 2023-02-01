@@ -78,7 +78,8 @@ function gitstatus_prompt_update() {
   # ?42 if have untracked files. It's really a question mark, your font isn't broken.
   (( VCS_STATUS_NUM_UNTRACKED  )) && p+=" ${untracked}?${VCS_STATUS_NUM_UNTRACKED}"
 
-  GITSTATUS_PROMPT="${p}${reset}"
+  nodeVersion=$(node -v)
+  GITSTATUS_PROMPT="»${nodeVersion:1} (${p}${reset})"
 }
 
 # Start gitstatusd in the background.
