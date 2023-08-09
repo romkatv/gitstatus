@@ -381,7 +381,7 @@ generated with the same tools and the same flags as the profile of libgit2.
 
 Since both profiles were generated from the same workload, absolute numbers can be compared. We can
 see that gitstatusd took 62 seconds in total compared to libgit2's 232 seconds. System calls at the
-core of the algorithm are cleary visible. `__GI___fxstatat` is a flavor of `stat()`, and the other
+core of the algorithm are clearly visible. `__GI___fxstatat` is a flavor of `stat()`, and the other
 three calls -- `__libc_openat64`, `__libc_close` and `__GI___fxstat` are responsible for opening
 directories and finding untracked files. Notice that there is almost nothing else in the profile
 apart from these calls. The rest of the code accounts for 3.77 seconds of CPU time -- 32 times less
