@@ -17,11 +17,6 @@ LDLIBS += -lgit2 # -lprofiler -lunwind
 SRCS := $(shell find src -name "*.cc")
 OBJS := $(patsubst src/%.cc, $(OBJDIR)/%.o, $(SRCS))
 
-# Check if g++ is installed
-ifeq (, $(shell which $(CXX)))
-  $(error "No $(CXX) found in $(PATH), please install g++ and try again")
-endif
-
 all: $(APPNAME)
 
 $(APPNAME): usrbin/$(APPNAME)
@@ -55,11 +50,8 @@ pkg: zwc
 help:
 	@echo "Usage: make [TARGET]"
 	@echo "Available targets:"
-	@echo "  all         Build the $(APPNAME) application (default target)"
+	@echo "  all         Build $(APPNAME) (default target)"
 	@echo "  clean       Remove generated files and directories"
 	@echo "  zwc         Compile Zsh files"
 	@echo "  minify      Remove unnecessary files and folders"
 	@echo "  pkg         Create a package"
-	@echo ""
-	@echo "For more information, see the project's documentation or README file."
-
