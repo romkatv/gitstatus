@@ -216,7 +216,7 @@ function my_set_prompt() {
 }
 
 gitstatus_stop && gitstatus_start
-PROMPT_COMMAND=my_set_prompt
+PROMPT_COMMAND+=(my_set_prompt)
 ```
 
 This snippet is sourcing `gitstatus.plugin.sh` rather than `gitstatus.prompt.sh`. The former
