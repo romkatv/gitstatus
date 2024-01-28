@@ -152,7 +152,7 @@ IndexStats Repo::GetIndexStats(const git_oid* head, git_config* cfg) {
       index_.reset();
     }
   } else {
-    VERIFY(!git_repository_index(&git_index_, repo_)) << GitError();
+    if (git_repository_index(&git_index_, repo_))) return;
     // Query an attribute (doesn't matter which) to initialize repo's attribute
     // cache. It's a workaround for synchronization bugs (data races) in libgit2
     // that result from lazy cache initialization without synchronization.
