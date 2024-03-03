@@ -377,6 +377,61 @@ function _gitstatus_process_response"${1:-}"() {
   return 0
 }
 
+function _gitstatus_backend_gitstatusd"${1:-}"() {
+  local _gitstatus_zsh_daemon _gitstatus_zsh_version _gitstatus_zsh_downloaded
+
+  function _gitstatus_set_daemon$fsuf() {
+    _gitstatus_zsh_daemon="$1"
+    _gitstatus_zsh_version="$2"
+    _gitstatus_zsh_downloaded="$3"
+  }
+
+  local gitstatus_plugin_dir_var=_gitstatus_plugin_dir$fsuf
+  local gitstatus_plugin_dir=${(P)gitstatus_plugin_dir_var}
+  builtin set -- -d $gitstatus_plugin_dir -s $uname_s -m $uname_m \
+    -p "printf '\\001' >&$pipe_fd" -e $pipe_fd -- _gitstatus_set_daemon$fsuf
+  [[ ${GITSTATUS_AUTO_INSTALL:-1} == (|-|+)<1-> ]] || builtin set -- -n "$@"
+  builtin source $gitstatus_plugin_dir/install     || return
+  [[ -n $_gitstatus_zsh_daemon ]]                  || return
+  [[ -n $_gitstatus_zsh_version ]]                 || return
+  [[ $_gitstatus_zsh_downloaded == [01] ]]         || return
+
+  if (( UID == EUID )); then
+    local home=~
+  else
+    local user
+    user="$(command id -un)" || return
+    local home=${userdirs[$user]}
+    [[ -n $home ]] || return
+  fi
+
+  if [[ -x $_gitstatus_zsh_daemon ]]; then
+    HOME=$home $_gitstatus_zsh_daemon -G $_gitstatus_zsh_version "${(@)args}" >&$pipe_fd
+    local -i ret=$?
+    [[ $ret == (0|129|130|131|137|141|143|159) ]] && return ret
+  fi
+
+  (( ! _gitstatus_zsh_downloaded ))                || return
+  [[ ${GITSTATUS_AUTO_INSTALL:-1} == (|-|+)<1-> ]] || return
+  [[ $_gitstatus_zsh_daemon == \
+      ${GITSTATUS_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/gitstatus}/* ]] || return
+
+  builtin set -- -f "$@"
+  _gitstatus_zsh_daemon=
+  _gitstatus_zsh_version=
+  _gitstatus_zsh_downloaded=
+  builtin source $gitstatus_plugin_dir/install || return
+  [[ -n $_gitstatus_zsh_daemon ]]              || return
+  [[ -n $_gitstatus_zsh_version ]]             || return
+  [[ $_gitstatus_zsh_downloaded == 1 ]]        || return
+
+  HOME=$home $_gitstatus_zsh_daemon -G $_gitstatus_zsh_version "${(@)args}" >&$pipe_fd
+}
+
+function _gitstatus_backend_git"${1:-}"() {
+  
+}
+
 function _gitstatus_daemon"${1:-}"() {
   local -i pipe_fd
   exec 0<&- {pipe_fd}>&1 1>>$daemon_log 2>&1 || return
@@ -412,54 +467,11 @@ function _gitstatus_daemon"${1:-}"() {
       exec <$file_prefix.fifo               || return
       zf_rm -- $file_prefix.fifo            || return
 
-      local _gitstatus_zsh_daemon _gitstatus_zsh_version _gitstatus_zsh_downloaded
-
-      function _gitstatus_set_daemon$fsuf() {
-        _gitstatus_zsh_daemon="$1"
-        _gitstatus_zsh_version="$2"
-        _gitstatus_zsh_downloaded="$3"
-      }
-
-      local gitstatus_plugin_dir_var=_gitstatus_plugin_dir$fsuf
-      local gitstatus_plugin_dir=${(P)gitstatus_plugin_dir_var}
-      builtin set -- -d $gitstatus_plugin_dir -s $uname_s -m $uname_m \
-        -p "printf '\\001' >&$pipe_fd" -e $pipe_fd -- _gitstatus_set_daemon$fsuf
-      [[ ${GITSTATUS_AUTO_INSTALL:-1} == (|-|+)<1-> ]] || builtin set -- -n "$@"
-      builtin source $gitstatus_plugin_dir/install     || return
-      [[ -n $_gitstatus_zsh_daemon ]]                  || return
-      [[ -n $_gitstatus_zsh_version ]]                 || return
-      [[ $_gitstatus_zsh_downloaded == [01] ]]         || return
-
-      if (( UID == EUID )); then
-        local home=~
+      if [[ ${GITSTATUS_BACKEND-} == git ]]; then
+        _gitstatus_backend_git$fsuf
       else
-        local user
-        user="$(command id -un)" || return
-        local home=${userdirs[$user]}
-        [[ -n $home ]] || return
+        _gitstatus_backend_gitstatusd$fsuf
       fi
-
-      if [[ -x $_gitstatus_zsh_daemon ]]; then
-        HOME=$home $_gitstatus_zsh_daemon -G $_gitstatus_zsh_version "${(@)args}" >&$pipe_fd
-        local -i ret=$?
-        [[ $ret == (0|129|130|131|137|141|143|159) ]] && return ret
-      fi
-
-      (( ! _gitstatus_zsh_downloaded ))                || return
-      [[ ${GITSTATUS_AUTO_INSTALL:-1} == (|-|+)<1-> ]] || return
-      [[ $_gitstatus_zsh_daemon == \
-         ${GITSTATUS_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/gitstatus}/* ]] || return
-
-      builtin set -- -f "$@"
-      _gitstatus_zsh_daemon=
-      _gitstatus_zsh_version=
-      _gitstatus_zsh_downloaded=
-      builtin source $gitstatus_plugin_dir/install || return
-      [[ -n $_gitstatus_zsh_daemon ]]              || return
-      [[ -n $_gitstatus_zsh_version ]]             || return
-      [[ $_gitstatus_zsh_downloaded == 1 ]]        || return
-
-      HOME=$home $_gitstatus_zsh_daemon -G $_gitstatus_zsh_version "${(@)args}" >&$pipe_fd
     } always {
       local -i ret=$?
       zf_rm -f -- $file_prefix.lock $file_prefix.fifo
