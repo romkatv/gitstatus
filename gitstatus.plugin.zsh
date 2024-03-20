@@ -429,7 +429,71 @@ function _gitstatus_backend_gitstatusd"${1:-}"() {
 }
 
 function _gitstatus_backend_git"${1:-}"() {
-  
+  local buf req
+  while true; do
+    local parts=()
+    [[ -t 0 ]]  # https://www.zsh.org/mla/workers/2020/msg00207.html
+    if sysread buf; then
+      parts+=($buf)
+      while [[ $buf != *$'\x1e' ]]; do
+        sysread buf || return
+        parts+=($buf)
+      done
+    else
+      (( $? == 4 )) || return
+    fi
+    for req in ${(ps:\x1e:)${(j::)parts}}; do
+      req=("${(@ps:\x1f:)req}")
+      (( $#req == 3 )) || return
+      if [[ $req[2] == :* ]]; then
+        local opts=(--git-dir=${req[2]#:})
+      else
+        local opts=(-C "${req[2]}")
+      fi
+      # VCS_STATUS_WORKDIR
+      # git rev-parse --show-toplevel
+
+      # VCS_STATUS_COMMIT
+      # VCS_STATUS_LOCAL_BRANCH
+      # VCS_STATUS_REMOTE_BRANCH
+      # VCS_STATUS_REMOTE_NAME
+      # VCS_STATUS_NUM_STAGED
+      # VCS_STATUS_NUM_UNSTAGED
+      # VCS_STATUS_NUM_CONFLICTED
+      # VCS_STATUS_NUM_UNTRACKED
+      # VCS_STATUS_COMMITS_AHEAD
+      # VCS_STATUS_COMMITS_BEHIND
+      # VCS_STATUS_STASHES
+      # VCS_STATUS_NUM_UNSTAGED_DELETED
+      # VCS_STATUS_NUM_STAGED_NEW
+      # VCS_STATUS_NUM_STAGED_DELETED
+      # git status --porcelain=v2 --branch --show-stash
+
+      # VCS_STATUS_REMOTE_URL
+      # git config --get remote.$VCS_STATUS_REMOTE_NAME.url
+
+      # ???
+      # VCS_STATUS_INDEX_SIZE
+      # VCS_STATUS_ACTION
+
+      # VCS_STATUS_TAG
+      # git describe --exact-match
+
+          
+          VCS_STATUS_PUSH_REMOTE_NAME     \
+          VCS_STATUS_PUSH_REMOTE_URL      \
+          VCS_STATUS_PUSH_COMMITS_AHEAD   \
+          VCS_STATUS_PUSH_COMMITS_BEHIND  \
+          VCS_STATUS_NUM_SKIP_WORKTREE    \
+          VCS_STATUS_NUM_ASSUME_UNCHANGED \
+          VCS_STATUS_COMMIT_ENCODING      \
+          VCS_STATUS_COMMIT_SUMMARY
+      if (( req[3] )); then
+
+      else
+      fi
+    done
+  done
 }
 
 function _gitstatus_daemon"${1:-}"() {
