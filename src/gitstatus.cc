@@ -106,7 +106,7 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   // Repository state, A.K.A. action. For example, "merge".
   resp.Print(RepoState(repo->repo()));
 
-  IndexStats stats;
+  IndexStats stats {.disabled = true};
   // Look for staged, unstaged and untracked. This is where most of the time is spent.
   if (req.diff) stats = repo->GetIndexStats(head_target, cfg);
 
@@ -175,6 +175,9 @@ void ProcessRequest(const Options& opts, RepoCache& cache, Request req) {
   Truncate(msg.summary, opts.max_commit_summary_length);
   resp.Print(msg.encoding);
   resp.Print(msg.summary);
+
+  // 1 if index computation disabled by req or we could not read the index, 0 otherwise
+  resp.Print(stats.disabled);
 
   resp.Dump("with git status");
 }
