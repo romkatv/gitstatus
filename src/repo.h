@@ -58,6 +58,7 @@ struct IndexStats {
   size_t num_unstaged_deleted = 0;
   size_t num_skip_worktree = 0;
   size_t num_assume_unchanged = 0;
+  bool disabled = false;
 };
 
 class Repo {
