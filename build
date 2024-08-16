@@ -393,6 +393,7 @@ CFLAGS="$libgit2_cflags" command cmake \
   -DUSE_GSSAPI=OFF                     \
   -DUSE_NTLMCLIENT=OFF                 \
   -DBUILD_SHARED_LIBS=OFF              \
+  -G "Unix Makefiles"                  \
   $libgit2_cmake_flags                 \
   ..
 command make -j "$cpus" VERBOSE=1
