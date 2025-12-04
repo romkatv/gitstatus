@@ -52,7 +52,16 @@ function gitstatus_prompt_update() {
     where="${VCS_STATUS_COMMIT:0:8}"
   fi
 
-  (( ${#where} > 32 )) && where="${where:0:12}…${where: -12}"  # truncate long branch names and tags
+  # Truncate long branch names and tags.
+  #
+  # To opt out of truncation, add this line to your `.bashrc` before sourcing
+  # this script:
+  #
+  #   export GITSTATUS_USE_FULL_BRANCH_NAME=1
+  if [[ -z "${GITSTATUS_USE_FULL_BRANCH_NAME-}" ]]; then
+      (( ${#where} > 32 )) && where="${where:0:12}…${where: -12}"
+  fi
+
   p+="${clean}${where}"
 
   # ⇣42 if behind the remote.
