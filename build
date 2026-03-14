@@ -272,9 +272,9 @@ case "$gitstatus_kernel" in
       gitstatus_cxxflags="$gitstatus_cxxflags -I"$brew_prefix"/opt/libiconv/include"
     fi
     libgit2_cmake_flags="$libgit2_cmake_flags -DUSE_ICONV=ON"
-    gitstatus_ldlibs="$gitstatus_ldlibs -liconv"
+    gitstatus_ldlibs="$gitstatus_ldlibs -liconv -lz"
     gitstatus_ldflags="$gitstatus_ldflags -L${workdir}/lib"
-    libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=OFF"
+    libgit2_cmake_flags="$libgit2_cmake_flags -DENABLE_REPRODUCIBLE_BUILDS=OFF -DUSE_BUNDLED_ZLIB=OFF"
   ;;
   msys*|mingw*)
     gitstatus_ldflags="$gitstatus_ldflags ${static_pie:--static}"
