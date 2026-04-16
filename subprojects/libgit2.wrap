@@ -1,0 +1,5 @@
+[wrap-git]
+url = https://github.com/romkatv/libgit2.git
+revision = tag-2ecf33948a4df9ef45a66c68b8ef24a5e60eaac6
+depth = 1
+method = cmake

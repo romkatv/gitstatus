@@ -524,9 +524,8 @@ above.
 
 ### Compiling for distribution
 
-It's currently neither easy nor recommended to package and distribute gitstatus. There are no
-instructions you can follow that would allow you to easily update your package when new versions of
-gitstatus are released. This may change in the future but not soon.
+Using the Meson build system is recommended. Note that in order to build offline, a checkout of the libgit2 subproject is required. You can use `meson subprojects download` to fetch it manually. The version used here is modified; do not attempt to replace it. The Meson project already tries to use system libraries if possible.
+When packaging gitstatus, make sure to add `GITSTATUS_DAEMON` to the shell profile (set to the install path of `gitstatusd`) so that the shell bindings can find it.
 
 ## License
 

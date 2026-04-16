@@ -38,7 +38,7 @@ zwc:
 	$(or $(ZSH),:) -fc 'for f in *.zsh install; do zcompile -R -- $$f.zwc $$f || exit; done'
 
 minify:
-	rm -rf -- .clang-format .git .gitattributes .gitignore .vscode deps docs src usrbin/.gitkeep LICENSE Makefile README.md build mbuild
+	rm -rf -- .clang-format .git .gitattributes .gitignore .vscode deps docs src usrbin/.gitkeep LICENSE Makefile README.md build mbuild meson.build subprojects
 
 pkg: zwc
 	GITSTATUS_DAEMON= GITSTATUS_CACHE_DIR=$(shell pwd)/usrbin ./install -f
