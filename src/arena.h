@@ -27,6 +27,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "check.h"
 #include "string_view.h"
 
 namespace gitstatus {
@@ -94,6 +95,7 @@ class Arena {
   template <class T>
   inline T* Allocate(size_t n) {
     static_assert(!std::is_reference<T>(), "");
+    CHECK(n <= SIZE_MAX / sizeof(T)) << n;
     return static_cast<T*>(Allocate(n * sizeof(T), alignof(T)));
   }
 
