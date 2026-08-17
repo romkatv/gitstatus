@@ -352,6 +352,7 @@ function gitstatus_stop() {
 #                                   Non-negative integer.
 #   VCS_STATUS_NUM_ASSUME_UNCHANGED The number of files in the index with assume-unchanged bit set.
 #                                   Non-negative integer.
+#   VCS_STATUS_INDEX_DISABLED       Either the -p option was set or the index could not be read.
 #
 # The point of reporting -1 via VCS_STATUS_HAS_* is to allow the command to skip scanning files in
 # large repos. See -m flag of gitstatus_start.
@@ -418,6 +419,7 @@ function gitstatus_query() {
     VCS_STATUS_NUM_ASSUME_UNCHANGED="${resp[26]:-0}"
     VCS_STATUS_COMMIT_ENCODING="${resp[27]-}"
     VCS_STATUS_COMMIT_SUMMARY="${resp[28]-}"
+    VCS_STATUS_INDEX_DISABLED="${resp[29]-}"
     VCS_STATUS_HAS_STAGED=$((VCS_STATUS_NUM_STAGED > 0))
     if (( _GITSTATUS_DIRTY_MAX_INDEX_SIZE >= 0 &&
           VCS_STATUS_INDEX_SIZE > _GITSTATUS_DIRTY_MAX_INDEX_SIZE_ )); then
