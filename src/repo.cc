@@ -277,7 +277,6 @@ void Repo::StartDirtyScan(const std::vector<const char*>& paths) {
   } else {
     opt.flags |= GIT_DIFF_ENABLE_FAST_UNTRACKED_DIRS;
   }
-  opt.ignore_submodules = GIT_SUBMODULE_IGNORE_DIRTY;
   opt.notify_cb = +[](const git_diff* diff, const git_diff_delta* delta,
                       const char* matched_pathspec, void* payload) -> int {
     if (delta->status == GIT_DELTA_CONFLICTED) return GIT_DIFF_DELTA_DO_NOT_INSERT;
