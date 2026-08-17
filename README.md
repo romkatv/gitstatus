@@ -13,14 +13,14 @@ Bash bindings for integration with shell.
 ## Table of Contents
 
 1. [Using from Zsh](#using-from-zsh)
-1. [Using from Bash](#using-from-bash)
-2. [Using from other shells](#using-from-other-shells)
-1. [How it works](#how-it-works)
-1. [Benchmarks](#benchmarks)
-1. [Why fast](#why-fast)
-1. [Requirements](#requirements)
-1. [Compiling](#compiling)
-1. [License](#license)
+2. [Using from Bash](#using-from-bash)
+3. [Using from other shells](#using-from-other-shells)
+4. [How it works](#how-it-works)
+5. [Benchmarks](#benchmarks)
+6. [Why fast](#why-fast)
+7. [Requirements](#requirements)
+8. [Compiling](#compiling)
+9. [License](#license)
 
 ## Using from Zsh
 
@@ -29,8 +29,7 @@ with it. For example, [Powerlevel10k](https://github.com/romkatv/powerlevel10k) 
 fast theme with first-class gitstatus integration. If you install Powerlevel10k, you don't need to
 install gitstatus.
 
-![Powerlevel10k Zsh Theme](
-  https://raw.githubusercontent.com/romkatv/powerlevel10k-media/master/prompt-styles-high-contrast.png)
+![Powerlevel10k Zsh Theme](https://raw.githubusercontent.com/romkatv/powerlevel10k-media/master/prompt-styles-high-contrast.png)
 
 For those who wish to use gitstatus without a theme, there is
 [gitstatus.prompt.zsh](gitstatus.prompt.zsh). Install it as follows:
@@ -40,7 +39,7 @@ git clone --depth=1 https://github.com/romkatv/gitstatus.git ~/gitstatus
 echo 'source ~/gitstatus/gitstatus.prompt.zsh' >>! ~/.zshrc
 ```
 
-Users in China can use the official mirror on gitee.com for faster download.<br>
+Users in China can use the official mirror on gitee.com for faster download.`<br>`
 中国大陆用户可以使用 gitee.com 上的官方镜像加速下载.
 
 ```zsh
@@ -74,21 +73,21 @@ RPROMPT='$GITSTATUS_PROMPT'  # right prompt: git status
 
 The expansion of `${GITSTATUS_PROMPT}` can contain the following bits:
 
-| segment     |  meaning                                              |
-|-------------|-------------------------------------------------------|
-| `master`    | current branch                                        |
-| `#v1`       | HEAD is tagged with `v1`; not shown when on a branch  |
-| `@5fc6fca4` | current commit; not shown when on a branch or tag     |
-| `⇣1`        | local branch is behind the remote by 1 commit         |
-| `⇡2`        | local branch is ahead of the remote by 2 commits      |
-| `⇠3`        | local branch is behind the push remote by 3 commits   |
-| `⇢4`        | local branch is ahead of the push remote by 4 commits |
-| `*5`        | there are 5 stashes                                   |
-| `merge`     | merge is in progress (could be some other action)     |
-| `~6`        | there are 6 merge conflicts                           |
-| `+7`        | there are 7 staged changes                            |
-| `!8`        | there are 8 unstaged changes                          |
-| `?9`        | there are 9 untracked files                           |
+| segment       | meaning                                                |
+| ------------- | ------------------------------------------------------ |
+| `master`    | current branch                                         |
+| `#v1`       | HEAD is tagged with `v1`; not shown when on a branch |
+| `@5fc6fca4` | current commit; not shown when on a branch or tag      |
+| `⇣1`       | local branch is behind the remote by 1 commit          |
+| `⇡2`       | local branch is ahead of the remote by 2 commits       |
+| `⇠3`       | local branch is behind the push remote by 3 commits    |
+| `⇢4`       | local branch is ahead of the push remote by 4 commits  |
+| `*5`        | there are 5 stashes                                    |
+| `merge`     | merge is in progress (could be some other action)      |
+| `~6`        | there are 6 merge conflicts                            |
+| `+7`        | there are 7 staged changes                             |
+| `!8`        | there are 8 unstaged changes                           |
+| `?9`        | there are 9 untracked files                            |
 
 `$GITSTATUS_PROMPT_LEN` tells you how long `$GITSTATUS_PROMPT` is when printed to the console.
 [gitstatus.prompt.zsh](gitstatus.prompt.zsh) has an example of using it to truncate the current
@@ -141,7 +140,7 @@ git clone --depth=1 https://github.com/romkatv/gitstatus.git ~/gitstatus
 echo 'source ~/gitstatus/gitstatus.prompt.sh' >> ~/.bashrc
 ```
 
-Users in China can use the official mirror on gitee.com for faster download.<br>
+Users in China can use the official mirror on gitee.com for faster download.`<br>`
 中国大陆用户可以使用 gitee.com 上的官方镜像加速下载.
 
 ```bash
@@ -162,8 +161,7 @@ in all code snippets below.)
 This will give you a basic yet functional prompt with git status in it. It's
 [over 10x faster](#benchmarks) than any alternative that can give you comparable prompt.
 
-![Bash Prompt with GitStatus](
-  https://raw.githubusercontent.com/romkatv/gitstatus/1ac366952366d89980b3f3484f270b4fa5ae4293/bash-prompt.png)
+![Bash Prompt with GitStatus](https://raw.githubusercontent.com/romkatv/gitstatus/1ac366952366d89980b3f3484f270b4fa5ae4293/bash-prompt.png)
 
 In order to customize your prompt, set `PS1` at the end of `~/.bashrc` after sourcing
 `gitstatus.prompt.sh`. Insert `${GITSTATUS_PROMPT}` where you want git status to go. For example:
@@ -176,21 +174,21 @@ PS1='\w ${GITSTATUS_PROMPT}\n\$ ' # directory followed by git status and $/# (no
 
 The expansion of `${GITSTATUS_PROMPT}` can contain the following bits:
 
-| segment     |  meaning                                              |
-|-------------|-------------------------------------------------------|
-| `master`    | current branch                                        |
-| `#v1`       | HEAD is tagged with `v1`; not shown when on a branch  |
-| `@5fc6fca4` | current commit; not shown when on a branch or tag     |
-| `⇣1`        | local branch is behind the remote by 1 commit         |
-| `⇡2`        | local branch is ahead of the remote by 2 commits      |
-| `⇠3`        | local branch is behind the push remote by 3 commits   |
-| `⇢4`        | local branch is ahead of the push remote by 4 commits |
-| `*5`        | there are 5 stashes                                   |
-| `merge`     | merge is in progress (could be some other action)     |
-| `~6`        | there are 6 merge conflicts                           |
-| `+7`        | there are 7 staged changes                            |
-| `!8`        | there are 8 unstaged changes                          |
-| `?9`        | there are 9 untracked files                           |
+| segment       | meaning                                                |
+| ------------- | ------------------------------------------------------ |
+| `master`    | current branch                                         |
+| `#v1`       | HEAD is tagged with `v1`; not shown when on a branch |
+| `@5fc6fca4` | current commit; not shown when on a branch or tag      |
+| `⇣1`       | local branch is behind the remote by 1 commit          |
+| `⇡2`       | local branch is ahead of the remote by 2 commits       |
+| `⇠3`       | local branch is behind the push remote by 3 commits    |
+| `⇢4`       | local branch is ahead of the push remote by 4 commits  |
+| `*5`        | there are 5 stashes                                    |
+| `merge`     | merge is in progress (could be some other action)      |
+| `~6`        | there are 6 merge conflicts                            |
+| `+7`        | there are 7 staged changes                             |
+| `!8`        | there are 8 unstaged changes                           |
+| `?9`        | there are 9 untracked files                            |
 
 If you'd like to change the format of git status, or want to have greater control over the
 process of assembling `PS1`, you can copy and modify parts of
@@ -278,11 +276,11 @@ Two commands were benchmarked: `status` and `describe`.
 
 In this benchmark all tools were computing the equivalent of `git status`. Lower numbers are better.
 
-| Tool          |      Cold  |         Hot |
-|---------------|-----------:|------------:|
+| Tool                |             Cold |               Hot |
+| ------------------- | ---------------: | ----------------: |
 | **gitstatus** | **291 ms** | **30.9 ms** |
-| git           |     876 ms |      295 ms |
-| lg2           |    1730 ms |     1310 ms |
+| git                 |           876 ms |            295 ms |
+| lg2                 |          1730 ms |           1310 ms |
 
 gitstatusd is substantially faster than the alternatives, especially on hot runs. Note that hot runs
 are of primary importance to the main use case of gitstatus in interactive shells.
@@ -298,11 +296,11 @@ shown.
 In this benchmark all tools were computing the equivalent of `git describe --tags --exact-match`
 to find tags that resolve to the same commit as `HEAD`. Lower numbers are better.
 
-| Tool          |       Cold  |           Hot |
-|---------------|------------:|--------------:|
+| Tool                |              Cold |                 Hot |
+| ------------------- | ----------------: | ------------------: |
 | **gitstatus** | **4.04 ms** | **0.0345 ms** |
-| git           |     18.0 ms |       14.5 ms |
-| lg2           |      185 ms |       45.2 ms |
+| git                 |           18.0 ms |             14.5 ms |
+| lg2                 |            185 ms |             45.2 ms |
 
 gitstatusd is once again faster than the alternatives, more so on hot runs.
 
@@ -329,11 +327,11 @@ Under the benchmark conditions described above, the equivalent of libgit2's
 gitstatusd. The speedup comes from the following sources.
 
 * gitstatusd uses more efficient data structures and algorithms and employs performance-conscious
-coding style throughout the codebase. This reduces CPU time in userspace by 32x compared to libgit2.
+  coding style throughout the codebase. This reduces CPU time in userspace by 32x compared to libgit2.
 * gitstatusd uses less expensive system calls and makes fewer of them. This reduces CPU time spent
-in kernel by 1.9x.
+  in kernel by 1.9x.
 * gitstatusd can utilize multiple cores to scan index and workdir in parallel with almost perfect
-scaling. This reduces total run time by 12.4x while having virtually no effect on total CPU time.
+  scaling. This reduces total run time by 12.4x while having virtually no effect on total CPU time.
 
 ### Problem statement
 
@@ -343,7 +341,7 @@ repository with their last modification times. This is an obvious simplification
 this exposition. On disk, index is stored sorted by file path. Here's an example of git index:
 
 | File        | Last modification time |
-|-------------|-----------------------:|
+| ----------- | ---------------------: |
 | Makefile    |   2019-04-01T14:12:32Z |
 | src/hello.c |   2019-04-01T14:12:00Z |
 | src/hello.h |   2019-04-01T14:12:32Z |
@@ -363,8 +361,7 @@ form of work directory traversal.
 Let's see how `git_diff_index_to_workdir` from libgit2 accomplishes these tasks. Here's its CPU
 profile from 200 hot runs over chromium repository.
 
-![libgit2 CPU profile (hot)](
-  https://raw.githubusercontent.com/romkatv/gitstatus/1ac366952366d89980b3f3484f270b4fa5ae4293/cpu-profile-libgit2.png)
+![libgit2 CPU profile (hot)](https://raw.githubusercontent.com/romkatv/gitstatus/1ac366952366d89980b3f3484f270b4fa5ae4293/cpu-profile-libgit2.png)
 
 (The CPU profile was created with [gperftools](https://github.com/gperftools/gperftools) and
 rendered with [pprof](https://github.com/google/pprof)).
@@ -377,8 +374,7 @@ strings, sorting arrays, etc.
 
 Now let's take a look at the CPU profile of gitstatusd on the same task.
 
-![gitstatusd CPU profile (hot)](
-  https://raw.githubusercontent.com/romkatv/gitstatus/1ac366952366d89980b3f3484f270b4fa5ae4293/cpu-profile-gitstatusd-hot.png)
+![gitstatusd CPU profile (hot)](https://raw.githubusercontent.com/romkatv/gitstatus/1ac366952366d89980b3f3484f270b4fa5ae4293/cpu-profile-gitstatusd-hot.png)
 
 The first impression is that this profile looks pruned. This isn't an artifact. The profile was
 generated with the same tools and the same flags as the profile of libgit2.
@@ -433,8 +429,7 @@ To summarize, here's what gitstatusd was doing when the CPU profile was captured
 
 Here's how the very first scan of a repository looks like in gitstatusd:
 
-![gitstatusd CPU profile (cold)](
-  https://raw.githubusercontent.com/romkatv/gitstatus/1ac366952366d89980b3f3484f270b4fa5ae4293/cpu-profile-gitstatusd-cold.png)
+![gitstatusd CPU profile (cold)](https://raw.githubusercontent.com/romkatv/gitstatus/1ac366952366d89980b3f3484f270b4fa5ae4293/cpu-profile-gitstatusd-cold.png)
 
 (Some glibc functions are mislabel on this profile. `explicit_bzero` and `__nss_passwd_lookup` are
 in reality `strcmp` and `memcmp`.)
@@ -482,8 +477,7 @@ _WARNING: Changes to libgit2 are extensive but the testing they underwent isn't.
 
 ## Compiling
 
-There are prebuilt `gitstatusd` binaries in [releases](
-  https://github.com/romkatv/gitstatus/releases). When using the official shell bindings
+There are prebuilt `gitstatusd` binaries in [releases](https://github.com/romkatv/gitstatus/releases). When using the official shell bindings
 provided by gitstatus, the right binary for your architecture gets downloaded automatically.
 
 If prebuilt binaries don't work for you, you'll need to get your hands dirty.
@@ -496,7 +490,7 @@ cd gitstatus
 ./build -w -s -d docker
 ```
 
-Users in China can use the official mirror on gitee.com for faster download.<br>
+Users in China can use the official mirror on gitee.com for faster download.`<br>`
 中国大陆用户可以使用 gitee.com 上的官方镜像加速下载.
 
 ```zsh
@@ -512,6 +506,56 @@ cd gitstatus
 
 If everything goes well, the newly built binary will appear in `./usrbin`. It'll be picked up
 by shell bindings automatically.
+
+### Termux (Android)
+
+On Android/Termux, prebuilt Linux binaries may be incompatible. This repository includes a helper
+script to build `gitstatusd` in Termux. From the repository root run:
+
+```sh
+bash scripts/termux-build.sh "$PWD" "$HOME/local"
+```
+
+The script:
+
+- Installs required Termux packages
+- Builds a patched `libgit2` from `romkatv/libgit2`
+- Compiles `gitstatusd` with the correct version flag from `build.info`
+- Produces the binary in `./usrbin`
+- Installs the binary to `$HOME/local/bin/gitstatusd`
+
+After a successful build, make the install permanent by exporting the binary path in your shell startup and sourcing the plugin:
+
+```sh
+export PATH="$HOME/local/bin:$PATH"
+export GITSTATUS_DAEMON="$HOME/local/bin/gitstatusd"
+source "$HOME/gitstatus/gitstatus.plugin.zsh"
+gitstatus_stop MY 2>/dev/null || true
+gitstatus_start -t 5 MY
+```
+
+Add that block to `~/.zshrc` or `~/.bashrc` to keep the build available in every shell.
+
+**Manual build (if not using the helper script):**
+
+```sh
+# Build libgit2 first
+git clone https://github.com/romkatv/libgit2.git ~/libgit2
+cd ~/libgit2 && mkdir build && cd build
+cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DBUILD_CLAR=OFF -DUSE_SSH=OFF -DCMAKE_INSTALL_PREFIX="$HOME/local" ..
+make -j$(nproc) && make install
+
+# Build gitstatus
+export PKG_CONFIG_PATH="$HOME/local/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+export LD_LIBRARY_PATH="$HOME/local/lib:${LD_LIBRARY_PATH:-}"
+cd ~/gitstatus
+make clean
+make CXX=clang++ \
+     CXXFLAGS="-I$HOME/local/include -DGITSTATUS_VERSION=v1.5.5" \
+     LDFLAGS="-L$HOME/local/lib" \
+     LDLIBS="-lgit2 -lcrypto -lssl -lz -lunwind" \
+     -j8
+```
 
 When you update shell bindings, they may refuse to work with the binary you've built earlier. In
 this case you'll need to rebuild.
