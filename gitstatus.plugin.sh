@@ -97,14 +97,25 @@ function gitstatus_start() {
     local uname_s="${uname_sm% *}"
     local uname_m="${uname_sm#* }"
 
+    if [[ "$uname_s" == linux ]]; then
+      local uname_a
+      if uname_a="$(command uname -a 2>/dev/null)" && [[ "$uname_a" == *Android* ]]; then
+        uname_s=android
+      fi
+    fi
+
     if [[ "${GITSTATUS_NUM_THREADS:-0}" -gt 0 ]]; then
       local threads="$GITSTATUS_NUM_THREADS"
     else
       local cpus
       if ! command -v sysctl &>/dev/null || [[ "$uname_s" == linux ]] ||
-         ! cpus="$(command sysctl -n hw.ncpu)"; then
-        if ! command -v getconf &>/dev/null || ! cpus="$(command getconf _NPROCESSORS_ONLN)"; then
-          cpus=8
+         ! cpus="$(command sysctl -n hw.ncpu 2>/dev/null)"; then
+        if ! command -v getconf &>/dev/null || ! cpus="$(command getconf _NPROCESSORS_ONLN 2>/dev/null)"; then
+          if command -v nproc &>/dev/null && nproc >/dev/null 2>&1; then
+            cpus="$(command nproc)"
+          else
+            cpus=8
+          fi
         fi
       fi
       local threads=$((cpus > 16 ? 32 : cpus > 0 ? 2 * cpus : 16))

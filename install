@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 #
 # This script does not have a stable API.
 
@@ -140,6 +140,13 @@ END
   if [ -z "$uname_m" ]; then
     uname_m="$(command uname -m)" || return
     uname_m="$(printf '%s' "$uname_m" | command tr '[A-Z]' '[a-z]')" || return
+  fi
+
+  if [ "$uname_s" = linux ]; then
+    local uname_a
+    if uname_a="$(command uname -a 2>/dev/null)" && [ "${uname_a#*Android}" != "$uname_a" ]; then
+      uname_s=android
+    fi
   fi
 
   local daemon="${GITSTATUS_DAEMON:-}"
@@ -465,6 +472,31 @@ END
 
   >&"$e" printf 'There is no prebuilt \033[32mgitstatusd\033[0m for \033[1m%s\033[0m.\n' "$uname_s $uname_m"
   >&"$e" printf '\n'
+  if [ "$uname_s" = android ]; then
+    >&"$e" printf 'Android support for this architecture requires a locally built gitstatusd.\n'
+    >&"$e" printf 'Build from source and set \033[32mGITSTATUS_DAEMON\033[0m to the executable.\n'
+    >&"$e" printf '\n'
+    # If the Termux helper script exists, offer to run it interactively
+    if [ -x "$gitstatus_dir/scripts/termux-build.sh" ] && [ -t 0 ]; then
+      >&"$e" printf 'This repository includes a Termux build helper: %s/scripts/termux-build.sh\n' "$gitstatus_dir"
+      >&"$e" printf 'Would you like to run it now to build gitstatusd locally? [Y/n] '
+      IFS= read -r _ans || _ans=n
+      case "$_ans" in
+        ''|[Yy]|[Yy][Ee][Ss])
+          command chmod +x -- "$gitstatus_dir/scripts/termux-build.sh" 2>/dev/null || true
+          if bash "$gitstatus_dir/scripts/termux-build.sh" "$gitstatus_dir" "$HOME/local"; then
+            if [ -x "$gitstatus_dir/usrbin/gitstatusd" ]; then
+              daemon="$gitstatus_dir/usrbin/gitstatusd"
+              _gitstatus_install_daemon_found 1 "$@"
+              return
+            fi
+          fi
+          ;;
+        *) ;;
+      esac
+      >&"$e" printf '\n'
+    fi
+  fi
   >&"$e" printf 'See: \033[4mhttps://github.com/romkatv/gitstatus#compiling\033[0m\n'
   return 1
 }
