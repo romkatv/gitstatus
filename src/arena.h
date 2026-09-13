@@ -27,6 +27,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "check.h"
 #include "string_view.h"
 
 namespace gitstatus {
@@ -94,6 +95,7 @@ class Arena {
   template <class T>
   inline T* Allocate(size_t n) {
     static_assert(!std::is_reference<T>(), "");
+    CHECK(n <= SIZE_MAX / sizeof(T)) << n;
     return static_cast<T*>(Allocate(n * sizeof(T), alignof(T)));
   }
 
@@ -149,7 +151,7 @@ class Arena {
     return DirectInit<std::remove_const_t<std::remove_reference_t<T>>>(std::forward<T>(val));
   }
 
-  // The same as `new T{args...}` but on the arena.
+  // The same as `new T(args...)` but on the arena.
   template <class T, class... Args>
   inline T* DirectInit(Args&&... args) {
     T* res = Allocate<T>();
@@ -157,7 +159,7 @@ class Arena {
     return res;
   }
 
-  // The same as `new T(args...)` but on the arena.
+  // The same as `new T{args...}` but on the arena.
   template <class T, class... Args>
   inline T* BraceInit(Args&&... args) {
     T* res = Allocate<T>();
@@ -192,7 +194,6 @@ class Arena {
   inline static size_t Align(size_t n, size_t m) { return (n + m - 1) & ~(m - 1); };
 
   void AddBlock(size_t size, size_t alignment);
-  bool ReuseBlock(size_t size, size_t alignment);
 
   __attribute__((noinline)) void* AllocateSlow(size_t size, size_t alignment);
 
