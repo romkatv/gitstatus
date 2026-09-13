@@ -100,6 +100,25 @@ git_refdb* RefDb(git_repository* repo) {
   return res;
 }
 
+std::string GetGlobalRepoPath(git_repository* repo) {
+  std::string dirname = git_repository_path(repo);
+  if (git_repository_is_worktree(repo)) {
+    // Unfortunately, to strip the worktrees/* suffix, we cannot
+    // simply do:
+    //
+    //     dirname.resize(dirname.rfind(".git/worktrees/") + ".git/"s.size());
+    //
+    // since the repository could be a submodule. In that case the
+    // global git-dir path does not end in .git, but rather depends on
+    // the path that the repo (i.e. submodule) has in the
+    // superproject.
+    auto pos = dirname.find_last_of('/', dirname.size() - 2);
+    dirname.resize(pos - "worktrees"s.size());
+  }
+
+  return dirname;
+}
+
 }  // namespace
 
 TagDb::TagDb(git_repository* repo)
@@ -151,7 +170,7 @@ void TagDb::ReadLooseTags() {
   loose_tags_.clear();
   loose_arena_.Reuse();
 
-  std::string dirname = git_repository_path(repo_) + "refs/tags"s;
+  std::string dirname = GetGlobalRepoPath(repo_) + "refs/tags"s;
   int dir_fd = open(dirname.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
   if (dir_fd < 0) return;
   ON_SCOPE_EXIT(&) { CHECK(!close(dir_fd)) << Errno(); };
@@ -175,7 +194,7 @@ void TagDb::UpdatePack() {
     std::memset(&pack_stat_, 0, sizeof(pack_stat_));
   };
 
-  std::string pack_path = git_repository_path(repo_) + "packed-refs"s;
+  std::string pack_path = GetGlobalRepoPath(repo_) + "packed-refs"s;
   struct stat st;
   if (stat(pack_path.c_str(), &st)) {
     Reset();
