@@ -152,7 +152,10 @@ IndexStats Repo::GetIndexStats(const git_oid* head, git_config* cfg) {
       index_.reset();
     }
   } else {
-    VERIFY(!git_repository_index(&git_index_, repo_)) << GitError();
+    if (git_repository_index(&git_index_, repo_)) {
+      // Can't read index, proceed as if index computations are disabled
+      return {.disabled = true};
+    }
     // Query an attribute (doesn't matter which) to initialize repo's attribute
     // cache. It's a workaround for synchronization bugs (data races) in libgit2
     // that result from lazy cache initialization without synchronization.
@@ -239,7 +242,8 @@ IndexStats Repo::GetIndexStats(const git_oid* head, git_config* cfg) {
           .num_staged_deleted = std::min(Load(staged_deleted_), num_staged),
           .num_unstaged_deleted = std::min(Load(unstaged_deleted_), num_unstaged),
           .num_skip_worktree = Load(skip_worktree_),
-          .num_assume_unchanged = Load(assume_unchanged_)};
+          .num_assume_unchanged = Load(assume_unchanged_),
+          .disabled = false};
 }
 
 int Repo::OnDelta(const char* type, const git_diff_delta& d, std::atomic<size_t>& c1, size_t m1,
