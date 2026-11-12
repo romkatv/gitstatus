@@ -229,6 +229,16 @@ script that uses these bindings to assemble git prompt.
 
 Note: Bash bindings, unlike Zsh bindings, don't support asynchronous calls.
 
+Note: Even the above customization method won't prevent gitstatus from truncating the branch name
+that is displayed in the prompt. To disable truncation, add this line in your `.bashrc` before
+sourcing any gitstatus script:
+
+```bash
+export GITSTATUS_USE_FULL_BRANCH_NAME=1
+```
+
+This method will work for both customized prompts, and the default prompt.
+
 ## Using from other shells
 
 If there are no gitstatusd bindings for your shell, you'll need to get your hands dirty.
